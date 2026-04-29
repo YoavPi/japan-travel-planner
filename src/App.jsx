@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
+import { Analytics } from "@vercel/analytics/react";
 import MapComponent from "./components/MapComponent";
 import ItineraryList from "./components/ItineraryList";
 import DetailModal from "./components/DetailModal";
@@ -253,6 +254,9 @@ const App = () => {
           }
         `}</style>
       )}
+
+      {/* Vercel Web Analytics */}
+      <Analytics />
     </div>
   );
 };
