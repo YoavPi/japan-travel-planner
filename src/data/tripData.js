@@ -193,9 +193,8 @@ const tripData = [
     coordinates: { lng: 135.7681, lat: 35.0116 },
     attractions: [
       { name: "Maruyama Park", nameJa: "円山公園", nameHe: "גן מריומה", desc: "גן יפה, מקדשים", coordinates: { lng: 135.7808, lat: 35.0033 } },
-      { name: "GION DUCK", nameJa: "ぎをん鴨川", nameHe: "גיון דאק (ברווז)", desc: "ראמן מבוסס ציר ברווז עדין ומיוחד עם סוגים שונים של יוזו. ציון: 9/10", coordinates: { lng: 135.7756, lat: 35.0036 } },
     ],
-    lunch: { place: "Musubi", nameJa: "むすび", nameHe: "מוסובי (מסעדת קיוטו)", desc: "נחמד", rating: "7/10", coordinates: { lng: 135.7823529, lat: 35.0109858 } },
+    lunch: { place: "GION DUCK", nameJa: "ぎをん鴨川", nameHe: "גיון דאק (ברווז)", desc: "ראמן מבוסס ציר ברווז עדין ומיוחד עם סוגים שונים של יוזו. ציון: 9/10", rating: "9/10", coordinates: { lng: 135.7756, lat: 35.0036 } },
     dinner: { place: "Gyoza Motoi", nameJa: "餃子もとい", nameHe: "גיוזה מוטוי", desc: "מסעדת גיוזה מומלצת מישלן, מעט יקרה. ציון: 8/10", rating: "8/10", coordinates: { lng: 135.7615, lat: 35.0060 } },
     tips: ["Gyoza Motoi — מישלן, שווה", "גן מריומה — יפה מאוד"],
     hotel: "Hotel Resol Kyoto Shijo Muromachi", expenses: { accommodation: "2,600 ₪ (5 לילות)", highlights: "Gyoza Motoi, גן מריומה" }, images: [],
