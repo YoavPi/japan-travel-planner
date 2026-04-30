@@ -43,6 +43,27 @@ const getCityColor = (city) => {
   return CITY_COLORS[base] || CITY_COLORS[city] || { bg: "#D94025", text: "#fff", border: "#B8331E", light: "#FEF0EE" };
 };
 
+/* ── City flyTo anchors (Google-Maps-verified central points) ──
+   Used when the user clicks a city pill with no category filter.
+   These override the geometric centroid (which drifted toward
+   wherever the trip happened to cluster, e.g. Roppongi for Tokyo).
+   Each entry is the canonical "downtown" the user expects to see. */
+const CITY_CENTERS = {
+  "Tokyo":             { lng: 139.7454, lat: 35.6586, zoom: 12 },   // Tokyo Tower / central
+  "Tokyo Disney":      { lng: 139.8804, lat: 35.6329, zoom: 13.5 }, // Tokyo Disney Resort
+  "Tokyo DisneySea":   { lng: 139.8884, lat: 35.6267, zoom: 14 },   // DisneySea park centre
+  "Kanazawa":          { lng: 136.6562, lat: 36.5613, zoom: 13 },   // Kanazawa Station
+  "Takayama":          { lng: 137.2531, lat: 36.1404, zoom: 14 },   // Old town
+  "Matsumoto":         { lng: 137.9721, lat: 36.2381, zoom: 13.5 }, // Matsumoto Castle
+  "Nagoya":            { lng: 136.9066, lat: 35.1815, zoom: 12.5 }, // Nagoya Station
+  "Osaka":             { lng: 135.5023, lat: 34.6937, zoom: 12 },   // Umeda
+  "Osaka Universal":   { lng: 135.4323, lat: 34.6655, zoom: 14 },   // USJ
+  "Nara":              { lng: 135.8048, lat: 34.6851, zoom: 14 },   // Nara Park
+  "Kyoto":             { lng: 135.7681, lat: 35.0116, zoom: 12.5 }, // Central Kyoto
+  "Kawaguchiko":       { lng: 138.7529, lat: 35.5172, zoom: 13 },   // Lake Kawaguchi
+  "Hakone":            { lng: 139.0261, lat: 35.2326, zoom: 12.5 }, // Hakone-Yumoto
+};
+
 /* ══════════════════════════════════════════════
    CUSTOM SVG MARKER — Minimalist Torii-inspired pin
    ══════════════════════════════════════════════ */
@@ -325,18 +346,29 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
       return;
     }
 
-    // City-only selection (no category) → cinematic flyTo to city
-    // centroid at zoom 12.5 instead of fitBounds. Gives a consistent
-    // "drop into the city" feel rather than a mechanical bbox fit.
+    // City-only selection (no category) → cinematic flyTo to a
+    // hand-picked city anchor (CITY_CENTERS). Falls back to centroid
+    // if the city isn't in the map (forward-compat for new cities).
     if (activeCity && !activeFilter) {
-      const avgLng = coords.reduce((s, c) => s + c[0], 0) / coords.length;
-      const avgLat = coords.reduce((s, c) => s + c[1], 0) / coords.length;
-      mapRef.current.flyTo({
-        center: [avgLng, avgLat],
-        zoom: 12.5,
-        duration: 1500,
-        essential: true,
-      });
+      const baseCityKey = activeCity.split("#")[0];
+      const anchor = CITY_CENTERS[baseCityKey];
+      if (anchor) {
+        mapRef.current.flyTo({
+          center: [anchor.lng, anchor.lat],
+          zoom: anchor.zoom,
+          duration: 1500,
+          essential: true,
+        });
+      } else {
+        const avgLng = coords.reduce((s, c) => s + c[0], 0) / coords.length;
+        const avgLat = coords.reduce((s, c) => s + c[1], 0) / coords.length;
+        mapRef.current.flyTo({
+          center: [avgLng, avgLat],
+          zoom: 12.5,
+          duration: 1500,
+          essential: true,
+        });
+      }
       return;
     }
 
