@@ -24,7 +24,11 @@ body {
   font-family: "Noto Sans JP", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #D94025;
+  /* Soft cream background — the visible "frame" around the app is now
+     a thin 1.5px vermillion border on the inner panel rather than a
+     thick saturated padding. Keeps the Modern Japan feel while
+     letting content breathe. */
+  background-color: #FAF6E8;
 }
 
 /* Custom scrollbar — warm tones */
@@ -42,11 +46,13 @@ body {
   background-color: #D94025;
 }
 
-/* Hide scrollbar for pills */
-.scrollbar-hide::-webkit-scrollbar {
+/* Hide scrollbar for pills (alias .scrollbar-none kept for legacy) */
+.scrollbar-hide::-webkit-scrollbar,
+.scrollbar-none::-webkit-scrollbar {
   display: none;
 }
-.scrollbar-hide {
+.scrollbar-hide,
+.scrollbar-none {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }

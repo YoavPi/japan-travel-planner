@@ -145,7 +145,10 @@ const AttractionItem = ({ attraction, onSelectLocation, onOpenDetail, dayNum, ci
   const IconComponent = getActivityIcon(attraction.name);
   const photo = getLocationPhoto(attraction.name);
 
-  // Sidebar → Map sync: every "open card" action also focuses the map on this marker.
+  // Sidebar → Map sync: clicking the row only focuses the map and lets
+  // the map's own popup tooltip handle preview. The full DetailModal
+  // is reachable from inside that popup ("View Details" button) so the
+  // sidebar click stays lightweight and discoverable.
   const handleDetailClick = (e) => {
     e.stopPropagation();
     if (attraction.coordinates && onSelectLocation) {
@@ -153,21 +156,6 @@ const AttractionItem = ({ attraction, onSelectLocation, onOpenDetail, dayNum, ci
         lng: attraction.coordinates.lng,
         lat: attraction.coordinates.lat,
         name: attraction.name,
-      });
-    }
-    if (onOpenDetail) {
-      onOpenDetail({
-        name: attraction.name,
-        nameJa: attraction.nameJa,
-        nameHe: attraction.nameHe,
-        desc: attraction.desc,
-        day: dayNum,
-        city: city,
-        cityHe: cityHe,
-        category: "attraction",
-        rating: null,
-        coordinates: attraction.coordinates,
-        deepDive: deepDive,
       });
     }
   };
@@ -231,9 +219,9 @@ const AttractionItem = ({ attraction, onSelectLocation, onOpenDetail, dayNum, ci
 const FoodSection = ({ label, labelJa, data, accentColor, bgColor, borderColor, onSelectLocation, onOpenDetail, dayNum, city, cityHe, deepDive }) => {
   if (!data || !data.place || data.place === "—") return null;
 
-  // Single click-handler: focuses the map AND opens the DetailModal.
-  // Bound to the entire card so the user can click anywhere within
-  // its boundaries (not just the name) to see details.
+  // Click only focuses the map on this food spot. The map's popup
+  // surfaces the same info and offers a "View Details" link that
+  // opens the full DetailModal — keeps sidebar clicks lightweight.
   const handleCardClick = (e) => {
     e.stopPropagation();
     if (data.coordinates && onSelectLocation) {
@@ -241,21 +229,6 @@ const FoodSection = ({ label, labelJa, data, accentColor, bgColor, borderColor, 
         lng: data.coordinates.lng,
         lat: data.coordinates.lat,
         name: data.place,
-      });
-    }
-    if (onOpenDetail) {
-      onOpenDetail({
-        name: data.place,
-        nameJa: data.nameJa,
-        nameHe: data.nameHe,
-        desc: data.desc,
-        day: dayNum,
-        city: city,
-        cityHe: cityHe,
-        category: label === "Lunch" ? "lunch" : "dinner",
-        rating: data.rating,
-        coordinates: data.coordinates,
-        deepDive: deepDive,
       });
     }
   };

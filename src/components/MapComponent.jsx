@@ -7,7 +7,7 @@ import Map, {
   NavigationControl,
 } from "react-map-gl/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { tripData, routePath } from "../data/tripData";
+import { tripData, routePath, HOTEL_COORDINATES } from "../data/tripData";
 import { FILTERS, getChronologicalCityPath } from "./ItineraryList";
 import { vibeDescriptions } from "../data/landmarkImages";
 import { CityIllustrations, cityToHeroIllustration, ActivityIcons } from "../data/illustrations";
@@ -150,8 +150,10 @@ const collectFilteredCoords = (filter, cityKey) => {
           coords.push([meal.coordinates.lng, meal.coordinates.lat]);
         }
       });
-      if (day.hotel && day.hotel !== "—" && day.coordinates) {
-        coords.push([day.coordinates.lng, day.coordinates.lat]);
+      if (day.hotel && day.hotel !== "—") {
+        // Prefer canonical hotel pin; fallback to day-centre.
+        const h = HOTEL_COORDINATES[day.hotel] || day.coordinates;
+        if (h) coords.push([h.lng, h.lat]);
       }
       return;
     }
@@ -176,8 +178,9 @@ const collectFilteredCoords = (filter, cityKey) => {
         }
       });
     } else if (filter === "hotels") {
-      if (day.hotel && day.hotel !== "—" && day.coordinates) {
-        coords.push([day.coordinates.lng, day.coordinates.lat]);
+      if (day.hotel && day.hotel !== "—") {
+        const h = HOTEL_COORDINATES[day.hotel] || day.coordinates;
+        if (h) coords.push([h.lng, h.lat]);
       }
     }
   });
@@ -322,6 +325,21 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
       return;
     }
 
+    // City-only selection (no category) → cinematic flyTo to city
+    // centroid at zoom 12.5 instead of fitBounds. Gives a consistent
+    // "drop into the city" feel rather than a mechanical bbox fit.
+    if (activeCity && !activeFilter) {
+      const avgLng = coords.reduce((s, c) => s + c[0], 0) / coords.length;
+      const avgLat = coords.reduce((s, c) => s + c[1], 0) / coords.length;
+      mapRef.current.flyTo({
+        center: [avgLng, avgLat],
+        zoom: 12.5,
+        duration: 1500,
+        essential: true,
+      });
+      return;
+    }
+
     let minLng = coords[0][0], maxLng = coords[0][0];
     let minLat = coords[0][1], maxLat = coords[0][1];
     coords.forEach(([lng, lat]) => {
@@ -343,6 +361,108 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
       { padding, duration: 1400, maxZoom: 14, essential: true }
     );
   }, [activeFilter, activeCity, mapLoaded]);
+
+  /* ─── Category-emoji markers (filter mode) ───
+     When a category filter is active we replace the default day pins
+     with emoji markers that show ONLY items matching the active filter
+     (food / attractions / shopping / hotels). Each marker carries the
+     same payload shape as a sub-location so the existing popup just
+     works. Hotels are deduped by name so the same lodging doesn't
+     appear N times across N consecutive nights.
+     ────────────────────────────────────────── */
+  const categoryMarkers = useMemo(() => {
+    if (!activeFilter) return [];
+    const baseCityKey = activeCity ? activeCity.split("#")[0] : null;
+    const cityMatches = (dayCity) =>
+      !baseCityKey || normalizeCityKey(dayCity) === baseCityKey;
+
+    const items = [];
+    tripData.forEach((day) => {
+      if (!cityMatches(day.city)) return;
+
+      if (activeFilter === "food") {
+        ["lunch", "dinner"].forEach((m) => {
+          const meal = day[m];
+          if (meal && meal.place && meal.place !== "—" && meal.coordinates) {
+            items.push({
+              key: `${day.day}-${m}`,
+              day: day.day,
+              type: m,
+              emoji: "🍜",
+              lng: meal.coordinates.lng,
+              lat: meal.coordinates.lat,
+              name: meal.place,
+              nameJa: meal.nameJa,
+              nameHe: meal.nameHe,
+              desc: meal.desc,
+              rating: meal.rating,
+            });
+          }
+        });
+      } else if (activeFilter === "attractions") {
+        (day.attractions || []).forEach((a, i) => {
+          if (a.coordinates && !isShoppingName(a.name)) {
+            items.push({
+              key: `${day.day}-a-${i}`,
+              day: day.day,
+              type: "attraction",
+              emoji: "⛩️",
+              lng: a.coordinates.lng,
+              lat: a.coordinates.lat,
+              name: a.name,
+              nameJa: a.nameJa,
+              nameHe: a.nameHe,
+              desc: a.desc,
+            });
+          }
+        });
+      } else if (activeFilter === "shopping") {
+        (day.attractions || []).forEach((a, i) => {
+          if (a.coordinates && isShoppingName(a.name)) {
+            items.push({
+              key: `${day.day}-s-${i}`,
+              day: day.day,
+              type: "shopping",
+              emoji: "🛍️",
+              lng: a.coordinates.lng,
+              lat: a.coordinates.lat,
+              name: a.name,
+              nameJa: a.nameJa,
+              nameHe: a.nameHe,
+              desc: a.desc,
+            });
+          }
+        });
+      } else if (activeFilter === "hotels") {
+        if (day.hotel && day.hotel !== "—") {
+          const h = HOTEL_COORDINATES[day.hotel] || day.coordinates;
+          if (h) {
+            items.push({
+              key: `${day.day}-h`,
+              day: day.day,
+              type: "hotel",
+              emoji: "🏨",
+              lng: h.lng,
+              lat: h.lat,
+              name: day.hotel,
+              hotel: day.hotel,
+            });
+          }
+        }
+      }
+    });
+
+    // Dedupe hotels (same lodging across consecutive nights → one pin)
+    if (activeFilter === "hotels") {
+      const seen = new Set();
+      return items.filter((it) => {
+        if (seen.has(it.name)) return false;
+        seen.add(it.name);
+        return true;
+      });
+    }
+    return items;
+  }, [activeFilter, activeCity]);
 
   /* ─── GeoJSON: Main route polyline (city-to-city) ─── */
   const routeGeoJSON = useMemo(
@@ -459,9 +579,14 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
         flyTo and skip popup creation — navigation decoupled from popup. ─── */
   useEffect(() => {
     if (selectedLocation && mapRef.current) {
+      // Extra top padding keeps the popup fully visible — without it,
+      // the marker sits at the geometric centre and the popup (which
+      // anchors to the bottom of the marker and grows upward) gets
+      // clipped by the top edge of the map.
       mapRef.current.flyTo({
         center: [selectedLocation.lng, selectedLocation.lat],
         zoom: 16,
+        padding: { top: 280, bottom: 40, left: 40, right: 40 },
         duration: 1400,
         essential: true,
       });
@@ -577,8 +702,10 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
           </>
         )}
 
-        {/* ─── Day markers (custom SVG) ─── */}
-        {tripData.map((d) => {
+        {/* ─── Day markers (custom SVG) — hidden when a category filter is
+              active because emoji markers (below) take over to keep the
+              map readable. ─── */}
+        {!activeFilter && tripData.map((d) => {
           const isSelected = selectedDay === d.day;
           const isHovered = hoveredDay === d.day;
           const colors = getCityColor(d.city);
@@ -632,6 +759,75 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
           );
         })}
 
+        {/* ─── Category-emoji markers (filter mode) ───
+              Replace the heavier day pins with an emoji-on-cream chip
+              for every item that matches the active filter. Click =
+              same flow as a sub-location click: pin popup + flyTo
+              with extra top padding so the popup stays fully visible. */}
+        {categoryMarkers.map((item) => {
+          const isPinned = pinnedSubLoc && pinnedSubLoc.lng === item.lng && pinnedSubLoc.lat === item.lat;
+          return (
+            <Marker
+              key={`cat-${item.key}`}
+              longitude={item.lng}
+              latitude={item.lat}
+              anchor="bottom"
+              onClick={(e) => {
+                e.originalEvent.stopPropagation();
+                setActivePopupDay(null);
+                setHoveredSubLoc(null);
+                setPinnedSubLoc(item);
+                if (mapRef.current) {
+                  mapRef.current.flyTo({
+                    center: [item.lng, item.lat],
+                    zoom: 15.5,
+                    padding: { top: 280, bottom: 40, left: 40, right: 40 },
+                    duration: 900,
+                    essential: true,
+                  });
+                }
+              }}
+            >
+              <div
+                className="cursor-pointer flex flex-col items-center"
+                style={{
+                  transform: isPinned ? "scale(1.18)" : "scale(1)",
+                  transition: "transform 200ms ease",
+                  filter: isPinned ? "drop-shadow(0 4px 8px rgba(217,64,37,0.4))" : "drop-shadow(0 2px 4px rgba(0,0,0,0.18))",
+                }}
+              >
+                <div
+                  style={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: "50%",
+                    backgroundColor: "#FDFBF5",
+                    border: `2px solid ${isPinned ? "#D94025" : "#E7DFCF"}`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 18,
+                    lineHeight: 1,
+                  }}
+                >
+                  <span role="img" aria-label={item.type}>{item.emoji}</span>
+                </div>
+                {/* Tail */}
+                <div
+                  style={{
+                    width: 0,
+                    height: 0,
+                    borderLeft: "5px solid transparent",
+                    borderRight: "5px solid transparent",
+                    borderTop: `7px solid ${isPinned ? "#D94025" : "#E7DFCF"}`,
+                    marginTop: -1,
+                  }}
+                />
+              </div>
+            </Marker>
+          );
+        })}
+
         {/* ─── Sub-location markers (when a day is expanded) ─── */}
         {subLocations.map((loc, idx) => {
           const isPinned = pinnedSubLoc && Math.abs(pinnedSubLoc.lng - loc.lng) < 0.0001 && Math.abs(pinnedSubLoc.lat - loc.lat) < 0.0001;
@@ -649,6 +845,7 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
                   mapRef.current.flyTo({
                     center: [loc.lng, loc.lat],
                     zoom: 16,
+                    padding: { top: 280, bottom: 40, left: 40, right: 40 },
                     duration: 900,
                     essential: true,
                   });
@@ -716,6 +913,7 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
                   mapRef.current.flyTo({
                     center: [bullet.lng, bullet.lat],
                     zoom: 16,
+                    padding: { top: 280, bottom: 40, left: 40, right: 40 },
                     duration: 1000,
                     essential: true,
                   });
@@ -1046,6 +1244,40 @@ const DayInfoCard = ({ data, onSelectBullet }) => {
             </div>
             {data.dinner.coordinates && onSelectBullet && (
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#D94025" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0, opacity: 0.7 }}>
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
+            )}
+          </Bullet>
+        )}
+
+        {/* ── Hotel row — quick view of the day's lodging.
+              Click flies to the canonical hotel pin (or day-centre fallback). */}
+        {data.hotel && data.hotel !== "—" && (
+          <Bullet
+            onClick={onSelectBullet ? () => {
+              const h = HOTEL_COORDINATES[data.hotel] || data.coordinates;
+              onSelectBullet({
+                name: data.hotel,
+                type: "hotel",
+                lng: h.lng,
+                lat: h.lat,
+                day: data.day,
+              });
+            } : null}
+          >
+            <div style={{
+              width: "24px", height: "24px", borderRadius: "5px", border: "1px solid #DCE5D0",
+              backgroundColor: "#F2F5ED", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+              fontSize: "13px",
+            }}>
+              🏨
+            </div>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <span style={{ fontSize: "8px", fontWeight: 800, color: "#5C7A2E", textTransform: "uppercase", letterSpacing: "0.5px", fontFamily: "Montserrat" }}>Hotel ホテル</span>
+              <span style={{ fontSize: "11px", fontWeight: 600, color: "#292524", display: "block", lineHeight: 1.25 }}>{data.hotel}</span>
+            </div>
+            {onSelectBullet && (
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#5C7A2E" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0, opacity: 0.7 }}>
                 <polyline points="9 18 15 12 9 6"/>
               </svg>
             )}

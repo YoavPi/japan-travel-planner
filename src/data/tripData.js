@@ -431,7 +431,26 @@ const tripData = [
       is used as a fallback. Entries here override that fallback with the
       real lodging pin (source: user-verified Google Maps URL).           */
 const HOTEL_COORDINATES = {
-  "Act Hotel Roppongi": { lng: 139.7294462, lat: 35.6624377 },
+  // Tokyo (Roppongi) — user-verified Google Maps URL
+  "Act Hotel Roppongi":               { lng: 139.7294462, lat: 35.6624377 },
+  // Tokyo Disney area (Maihama)
+  "HOTEL MYSTAYS Maihama":            { lng: 139.8780,    lat: 35.6477 },
+  // Kanazawa (near Kanazawa Station east side)
+  "Hotel Kanazawa Zoushi":            { lng: 136.6504,    lat: 36.5774 },
+  // Takayama (near Takayama Station)
+  "Residence Hotel Takayama Station": { lng: 137.2530,    lat: 36.1430 },
+  // Matsumoto (near station)
+  "Tabino Hotel lit Matsumoto":       { lng: 137.9693,    lat: 36.2336 },
+  // Nagoya (near station / Meieki area)
+  "Daiwa Roynet Hotel Nagoya":        { lng: 136.8841,    lat: 35.1709 },
+  // Osaka (Shinsaibashi/Namba area)
+  "Granbell Hotel Osaka":             { lng: 135.5022,    lat: 34.6716 },
+  // Kyoto (Shijo Muromachi)
+  "Hotel Resol Kyoto Shijo Muromachi":{ lng: 135.7591,    lat: 35.0044 },
+  // Kawaguchiko (Lake Kawaguchi north shore)
+  "Fuji View Hotel":                  { lng: 138.7647,    lat: 35.5163 },
+  // Hakone (mountain area)
+  "Hotel Green Plaza Hakone":         { lng: 139.0095,    lat: 35.2548 },
 };
 
 const routePath = [

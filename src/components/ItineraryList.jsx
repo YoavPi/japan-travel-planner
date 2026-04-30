@@ -392,17 +392,20 @@ const ItineraryList = ({
           </div>
         </div>
 
-        {/* ═══ CATEGORY FILTER BAR (Single-Select) ═══ */}
-        <div className="flex flex-wrap items-center gap-2 mt-2.5 border-t border-cream-200 pt-2.5">
+        {/* ═══ CATEGORY FILTER BAR (Single-Select)
+              Mobile: horizontal scroll (no wrap) so the list stays one
+              compact row even with the labelHe annotation.
+              Desktop (lg+): wraps as before.                       ═══ */}
+        <div className="flex flex-nowrap lg:flex-wrap items-center gap-2 mt-2.5 border-t border-cream-200 pt-2.5 overflow-x-auto lg:overflow-visible scrollbar-none -mx-1 px-1">
           <button
             onClick={() => { onFilterChange(null); }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-display font-semibold transition-all duration-200 border min-h-[36px]
+            className={`flex flex-shrink-0 items-center gap-1.5 px-3.5 py-2 rounded-full text-[11px] font-display font-semibold transition-all duration-200 border min-h-[40px] sm:min-h-[44px]
               ${!activeFilter
                 ? "bg-vermillion-500 text-white border-vermillion-500 shadow-sm"
                 : "bg-cream-100 text-sumi-500 border-cream-300 hover:border-vermillion-300 hover:text-vermillion-600"
               }`}
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
               <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
             </svg>
             All
@@ -414,15 +417,15 @@ const ItineraryList = ({
               <button
                 key={f.key}
                 onClick={() => onFilterChange(f.key)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-display font-semibold transition-all duration-200 border min-h-[36px]
+                className={`flex flex-shrink-0 items-center gap-1.5 px-3.5 py-2 rounded-full text-[11px] font-display font-semibold transition-all duration-200 border min-h-[40px] sm:min-h-[44px]
                   ${isActive
                     ? "bg-vermillion-500 text-white border-vermillion-500 shadow-sm"
                     : "bg-cream-100 text-sumi-500 border-cream-300 hover:border-vermillion-300 hover:text-vermillion-600"
                   }`}
               >
-                <f.icon size={12} color={isActive ? "#fff" : f.color} />
+                <f.icon size={13} color={isActive ? "#fff" : f.color} />
                 <span>{f.label}</span>
-                <span className={`text-[8px] ${isActive ? "text-white/70" : "text-sumi-300"}`} dir="rtl">
+                <span className={`hidden sm:inline text-[8px] ${isActive ? "text-white/70" : "text-sumi-300"}`} dir="rtl">
                   {f.labelHe}
                 </span>
               </button>
@@ -432,9 +435,9 @@ const ItineraryList = ({
           {hasAnyActiveFilter && (
             <button
               onClick={onClearFilters}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[10px] font-display font-semibold text-vermillion-500 hover:text-vermillion-700 hover:bg-vermillion-50 transition-all duration-200 border border-transparent hover:border-vermillion-200 min-h-[36px]"
+              className="flex flex-shrink-0 items-center gap-1 px-3 py-2 rounded-full text-[11px] font-display font-semibold text-vermillion-500 hover:text-vermillion-700 hover:bg-vermillion-50 transition-all duration-200 border border-transparent hover:border-vermillion-200 min-h-[40px] sm:min-h-[44px]"
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                 <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
               </svg>
               Reset
@@ -448,7 +451,7 @@ const ItineraryList = ({
                  "browse all shopping in Tokyo across the whole trip" view.
                • Otherwise → chronological path with #N suffixes for
                  cities visited multiple times.              ═══ */}
-        <div className="flex flex-wrap items-center gap-1 mt-2">
+        <div className="flex flex-nowrap lg:flex-wrap items-center gap-1 mt-2 overflow-x-auto lg:overflow-visible scrollbar-none -mx-1 px-1">
           {displayCityPath.map((cp, idx) => {
             const isActive = activeCity === cp.key;
             const count = activeFilter ? (filterCityCounts[cp.city] || 0) : null;
@@ -464,7 +467,7 @@ const ItineraryList = ({
                 <button
                   onClick={() => onCityChange(cp.key)}
                   disabled={dimmed}
-                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-display font-semibold transition-all duration-200 border min-h-[28px]
+                  className={`flex-shrink-0 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-display font-semibold transition-all duration-200 border min-h-[36px]
                     ${dimmed
                       ? "bg-cream-50 text-sumi-300 border-cream-200 cursor-not-allowed opacity-50"
                       : isActive

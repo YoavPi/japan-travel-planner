@@ -126,10 +126,10 @@ const App = () => {
   }, []);
 
   return (
-    <div className="h-screen w-screen bg-vermillion-500 p-2 lg:p-3">
+    <div className="h-screen w-screen bg-cream-100 p-1.5 lg:p-2">
       <div
         ref={containerRef}
-        className="h-full w-full bg-cream-50 rounded-lg overflow-hidden border border-vermillion-500/20 flex flex-col lg:flex-row shadow-2xl"
+        className="h-full w-full bg-cream-50 rounded-xl overflow-hidden border-[1.5px] border-vermillion-400/35 flex flex-col lg:flex-row shadow-xl"
       >
         {/* Mobile toggle bar */}
         <div className="lg:hidden flex items-center justify-between px-4 py-2.5 bg-cream-50 border-b border-cream-300 z-20">
