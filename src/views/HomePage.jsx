@@ -164,16 +164,24 @@ const Hero = () => {
       {/* Text content (right) */}
       <div className="relative z-10 flex-1 flex flex-col justify-center px-2 lg:px-16 py-24 lg:py-0">
         {/* Eyebrow */}
-        <div className="anim-fade-up flex items-center gap-3 mb-8">
+        <div className="anim-fade-up flex items-center gap-3 mb-6">
           <div className="w-8 h-px bg-crimson" />
           <span className="text-crimson uppercase font-sans" style={{ fontSize: "11px", letterSpacing: "0.22em" }}>
             מרץ–אפריל 2024
           </span>
         </div>
 
+        {/* Names — "We are Yoav and Michali Pintel" */}
+        <p
+          className="anim-fade-up delay-1 font-serif text-slate-mid mb-3"
+          style={{ fontSize: "clamp(1rem, 1.6vw, 1.2rem)", fontWeight: 400, letterSpacing: "0.02em" }}
+        >
+          אנחנו יואב ומיכלי פינטל
+        </p>
+
         {/* Headline */}
         <h1
-          className="anim-fade-up delay-1 font-serif text-slate-deep mb-6"
+          className="anim-fade-up delay-2 font-serif text-slate-deep mb-6"
           style={{ fontSize: "clamp(2.2rem, 5vw, 4.2rem)", fontWeight: 300, lineHeight: 1.18, letterSpacing: "-0.01em" }}
         >
           המסלול וההמלצות<br />
@@ -182,15 +190,37 @@ const Hero = () => {
 
         {/* Subheadline */}
         <p
-          className="anim-fade-up delay-2 text-slate-mid font-sans mb-12"
+          className="anim-fade-up delay-3 text-slate-mid font-sans mb-5"
           style={{ fontSize: "clamp(0.95rem, 1.5vw, 1.1rem)", fontWeight: 300, lineHeight: 1.85, maxWidth: "520px" }}
         >
           קיבלנו המון בקשות לשתף את המסלול שלנו, והחלטנו לבנות את המערכת הזאת כדי לרכז את כל הטיול
           וההמלצות שלנו במקום אחד. האתר מחולק לפי ימים, ערים וקטגוריות, כדי שיהיה לכם קל לנווט.
         </p>
 
+        {/* Instagram callout — secondary content channel */}
+        <a
+          href="https://www.instagram.com/yoavpi"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="anim-fade-up delay-3 inline-flex items-center gap-2 text-slate-mid hover:text-crimson font-sans mb-12 group transition-colors"
+          style={{ fontSize: "0.95rem", fontWeight: 400, lineHeight: 1.7, maxWidth: "520px" }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+            <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+            <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+            <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+          </svg>
+          <span>
+            הכל נמצא גם באינסטגרם של יואב{" "}
+            <span className="text-crimson font-medium underline underline-offset-2 decoration-crimson/40 group-hover:decoration-crimson transition">
+              @yoavpi
+            </span>
+            {" "}בהייליטס
+          </span>
+        </a>
+
         {/* CTA */}
-        <div className="anim-fade-up delay-3">
+        <div className="anim-fade-up delay-4">
           <Link
             to="/map"
             className="btn-premium inline-flex items-center gap-4 bg-slate-deep text-offwhite px-10 py-5 font-sans text-base font-medium"
