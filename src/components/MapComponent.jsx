@@ -145,6 +145,14 @@ const isShoppingName = (name) => {
   return SHOPPING_KEYWORDS.some((kw) => n.includes(kw));
 };
 
+/* ── Per-item city resolver ──
+   An attraction/meal can override the day's city via its own `city`
+   field (used when the activity happened in a different city than
+   where the night's hotel sits — e.g. Day 9 slept Nagoya but the
+   morning was in Matsumoto). Hotels never override. */
+const resolveCity = (item, day) =>
+  normalizeCityKey(item?.city || day.city);
+
 /* ── Extract filter-matching coordinates ── */
 const collectFilteredCoords = (filter, cityKey) => {
   const coords = [];
@@ -153,26 +161,25 @@ const collectFilteredCoords = (filter, cityKey) => {
   // good enough for a bird's-eye; per-instance day-range filtering only
   // matters in the sidebar list.
   const baseCityKey = cityKey ? cityKey.split("#")[0] : null;
-  const cityMatches = (dayCity) =>
-    !baseCityKey || normalizeCityKey(dayCity) === baseCityKey;
+  const cityMatchesItem = (item, day) =>
+    !baseCityKey || resolveCity(item, day) === baseCityKey;
+  const cityMatchesHotel = (day) =>
+    !baseCityKey || normalizeCityKey(day.city) === baseCityKey;
 
   tripData.forEach((day) => {
-    if (!cityMatches(day.city)) return;
-
     // No category filter → collect ALL points (attractions + meals + hotel)
     // so city-only selection still produces a meaningful fit.
     if (!filter) {
       day.attractions.forEach((a) => {
-        if (a.coordinates) coords.push([a.coordinates.lng, a.coordinates.lat]);
+        if (a.coordinates && cityMatchesItem(a, day)) coords.push([a.coordinates.lng, a.coordinates.lat]);
       });
       ["lunch", "dinner"].forEach((m) => {
         const meal = day[m];
-        if (meal && meal.place && meal.place !== "—" && meal.coordinates) {
+        if (meal && meal.place && meal.place !== "—" && meal.coordinates && cityMatchesItem(meal, day)) {
           coords.push([meal.coordinates.lng, meal.coordinates.lat]);
         }
       });
-      if (day.hotel && day.hotel !== "—") {
-        // Prefer canonical hotel pin; fallback to day-centre.
+      if (day.hotel && day.hotel !== "—" && cityMatchesHotel(day)) {
         const h = HOTEL_COORDINATES[day.hotel] || day.coordinates;
         if (h) coords.push([h.lng, h.lat]);
       }
@@ -182,24 +189,24 @@ const collectFilteredCoords = (filter, cityKey) => {
     if (filter === "food") {
       ["lunch", "dinner"].forEach((m) => {
         const meal = day[m];
-        if (meal && meal.place && meal.place !== "—" && meal.coordinates) {
+        if (meal && meal.place && meal.place !== "—" && meal.coordinates && cityMatchesItem(meal, day)) {
           coords.push([meal.coordinates.lng, meal.coordinates.lat]);
         }
       });
     } else if (filter === "shopping") {
       day.attractions.forEach((a) => {
-        if (isShoppingName(a.name) && a.coordinates) {
+        if (isShoppingName(a.name) && a.coordinates && cityMatchesItem(a, day)) {
           coords.push([a.coordinates.lng, a.coordinates.lat]);
         }
       });
     } else if (filter === "attractions") {
       day.attractions.forEach((a) => {
-        if (!isShoppingName(a.name) && a.coordinates) {
+        if (!isShoppingName(a.name) && a.coordinates && cityMatchesItem(a, day)) {
           coords.push([a.coordinates.lng, a.coordinates.lat]);
         }
       });
     } else if (filter === "hotels") {
-      if (day.hotel && day.hotel !== "—") {
+      if (day.hotel && day.hotel !== "—" && cityMatchesHotel(day)) {
         const h = HOTEL_COORDINATES[day.hotel] || day.coordinates;
         if (h) coords.push([h.lng, h.lat]);
       }
@@ -405,17 +412,20 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
   const categoryMarkers = useMemo(() => {
     if (!activeFilter) return [];
     const baseCityKey = activeCity ? activeCity.split("#")[0] : null;
-    const cityMatches = (dayCity) =>
-      !baseCityKey || normalizeCityKey(dayCity) === baseCityKey;
+    // Item-level city resolution so an attraction/meal can claim a
+    // different city than the day's hotel (Day 9 sleeps Nagoya but
+    // the morning was Matsumoto, etc.). Hotels never override.
+    const itemCityMatches = (item, day) =>
+      !baseCityKey || normalizeCityKey(item?.city || day.city) === baseCityKey;
+    const hotelCityMatches = (day) =>
+      !baseCityKey || normalizeCityKey(day.city) === baseCityKey;
 
     const items = [];
     tripData.forEach((day) => {
-      if (!cityMatches(day.city)) return;
-
       if (activeFilter === "food") {
         ["lunch", "dinner"].forEach((m) => {
           const meal = day[m];
-          if (meal && meal.place && meal.place !== "—" && meal.coordinates) {
+          if (meal && meal.place && meal.place !== "—" && meal.coordinates && itemCityMatches(meal, day)) {
             items.push({
               key: `${day.day}-${m}`,
               day: day.day,
@@ -433,7 +443,7 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
         });
       } else if (activeFilter === "attractions") {
         (day.attractions || []).forEach((a, i) => {
-          if (a.coordinates && !isShoppingName(a.name)) {
+          if (a.coordinates && !isShoppingName(a.name) && itemCityMatches(a, day)) {
             items.push({
               key: `${day.day}-a-${i}`,
               day: day.day,
@@ -450,7 +460,7 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
         });
       } else if (activeFilter === "shopping") {
         (day.attractions || []).forEach((a, i) => {
-          if (a.coordinates && isShoppingName(a.name)) {
+          if (a.coordinates && isShoppingName(a.name) && itemCityMatches(a, day)) {
             items.push({
               key: `${day.day}-s-${i}`,
               day: day.day,
@@ -466,7 +476,7 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
           }
         });
       } else if (activeFilter === "hotels") {
-        if (day.hotel && day.hotel !== "—") {
+        if (day.hotel && day.hotel !== "—" && hotelCityMatches(day)) {
           const h = HOTEL_COORDINATES[day.hotel] || day.coordinates;
           if (h) {
             items.push({

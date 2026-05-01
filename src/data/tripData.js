@@ -125,11 +125,12 @@ const tripData = [
     day: 9, title: "יום 9 - נגויה", city: "Nagoya", cityHe: "נגויה",
     coordinates: { lng: 136.9066, lat: 35.1815 },
     attractions: [
-      { name: "Michelin Café", nameJa: "ミシュランカフェ 松本", nameHe: "בית קפה מישלן", desc: "המלצת זהב על פרנץ' טוסט מטורף. ציון: 9.5/10", coordinates: { lng: 137.9700, lat: 36.2350 } },
-      { name: "Matsumoto Castle", nameJa: "松本城", nameHe: "טירת מטסומוטו", desc: "טירה יפנית יפה מאוד", coordinates: { lng: 137.9688, lat: 36.2388 } },
-      { name: "Kusama Yayoi Museum", nameJa: "松本市美術館（草間彌生）", nameHe: "מוזיאון יויו כוסאמה", desc: "מאוד יפה, שווה", coordinates: { lng: 137.9758, lat: 36.2336 } },
+      // Morning was in Matsumoto — flagged so the Matsumoto city
+      // filter surfaces these even though the night was Nagoya.
+      { name: "Matsumoto Castle", nameJa: "松本城", nameHe: "טירת מטסומוטו", desc: "טירה יפנית יפה מאוד", coordinates: { lng: 137.9688, lat: 36.2388 }, city: "Matsumoto", cityHe: "מטסומוטו" },
+      { name: "Kusama Yayoi Museum", nameJa: "松本市美術館（草間彌生）", nameHe: "מוזיאון יויו כוסאמה", desc: "מאוד יפה, שווה", coordinates: { lng: 137.9758, lat: 36.2336 }, city: "Matsumoto", cityHe: "מטסומוטו" },
     ],
-    lunch: { place: "Michelin Café", nameJa: "ミシュランカフェ 松本", nameHe: "בית קפה מישלן", desc: "פראנץ' טוסט מטורף — המלצת זהב!", rating: "9.5/10", coordinates: { lng: 137.9700, lat: 36.2350 } },
+    lunch: { place: "Michelin Café", nameJa: "ミシュランカフェ 松本", nameHe: "בית קפה מישלן", desc: "פראנץ' טוסט מטורף — המלצת זהב!", rating: "9.5/10", coordinates: { lng: 137.9700, lat: 36.2350 }, city: "Matsumoto", cityHe: "מטסומוטו" },
     dinner: { place: "Shishimaru Ramen", nameJa: "獅子丸", nameHe: "שישימארו ראמן", desc: "המלצת זהב מאפליקציית Ramen Beast. ראמן מבוסס לובסטר מוקצף (הכפתור האדום במכונה) — הראמן הכי טעים שאכלנו ביפן. ציון: 10/10", rating: "10/10", coordinates: { lng: 136.8826, lat: 35.1706 } },
     tips: ["בית קפה — פראנץ' טוסט מטורף", "Shishimaru — ראמן המלצת זהב!", "JR נסיעה נוחה"],
     hotel: "Daiwa Roynet Hotel Nagoya", expenses: { accommodation: "314 ₪", highlights: "טירת מטסומוטו, Shishimaru" }, images: [],
@@ -321,11 +322,13 @@ const tripData = [
     day: 24, title: "יום 24 - האקונה", city: "Hakone", cityHe: "האקונה",
     coordinates: { lng: 139.0261, lat: 35.2326 },
     attractions: [
-      { name: "Hakone Viewpoints", nameJa: "箱根展望台", nameHe: "נקודות תצפית האקונה", desc: "זריחה מעוננת, הסתובבנו באזור", coordinates: { lng: 139.0200, lat: 35.2350 } },
-      { name: "The Park (Pancakes)", nameJa: "ザ・パーク パンケーキ", nameHe: "דה פארק — פנקייקים", desc: "פנקייקים עננים ליד האגם עם תור ארוך מאוד — הכרנו את נור ואור. ציון: 8/10", coordinates: { lng: 139.0300, lat: 35.2310 } },
+      // Morning around Lake Kawaguchi before driving to Hakone — tagged
+      // Kawaguchiko so the city filter shows them under the right bucket.
+      { name: "Hakone Viewpoints", nameJa: "箱根展望台", nameHe: "נקודות תצפית האקונה", desc: "זריחה מעוננת, הסתובבנו באזור", coordinates: { lng: 139.0200, lat: 35.2350 }, city: "Kawaguchiko", cityHe: "קוואגוצ'יקו" },
+      { name: "The Park (Pancakes)", nameJa: "ザ・パーク パンケーキ", nameHe: "דה פארק — פנקייקים", desc: "פנקייקים עננים ליד האגם עם תור ארוך מאוד — הכרנו את נור ואור. ציון: 8/10", coordinates: { lng: 139.0300, lat: 35.2310 }, city: "Kawaguchiko", cityHe: "קוואגוצ'יקו" },
       { name: "Hotel Onsen", nameJa: "温泉", nameHe: "אונסן במלון", desc: "חובה!", coordinates: { lng: 139.0261, lat: 35.2326 } },
     ],
-    lunch: { place: "The Park Pancakes", nameJa: "ザ・パーク パンケーキ", nameHe: "פנקייקים — דה פארק", desc: "פנקייקים עננים ליד האגם עם תור ארוך מאוד. ציון: 8/10", rating: "8/10", coordinates: { lng: 139.0300, lat: 35.2310 } },
+    lunch: { place: "The Park Pancakes", nameJa: "ザ・パーク パンケーキ", nameHe: "פנקייקים — דה פארק", desc: "פנקייקים עננים ליד האגם עם תור ארוך מאוד. ציון: 8/10", rating: "8/10", coordinates: { lng: 139.0300, lat: 35.2310 }, city: "Kawaguchiko", cityHe: "קוואגוצ'יקו" },
     dinner: { place: "Hotel Buffet", nameJa: "ホテルビュッフェ", nameHe: "בופה במלון", desc: "נחמד, אונסן אחרי", rating: "7/10", coordinates: { lng: 139.0261, lat: 35.2326 } },
     tips: ["זריחה — ההר לא תמיד נראה", "אונסן — חובה!", "פנקייקים — תור ארוך, שווה"],
     hotel: "Hotel Green Plaza Hakone", expenses: { accommodation: "1,795 ₪ (2 לילות)", highlights: "אונסן, פנקייקים" }, images: [],
@@ -334,14 +337,16 @@ const tripData = [
     day: 25, title: "יום 25 - פוג'י", city: "Hakone", cityHe: "האקונה / פוג'י",
     coordinates: { lng: 138.7667, lat: 35.4891 },
     attractions: [
-      { name: "Mt. Fuji Clear View!", nameJa: "富士山 絶景!", nameHe: "הר פוג'י — ראות מושלמת!", desc: "קם 05:30 — מושלם!", coordinates: { lng: 138.7529, lat: 35.5117 } },
-      { name: "Fuji Street & Lake", nameJa: "富士街道・湖", nameHe: "רחוב פוג'י ואגם", desc: "טיול בוקר ליד האגם ורחוב עם נוף לפוג'י", coordinates: { lng: 138.7550, lat: 35.5090 } },
-      { name: "Chureito Pagoda", nameJa: "新倉山浅間公園 忠霊塔", nameHe: "פגודת צ'ורייטו", desc: "צילומים מטורפים — הנוף האייקוני של פוג'י", coordinates: { lng: 138.8047, lat: 35.4891 } },
-      { name: "Starbucks Kawaguchiko", nameJa: "スターバックス 河口湖", nameHe: "סטארבקס קוואגוצ'י", desc: "סטארבקס עם נוף לפוג'י", coordinates: { lng: 138.7535, lat: 35.5125 } },
+      // Morning + most of the day around Mt. Fuji / Lake Kawaguchi.
+      // The outlet and the evening onsen are the only Hakone-side stops.
+      { name: "Mt. Fuji Clear View!", nameJa: "富士山 絶景!", nameHe: "הר פוג'י — ראות מושלמת!", desc: "קם 05:30 — מושלם!", coordinates: { lng: 138.7529, lat: 35.5117 }, city: "Kawaguchiko", cityHe: "קוואגוצ'יקו" },
+      { name: "Fuji Street & Lake", nameJa: "富士街道・湖", nameHe: "רחוב פוג'י ואגם", desc: "טיול בוקר ליד האגם ורחוב עם נוף לפוג'י", coordinates: { lng: 138.7550, lat: 35.5090 }, city: "Kawaguchiko", cityHe: "קוואגוצ'יקו" },
+      { name: "Chureito Pagoda", nameJa: "新倉山浅間公園 忠霊塔", nameHe: "פגודת צ'ורייטו", desc: "צילומים מטורפים — הנוף האייקוני של פוג'י", coordinates: { lng: 138.8047, lat: 35.4891 }, city: "Kawaguchiko", cityHe: "קוואגוצ'יקו" },
+      { name: "Starbucks Kawaguchiko", nameJa: "スターバックス 河口湖", nameHe: "סטארבקס קוואגוצ'י", desc: "סטארבקס עם נוף לפוג'י", coordinates: { lng: 138.7535, lat: 35.5125 }, city: "Kawaguchiko", cityHe: "קוואגוצ'יקו" },
       { name: "Gotemba Premium Outlets", nameJa: "御殿場プレミアム・アウトレット", nameHe: "גוטמבה אאוטלט", desc: "שווה ממש!", coordinates: { lng: 138.9348, lat: 35.2895 } },
       { name: "Onsen & Sunset", nameJa: "温泉と夕日", nameHe: "אונסן ושקיעה", desc: "קריסה מושלמת", coordinates: { lng: 139.0261, lat: 35.2326 } },
     ],
-    lunch: { place: "Kawaguchiko Area", nameJa: "河口湖エリア", nameHe: "אזור קוואגוצ'י", desc: "אכלנו תוך כדי", rating: "—", coordinates: { lng: 138.7529, lat: 35.5117 } },
+    lunch: { place: "Kawaguchiko Area", nameJa: "河口湖エリア", nameHe: "אזור קוואגוצ'י", desc: "אכלנו תוך כדי", rating: "—", coordinates: { lng: 138.7529, lat: 35.5117 }, city: "Kawaguchiko", cityHe: "קוואגוצ'יקו" },
     dinner: { place: "—", nameJa: "", nameHe: "", desc: "אונסן — קריסה", rating: "—", coordinates: null },
     tips: ["לקום ב-05:30 ליום בהיר!", "פגודה + אגם = צילומים מטורפים", "Gotemba Outlets — שווה"],
     hotel: "Hotel Green Plaza Hakone", expenses: { accommodation: "כלול", highlights: "אאוטלט, אונסן" }, images: [],

@@ -94,6 +94,10 @@ const FILTER_THEMES = {
 /* ══════════════════════════════════════════════════════════════
    DATA EXTRACTION
    ══════════════════════════════════════════════════════════════ */
+/* Per-item city override: an attraction/meal can carry its own
+   `city`/`cityHe` when the activity physically happened in a different
+   city than where the day's hotel is. Falls back to the day's city
+   so existing entries keep working unchanged. */
 function extractFoodItems() {
   const items = [];
   tripData.forEach((day) => {
@@ -103,7 +107,9 @@ function extractFoodItems() {
       items.push({
         name: meal.place, nameJa: meal.nameJa || "", nameHe: meal.nameHe || "",
         desc: meal.desc || "", rating: meal.rating && meal.rating !== "—" ? meal.rating : null,
-        coordinates: meal.coordinates || null, city: day.city, cityHe: day.cityHe,
+        coordinates: meal.coordinates || null,
+        city: meal.city || day.city,
+        cityHe: meal.cityHe || day.cityHe,
         day: day.day, mealType: mealType === "lunch" ? "Lunch" : "Dinner",
         category: mealType === "lunch" ? "lunch" : "dinner",
       });
@@ -120,7 +126,9 @@ function extractShoppingItems() {
       items.push({
         name: attr.name, nameJa: attr.nameJa || "", nameHe: attr.nameHe || "",
         desc: attr.desc || "", coordinates: attr.coordinates || null,
-        city: day.city, cityHe: day.cityHe, day: day.day,
+        city: attr.city || day.city,
+        cityHe: attr.cityHe || day.cityHe,
+        day: day.day,
         rating: null, mealType: null, category: "shopping",
       });
     });
@@ -136,7 +144,9 @@ function extractAttractionItems() {
       items.push({
         name: attr.name, nameJa: attr.nameJa || "", nameHe: attr.nameHe || "",
         desc: attr.desc || "", coordinates: attr.coordinates || null,
-        city: day.city, cityHe: day.cityHe, day: day.day,
+        city: attr.city || day.city,
+        cityHe: attr.cityHe || day.cityHe,
+        day: day.day,
         rating: null, mealType: null, category: "attraction",
       });
     });
