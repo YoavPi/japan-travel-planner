@@ -49,10 +49,27 @@ module.exports = {
           300: "#D4B86C",
           400: "#C4A048",
         },
+        /* Home-page palette — Modern Japanese Minimalism */
+        offwhite:  "#F7F5F0",
+        parchment: "#EDE9E0",
+        slate: {
+          deep:  "#1C2333",
+          mid:   "#3D4A5C",
+          light: "#8A95A3",
+          pale:  "#C8CDD4",
+        },
+        crimson: {
+          DEFAULT: "#C0392B",
+          soft:    "#D95C4A",
+          pale:    "#F5E6E4",
+        },
       },
       fontFamily: {
         display: ['"Montserrat"', '"Noto Sans JP"', 'sans-serif'],
         body: ['"Noto Sans JP"', '"Inter"', 'sans-serif'],
+        /* Home-page typography — Hebrew display + body */
+        serif: ['"Noto Serif Hebrew"', 'serif'],
+        sans:  ['"Noto Sans Hebrew"', '"Noto Sans JP"', 'sans-serif'],
       },
       borderWidth: {
         '6': '6px',

@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 /* Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&family=Noto+Sans+JP:wght@300;400;500;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&family=Noto+Sans+JP:wght@300;400;500;700;900&family=Noto+Serif+Hebrew:wght@300;400;600;700&family=Noto+Sans+Hebrew:wght@300;400;500&display=swap');
 
 /* Base resets */
 *,
@@ -107,4 +107,102 @@ body {
 /* Location button hover glow */
 .location-btn:hover {
   box-shadow: 0 0 0 2px rgba(217, 64, 37, 0.15);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   HOME PAGE — Modern Japanese Minimalism design system
+   ══════════════════════════════════════════════════════════════ */
+
+/* Smooth in-page anchor scroll */
+html { scroll-behavior: smooth; }
+
+/* Fade-up entrance animation (used by hero + sections) */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(28px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.anim-fade-up { animation: fadeUp 0.8s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.anim-fade-in { animation: fadeIn 0.6s ease both; }
+
+.delay-1 { animation-delay: 0.15s; }
+.delay-2 { animation-delay: 0.30s; }
+.delay-3 { animation-delay: 0.45s; }
+.delay-4 { animation-delay: 0.60s; }
+.delay-5 { animation-delay: 0.75s; }
+
+/* Premium CTA button — sliding white wash on hover */
+.btn-premium {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.btn-premium::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.12);
+  transform: translateX(110%);
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.btn-premium:hover::before { transform: translateX(-110%); }
+.btn-premium:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px rgba(192, 57, 43, 0.35);
+}
+.btn-premium:active { transform: translateY(0); }
+
+/* Gallery card lift */
+.gallery-card {
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.4s ease;
+}
+.gallery-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 20px 48px rgba(28, 35, 51, 0.14);
+}
+
+/* Chapter card hover (RTL slides toward reading direction) */
+.chapter-card {
+  transition: background 0.3s ease, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.chapter-card:hover {
+  background: #EDE9E0;
+  transform: translateX(-4px);
+}
+
+/* Crimson dot pulse */
+@keyframes pulse-dot {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(192, 57, 43, 0.4); }
+  50%      { box-shadow: 0 0 0 8px rgba(192, 57, 43, 0); }
+}
+.dot-pulse { animation: pulse-dot 2.5s infinite; }
+
+/* Stats card hover */
+.stat-item { transition: transform 0.3s ease; }
+.stat-item:hover { transform: translateY(-3px); }
+
+/* Decorative vertical Japanese kanji */
+.jp-deco {
+  font-family: 'Noto Serif Hebrew', serif;
+  writing-mode: vertical-rl;
+  color: rgba(192, 57, 43, 0.08);
+  font-size: 7rem;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  user-select: none;
+  position: absolute;
+  pointer-events: none;
+}
+
+/* Subtle paper noise overlay (homepage only) */
+.home-noise::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
 }
