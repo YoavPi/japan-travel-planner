@@ -114,9 +114,13 @@ const ExploreView = () => {
 
   const handleSelectLocation = useCallback((location) => {
     setSelectedLocation(location);
-    /* Mobile UX: collapse the sheet so the user actually sees the map */
-    if (sheetRef.current?.getSnap?.() === "full") {
-      sheetRef.current.snapTo("half");
+    /* Mobile UX: tapping a specific location means the user wants to
+       see it on the map. Drop the sheet to peek so the map (with its
+       popup anchored to the marker) is fully visible. The user can
+       drag the sheet back up after to keep reading. */
+    const cur = sheetRef.current?.getSnap?.();
+    if (cur === "full" || cur === "half") {
+      sheetRef.current.snapTo("peek");
     }
   }, []);
 
@@ -151,7 +155,16 @@ const ExploreView = () => {
   }, []);
 
   const handleCityChange = useCallback((cityKey) => {
-    setActiveCity((prev) => (prev === cityKey ? null : cityKey));
+    setActiveCity((prev) => {
+      const next = prev === cityKey ? null : cityKey;
+      /* Mobile UX: entering Phase B (a city is now active) needs more
+         vertical room for the second pill row, so auto-snap to half
+         if currently at peek. Leaving Phase B is left as-is. */
+      if (next && sheetRef.current?.getSnap?.() === "peek") {
+        sheetRef.current.snapTo("half");
+      }
+      return next;
+    });
     setSelectedDay(null);
     setSelectedLocation(null);
   }, []);

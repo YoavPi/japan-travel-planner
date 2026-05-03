@@ -154,6 +154,19 @@ const resolveCity = (item, day) =>
   normalizeCityKey(item?.city || day.city);
 
 /* ── Extract filter-matching coordinates ── */
+/* ── Popup-friendly fitBounds/flyTo padding ──
+   The popup grows upward from its marker, so we always reserve a
+   generous top inset. On mobile the BottomSheet covers the bottom
+   ~140px (peek = 110, plus breathing room) so the bottom inset must
+   also account for the sheet — otherwise the marker lands underneath
+   the sheet and the popup is hidden. */
+const getPopupPadding = () => {
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 1024;
+  return isMobile
+    ? { top: 220, bottom: 160, left: 40, right: 40 }
+    : { top: 280, bottom: 40, left: 40, right: 40 };
+};
+
 const collectFilteredCoords = (filter, cityKey) => {
   const coords = [];
   // Accept cityKey as either "Tokyo" or "Tokyo#1" (chronological instance).
@@ -653,7 +666,7 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
       mapRef.current.flyTo({
         center: [selectedLocation.lng, selectedLocation.lat],
         zoom: 16,
-        padding: { top: 280, bottom: 40, left: 40, right: 40 },
+        padding: getPopupPadding(),
         duration: 1400,
         essential: true,
       });
@@ -848,7 +861,7 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
                   mapRef.current.flyTo({
                     center: [item.lng, item.lat],
                     zoom: 15.5,
-                    padding: { top: 280, bottom: 40, left: 40, right: 40 },
+                    padding: getPopupPadding(),
                     duration: 900,
                     essential: true,
                   });
@@ -912,7 +925,7 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
                   mapRef.current.flyTo({
                     center: [loc.lng, loc.lat],
                     zoom: 16,
-                    padding: { top: 280, bottom: 40, left: 40, right: 40 },
+                    padding: getPopupPadding(),
                     duration: 900,
                     essential: true,
                   });
@@ -980,7 +993,7 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
                   mapRef.current.flyTo({
                     center: [bullet.lng, bullet.lat],
                     zoom: 16,
-                    padding: { top: 280, bottom: 40, left: 40, right: 40 },
+                    padding: getPopupPadding(),
                     duration: 1000,
                     essential: true,
                   });
@@ -1028,13 +1041,11 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
         )}
       </Map>
 
-      {/* ═══ Mobile-only floating filter bar (Categories + Cities) ═══ */}
-      <MobileMapFilters
-        activeFilter={activeFilter}
-        activeCity={activeCity}
-        onFilterChange={onFilterChange}
-        onCityChange={onCityChange}
-      />
+      {/* Legacy <MobileMapFilters/> removed — the BottomSheet's
+          BottomFilterBar (rendered by ExploreView) is now the single
+          mobile filter UI. The component definition above is kept
+          as dead code so the previous behaviour can be restored
+          by re-mounting it here. */}
 
       {/* ═══ Map overlay — Trip title (top-right, desktop only) ═══ */}
       <div className="hidden lg:block absolute top-4 right-4 bg-cream-50/95 backdrop-blur-sm rounded-lg px-2.5 py-2 sm:px-4 sm:py-3 shadow-lg border-2 border-vermillion-500/20">
@@ -1092,8 +1103,9 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
         </div>
       </div>
 
-      {/* ═══ Legend (bottom-right) ═══ */}
-      <div className="hidden sm:block absolute bottom-6 right-4 bg-cream-50/95 backdrop-blur-sm rounded-lg px-3 py-2.5 shadow-lg border border-cream-300">
+      {/* ═══ Legend (bottom-right) — desktop only so it never
+              overlaps the mobile BottomSheet at peek (110px tall). ═══ */}
+      <div className="hidden lg:block absolute bottom-6 right-4 bg-cream-50/95 backdrop-blur-sm rounded-lg px-3 py-2.5 shadow-lg border border-cream-300">
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <div style={{ width: "20px", height: "3px", backgroundColor: "#D94025", borderRadius: "2px" }} />

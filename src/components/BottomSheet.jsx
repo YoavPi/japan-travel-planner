@@ -170,7 +170,6 @@ const BottomSheet = forwardRef(({ children, header, defaultSnap = "peek", onSnap
         height: `${SHEET_HEIGHT_VH}vh`,
         transform: `translateY(${translateY ?? computeOffset("peek", lastVHRef.current)}px)`,
         transition: dragging ? "none" : "transform 320ms cubic-bezier(0.22, 1, 0.36, 1)",
-        touchAction: "none",
         willChange: "transform",
       }}
       onPointerDown={onPointerDown}
@@ -178,19 +177,26 @@ const BottomSheet = forwardRef(({ children, header, defaultSnap = "peek", onSnap
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
     >
-      {/* Drag handle area — the only place that initiates drag */}
+      {/* Drag handle area — generous 44px hit zone (thumb-friendly).
+          touch-action: none ONLY here so vertical dragging is captured
+          but the rest of the sheet (filters, scroll content) keeps
+          native pan-y behaviour. */}
       <div
         data-sheet-handle
-        className="pt-2.5 pb-2 flex justify-center cursor-grab active:cursor-grabbing flex-shrink-0"
+        className="pt-3 pb-3 flex justify-center cursor-grab active:cursor-grabbing flex-shrink-0"
+        style={{ touchAction: "none", minHeight: "32px" }}
       >
-        <div className="w-10 h-1 rounded-full bg-cream-300" />
+        <div className="w-12 h-1.5 rounded-full bg-cream-300" />
       </div>
 
       {/* Sticky header slot (filters live here so they're always visible) */}
       {header && <div className="flex-shrink-0">{header}</div>}
 
-      {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto overscroll-contain scrollbar-thin">
+      {/* Scrollable content — native touch scrolling allowed (pan-y) */}
+      <div
+        className="flex-1 overflow-y-auto overscroll-contain scrollbar-thin"
+        style={{ touchAction: "pan-y" }}
+      >
         {children}
       </div>
     </div>
