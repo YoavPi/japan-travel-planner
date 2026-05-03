@@ -180,6 +180,12 @@ html { scroll-behavior: smooth; }
 }
 .dot-pulse { animation: pulse-dot 2.5s infinite; }
 
+/* Hero scroll-down chevron — gentle vertical bounce */
+@keyframes scrollBounce {
+  0%, 100% { transform: translateY(0); opacity: 0.65; }
+  50%      { transform: translateY(6px); opacity: 1; }
+}
+
 /* Stats card hover */
 .stat-item { transition: transform 0.3s ease; }
 .stat-item:hover { transform: translateY(-3px); }

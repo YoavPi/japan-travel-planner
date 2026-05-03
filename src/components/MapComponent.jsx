@@ -304,7 +304,7 @@ const MobileMapFilters = ({ activeFilter, activeCity, onFilterChange, onCityChan
   );
 };
 
-const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail, activeFilter, activeCity, onFilterChange, onCityChange }) => {
+const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail, activeFilter, activeCity, onFilterChange, onCityChange, macroSignal }) => {
   const mapRef = useRef(null);
   const [hoveredDay, setHoveredDay] = useState(null);
   const [mapLoaded, setMapLoaded] = useState(false);
@@ -400,6 +400,31 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
       { padding, duration: 1400, maxZoom: 14, essential: true }
     );
   }, [activeFilter, activeCity, mapLoaded]);
+
+  /* ─── Macro view trigger (from ExploreView "Whole Trip" button) ───
+        Parent increments macroSignal → we fitBounds across all 31
+        days' coordinates so the user sees the full journey at once. */
+  useEffect(() => {
+    if (!mapLoaded || !mapRef.current || !macroSignal) return;
+    let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
+    tripData.forEach((d) => {
+      if (!d.coordinates) return;
+      const { lng, lat } = d.coordinates;
+      if (lng < minLng) minLng = lng;
+      if (lng > maxLng) maxLng = lng;
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+    });
+    if (minLng === Infinity) return;
+    const isMobile = typeof window !== "undefined" && window.innerWidth < 1024;
+    const padding = isMobile
+      ? { top: 80, bottom: 130, left: 40, right: 40 }
+      : 80;
+    mapRef.current.fitBounds(
+      [[minLng, minLat], [maxLng, maxLat]],
+      { padding, duration: 1800, maxZoom: 7, essential: true }
+    );
+  }, [macroSignal, mapLoaded]);
 
   /* ─── Category-emoji markers (filter mode) ───
      When a category filter is active we replace the default day pins

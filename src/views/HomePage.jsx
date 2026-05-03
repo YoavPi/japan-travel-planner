@@ -82,13 +82,23 @@ const chapters = [
   },
   {
     num: "05",
-    city: "האקונה, פוג׳י וחזרה לטוקיו",
-    cityEn: "Hakone, Fuji & Tokyo II",
-    days: "ימים 25–31",
-    desc: "השכרת רכב באזור חמשת האגמים, תצפיות פוג׳י וסיום בטוקיו.",
+    city: "האקונה ופוג׳י",
+    cityEn: "Hakone & Fuji",
+    days: "ימים 24–25",
+    desc: "השכרת רכב באזור חמשת האגמים, תצפיות פוג׳י, אונסן ושקיעה.",
+    bg: "rgba(61,74,92,0.06)",
+    accent: "#3D4A5C",
+    cityKey: "Hakone",
+  },
+  {
+    num: "06",
+    city: "טוקיו (חלק שני)",
+    cityEn: "Tokyo II",
+    days: "ימים 26–31",
+    desc: "החזרה לטוקיו — אקיהברה, אוקנו, צעצועים ושופינג, וסיום הטיול.",
     bg: "rgba(192,57,43,0.06)",
     accent: "#C0392B",
-    cityKey: "Hakone",
+    cityKey: "Tokyo#3",
   },
 ];
 
@@ -102,11 +112,59 @@ const galleryItems = [
   { label: "ראמן בטוקיו",          labelEn: "Ramen · Tokyo",          img: "/photos/source/day26_lunch_hiruka.jpg",  day: "יום 26" },
 ];
 
+/* ─── Custom line-art icons for stats (replacing default emoji) ─── */
+const StatIcon = {
+  Calendar: ({ size = 36 }) => (
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="4" y="6" width="24" height="22" rx="2" />
+      <line x1="4" y1="13" x2="28" y2="13" />
+      <line x1="10" y1="3" x2="10" y2="9" />
+      <line x1="22" y1="3" x2="22" y2="9" />
+      <circle cx="11" cy="19" r="0.8" fill="currentColor" />
+      <circle cx="16" cy="19" r="0.8" fill="currentColor" />
+      <circle cx="21" cy="19" r="0.8" fill="currentColor" />
+      <circle cx="11" cy="23" r="0.8" fill="currentColor" />
+      <circle cx="16" cy="23" r="0.8" fill="currentColor" />
+    </svg>
+  ),
+  Cityscape: ({ size = 36 }) => (
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M3 28 V14 L10 9 L17 14 V28" />
+      <path d="M17 28 V18 L24 13 L29 17 V28" />
+      <line x1="3" y1="28" x2="29" y2="28" />
+      <rect x="6" y="18" width="2.5" height="3" />
+      <rect x="11" y="18" width="2.5" height="3" />
+      <rect x="20" y="21" width="2.5" height="3" />
+      <path d="M10 5 V9" />
+    </svg>
+  ),
+  FerrisWheel: ({ size = 36 }) => (
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="16" cy="14" r="9" />
+      <circle cx="16" cy="14" r="1.4" fill="currentColor" />
+      <line x1="16" y1="5" x2="16" y2="23" />
+      <line x1="7" y1="14" x2="25" y2="14" />
+      <line x1="9.6" y1="7.6" x2="22.4" y2="20.4" />
+      <line x1="22.4" y1="7.6" x2="9.6" y2="20.4" />
+      <path d="M11 28 L16 22 L21 28" />
+    </svg>
+  ),
+  Car: ({ size = 36 }) => (
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M5 20 V15 L8 9 H24 L27 15 V20" />
+      <line x1="3" y1="20" x2="29" y2="20" />
+      <circle cx="9" cy="22.5" r="2.5" />
+      <circle cx="23" cy="22.5" r="2.5" />
+      <line x1="5" y1="15" x2="27" y2="15" />
+    </svg>
+  ),
+};
+
 const stats = [
-  { value: "31", label: "ימים",     icon: "📅" },
-  { value: "9",  label: "ערים",     icon: "🏙" },
-  { value: "3",  label: "פארקים",   icon: "🎡" },
-  { value: "1",  label: "רכב שכור", icon: "🚗" },
+  { value: "31", label: "ימים",     Icon: StatIcon.Calendar },
+  { value: "9",  label: "ערים",     Icon: StatIcon.Cityscape },
+  { value: "3",  label: "פארקים",   Icon: StatIcon.FerrisWheel },
+  { value: "1",  label: "רכב שכור", Icon: StatIcon.Car },
 ];
 
 /* ─── ARROW (rotated for RTL — points left toward reading direction) ─── */
@@ -232,12 +290,29 @@ const Hero = () => {
         </div>
       </div>
 
-      {/* Scroll hint bottom-right */}
-      <div className="absolute bottom-10 right-6 md:right-16 anim-fade-in delay-5 flex flex-col items-center gap-2">
-        <div className="w-px h-12 bg-gradient-to-b from-slate-pale to-transparent" />
-        <span className="text-slate-light" style={{ fontSize: "10px", letterSpacing: "0.2em", writingMode: "vertical-rl" }}>
+      {/* Scroll hint — bouncing chevron + label, bottom-center */}
+      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 anim-fade-in delay-5 flex flex-col items-center gap-2 pointer-events-none">
+        <span
+          className="text-slate-light font-sans uppercase"
+          style={{ fontSize: "10px", letterSpacing: "0.28em" }}
+        >
           גלול למטה
         </span>
+        <div className="w-px h-8 bg-gradient-to-b from-slate-pale/80 to-transparent" />
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#C0392B"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          style={{ animation: "scrollBounce 1.8s cubic-bezier(0.4,0,0.6,1) infinite" }}
+          aria-hidden
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
       </div>
 
       {/* Crimson accent strip (right edge) */}
@@ -532,7 +607,9 @@ const Stats = () => {
                 transition: `opacity 0.6s ease ${i * 0.1}s, transform 0.6s cubic-bezier(0.22,1,0.36,1) ${i * 0.1}s`,
               }}
             >
-              <div className="text-4xl mb-3">{stat.icon}</div>
+              <div className="mb-3 flex justify-center text-crimson opacity-90">
+                <stat.Icon size={36} />
+              </div>
               <div
                 className="font-serif text-offwhite mb-1"
                 style={{ fontSize: "clamp(2.5rem, 5vw, 3.5rem)", fontWeight: 600, lineHeight: 1 }}
@@ -615,8 +692,15 @@ const HomePage = () => {
 
   return (
     <div
-      className="min-h-screen home-noise"
-      style={{ backgroundColor: "#F7F5F0", color: "#1C2333", fontFamily: "'Noto Sans Hebrew', sans-serif" }}
+      className="min-h-screen home-noise font-serif"
+      style={{
+        backgroundColor: "#F7F5F0",
+        color: "#1C2333",
+        /* Force Noto Serif Hebrew as the global page font for a
+           premium, unified look. Sans falls back to Hebrew sans
+           inside specific elements that opt in via class. */
+        fontFamily: "'Noto Serif Hebrew', serif",
+      }}
     >
       <Hero />
       <Timeline />
