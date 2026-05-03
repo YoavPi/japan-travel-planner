@@ -307,7 +307,9 @@ const ExploreView = () => {
           <DraggableDivider onDrag={handleDividerDrag} />
         )}
 
-        {/* ═══ DESKTOP RIGHT PANE — VerticalFlow + Filter footer ═══ */}
+        {/* ═══ DESKTOP RIGHT PANE — Filters pinned at TOP (like the
+              original design), VerticalFlow scrolls beneath. The
+              "drawer at bottom" pattern is mobile-only. ═══ */}
         <div
           data-panel="itinerary"
           className={`hidden lg:flex lg:flex-col flex-1 overflow-hidden bg-cream-50 transition-all ease-in-out duration-100 ${
@@ -331,14 +333,14 @@ const ExploreView = () => {
             )}
           </div>
 
+          {/* Filter bar — pinned at the top of the side pane (desktop) */}
+          <div className="flex-shrink-0">
+            <BottomFilterBar {...filterProps} />
+          </div>
+
           {/* Flow scroll area */}
           <div className="flex-1 overflow-y-auto overscroll-contain scrollbar-thin">
             <VerticalFlow ref={flowRefDesktop} {...flowProps} />
-          </div>
-
-          {/* Footer filter bar (drawer-feel on desktop) */}
-          <div className="flex-shrink-0">
-            <BottomFilterBar {...filterProps} />
           </div>
         </div>
 
