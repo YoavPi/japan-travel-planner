@@ -65,43 +65,28 @@ const CITY_CENTERS = {
 };
 
 /* ══════════════════════════════════════════════
-   CUSTOM SVG MARKER — Minimalist Torii-inspired pin
+   CUSTOM SVG MARKER — Minimalist colored dot
+   No numeric label (per spec). City color is preserved so users
+   can still distinguish regions at a glance, and the dot grows +
+   gets a white inner ring on hover/select.
    ══════════════════════════════════════════════ */
-const DayMarkerSVG = ({ day, colors, isSelected, isHovered }) => {
-  const size = isSelected ? 42 : isHovered ? 38 : 34;
+const DayMarkerSVG = ({ colors, isSelected, isHovered }) => {
+  const size = isSelected ? 22 : isHovered ? 18 : 14;
   return (
-    <svg width={size} height={size + 10} viewBox="0 0 40 50" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Drop shadow */}
-      <ellipse cx="20" cy="47" rx="7" ry="2.5" fill="rgba(0,0,0,0.12)" />
-      {/* Pin body */}
-      <path
-        d="M20 46 C20 46 36 30 36 18 C36 9.16 28.84 2 20 2 C11.16 2 4 9.16 4 18 C4 30 20 46 20 46Z"
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Outer ring (white halo for legibility on the map tiles) */}
+      <circle cx="12" cy="12" r="10" fill="#FDFBF5" opacity="0.85" />
+      {/* Color dot */}
+      <circle
+        cx="12"
+        cy="12"
+        r="7"
         fill={colors.bg}
         stroke={isSelected ? "#FDFBF5" : colors.border}
-        strokeWidth={isSelected ? "2.5" : "1.5"}
+        strokeWidth={isSelected ? 2.5 : 1.25}
       />
-      {/* Inner circle */}
-      <circle cx="20" cy="18" r="11" fill="#FDFBF5" />
-      {/* Day number */}
-      <text
-        x="20"
-        y="22"
-        textAnchor="middle"
-        fontSize="12"
-        fontWeight="800"
-        fontFamily="Montserrat, sans-serif"
-        fill={colors.bg}
-      >
-        {day}
-      </text>
-      {/* Torii gate accent on top */}
-      {isSelected && (
-        <>
-          <line x1="14" y1="5" x2="26" y2="5" stroke="#FDFBF5" strokeWidth="1.5" strokeLinecap="round" />
-          <line x1="16" y1="5" x2="16" y2="8" stroke="#FDFBF5" strokeWidth="1" />
-          <line x1="24" y1="5" x2="24" y2="8" stroke="#FDFBF5" strokeWidth="1" />
-        </>
-      )}
+      {/* Inner pip on selection */}
+      {isSelected && <circle cx="12" cy="12" r="2.5" fill="#FDFBF5" />}
     </svg>
   );
 };
@@ -782,62 +767,57 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
           </>
         )}
 
-        {/* ─── Day markers (custom SVG) — hidden when a category filter is
-              active because emoji markers (below) take over to keep the
-              map readable. ─── */}
-        {!activeFilter && tripData.map((d) => {
-          const isSelected = selectedDay === d.day;
-          const isHovered = hoveredDay === d.day;
-          const colors = getCityColor(d.city);
+        {/* ─── Day markers (clean dots) ───
+              Visibility rules (per spec):
+                • category filter active → hidden (emoji markers
+                  below take over)
+                • a single day is selected → hide ALL 30 other day
+                  pins. Sub-location markers for that day take over.
+                • otherwise → render all 31 dots (macro view).
+              The map effectively "filters by day" automatically once
+              the user picks a day from any source. */}
+        {!activeFilter && tripData
+          .filter((d) => !selectedDay || selectedDay === d.day)
+          .map((d) => {
+            const isSelected = selectedDay === d.day;
+            const isHovered = hoveredDay === d.day;
+            const colors = getCityColor(d.city);
 
-          return (
-            <Marker
-              key={d.day}
-              longitude={d.coordinates.lng}
-              latitude={d.coordinates.lat}
-              anchor="bottom"
-              onClick={(e) => {
-                e.originalEvent.stopPropagation();
-                handleMarkerClick(d.day);
-              }}
-            >
-              <div
-                className="cursor-pointer relative"
-                onMouseEnter={() => setHoveredDay(d.day)}
-                onMouseLeave={() => setHoveredDay(null)}
-                style={{
-                  transition: "transform 0.25s ease",
-                  transform: isSelected ? "scale(1.15)" : isHovered ? "scale(1.1)" : "scale(1)",
-                  zIndex: isSelected ? 100 : isHovered ? 50 : 1,
+            /* When a day is selected we already render rich sub-location
+               markers + the map flyTo'd in close — the day pin itself
+               can be hidden so it doesn't clutter the close view. */
+            if (isSelected) return null;
+
+            return (
+              <Marker
+                key={d.day}
+                longitude={d.coordinates.lng}
+                latitude={d.coordinates.lat}
+                anchor="center"
+                onClick={(e) => {
+                  e.originalEvent.stopPropagation();
+                  handleMarkerClick(d.day);
                 }}
               >
-                {/* Pulse ring */}
-                {isSelected && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      left: "50%",
-                      bottom: "12px",
-                      transform: "translateX(-50%)",
-                      width: "40px",
-                      height: "40px",
-                      borderRadius: "50%",
-                      backgroundColor: colors.bg,
-                      opacity: 0.3,
-                      animation: "ping 1.5s cubic-bezier(0,0,0.2,1) infinite",
-                    }}
+                <div
+                  className="cursor-pointer relative"
+                  onMouseEnter={() => setHoveredDay(d.day)}
+                  onMouseLeave={() => setHoveredDay(null)}
+                  style={{
+                    transition: "transform 0.25s ease",
+                    transform: isHovered ? "scale(1.2)" : "scale(1)",
+                    zIndex: isHovered ? 50 : 1,
+                  }}
+                >
+                  <DayMarkerSVG
+                    colors={colors}
+                    isSelected={false}
+                    isHovered={isHovered}
                   />
-                )}
-                <DayMarkerSVG
-                  day={d.day}
-                  colors={colors}
-                  isSelected={isSelected}
-                  isHovered={isHovered}
-                />
-              </div>
-            </Marker>
-          );
-        })}
+                </div>
+              </Marker>
+            );
+          })}
 
         {/* ─── Category-emoji markers (filter mode) ───
               Replace the heavier day pins with an emoji-on-cream chip

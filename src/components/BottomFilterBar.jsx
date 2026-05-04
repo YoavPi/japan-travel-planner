@@ -34,14 +34,14 @@ const BottomFilterBar = ({
   /* ── Phase A: city picker ── */
   if (phase === "A") {
     return (
-      <div className="bg-cream-50/95 backdrop-blur-sm border-t border-cream-300">
+      <div className="bg-cream-50/95 backdrop-blur-sm border-t border-cream-300" dir="rtl">
         <div className="flex items-center gap-2 px-3 py-2.5 overflow-x-auto scrollbar-none">
           {/* Reset / All */}
           <button
             onClick={onClearAll}
-            className="flex-shrink-0 px-3.5 py-2 rounded-full text-[11px] font-display font-semibold bg-cream-100 text-sumi-500 border border-cream-300 min-h-[40px] hover:border-vermillion-300 hover:text-vermillion-600 transition-colors"
+            className="flex-shrink-0 px-3.5 py-2 rounded-full text-[11px] font-semibold bg-cream-100 text-sumi-500 border border-cream-300 min-h-[40px] hover:border-vermillion-300 hover:text-vermillion-600 transition-colors"
           >
-            All Trip
+            כל הטיול
           </button>
 
           {cities.map((cp) => {
@@ -50,7 +50,7 @@ const BottomFilterBar = ({
               <button
                 key={cp.key}
                 onClick={() => onCityChange(cp.key)}
-                className={`flex-shrink-0 px-3.5 py-2 rounded-full text-[11px] font-display font-semibold border min-h-[40px] transition-all duration-200
+                className={`flex-shrink-0 px-3.5 py-2 rounded-full text-[11px] font-semibold border min-h-[40px] transition-all duration-200
                   ${isActive
                     ? "bg-vermillion-500 text-white border-vermillion-500 shadow-sm"
                     : "bg-cream-50 text-sumi-600 border-vermillion-200 hover:border-vermillion-400 hover:text-vermillion-600 hover:bg-vermillion-50"
@@ -69,30 +69,32 @@ const BottomFilterBar = ({
   const activeCityLabel = cities.find((c) => c.key === activeCity)?.label || activeCity;
 
   return (
-    <div className="bg-cream-50/95 backdrop-blur-sm border-t border-cream-300">
-      {/* Context strip — shows current city + back arrow */}
+    <div className="bg-cream-50/95 backdrop-blur-sm border-t border-cream-300" dir="rtl">
+      {/* Context strip — shows current city + back arrow.
+          The chevron is rotated 180° so it points toward the reading
+          start in RTL (visual right) which is "back". */}
       <div className="flex items-center gap-2 px-3 pt-2 pb-1.5 border-b border-cream-200">
         <button
           onClick={() => onCityChange(activeCity)} /* toggle off */
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-display font-semibold text-sumi-500 hover:text-vermillion-600 hover:bg-cream-100 transition-colors min-h-[32px]"
-          title="Back to all cities"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold text-sumi-500 hover:text-vermillion-600 hover:bg-cream-100 transition-colors min-h-[32px]"
+          title="חזרה לכל הערים"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: "rotate(180deg)" }}>
             <polyline points="15 18 9 12 15 6" />
           </svg>
-          Back
+          חזור
         </button>
         <div className="h-4 w-px bg-cream-300" />
-        <span className="text-xs font-display font-bold text-vermillion-600 truncate">
+        <span className="text-xs font-bold text-vermillion-600 truncate">
           {activeCityLabel}
         </span>
         {activeFilter && (
           <button
             onClick={() => onFilterChange(activeFilter)} /* toggle off */
-            className="ml-auto flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-display font-semibold text-sumi-400 hover:text-vermillion-600 transition-colors"
-            title="Clear category"
+            className="mr-auto flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold text-sumi-400 hover:text-vermillion-600 transition-colors"
+            title="נקה קטגוריה"
           >
-            Clear filter
+            נקה סינון
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
             </svg>
@@ -104,13 +106,13 @@ const BottomFilterBar = ({
       <div className="flex items-center gap-2 px-3 py-2 overflow-x-auto scrollbar-none">
         <button
           onClick={() => onFilterChange(null)}
-          className={`flex-shrink-0 px-3 py-1.5 rounded-full text-[11px] font-display font-semibold border min-h-[36px] transition-colors
+          className={`flex-shrink-0 px-3 py-1.5 rounded-full text-[11px] font-semibold border min-h-[36px] transition-colors
             ${!activeFilter
               ? "bg-sumi-800 text-white border-sumi-800"
               : "bg-cream-50 text-sumi-500 border-cream-300 hover:border-sumi-400"
             }`}
         >
-          All
+          הכל
         </button>
         {FILTERS.map((f) => {
           const isActive = activeFilter === f.key;
@@ -118,14 +120,14 @@ const BottomFilterBar = ({
             <button
               key={f.key}
               onClick={() => onFilterChange(f.key)}
-              className={`flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-display font-semibold border min-h-[36px] transition-colors
+              className={`flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold border min-h-[36px] transition-colors
                 ${isActive
                   ? "bg-vermillion-500 text-white border-vermillion-500 shadow-sm"
                   : "bg-cream-50 text-sumi-500 border-cream-300 hover:border-vermillion-300 hover:text-vermillion-600"
                 }`}
             >
               <f.icon size={12} color={isActive ? "#fff" : f.color} />
-              <span>{f.label}</span>
+              <span>{f.labelHe || f.label}</span>
             </button>
           );
         })}

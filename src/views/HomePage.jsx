@@ -290,18 +290,13 @@ const Hero = () => {
         </div>
       </div>
 
-      {/* Scroll hint — bouncing chevron + label, bottom-center */}
+      {/* Scroll affordance — wordless: a faint vertical line and a
+          bouncing crimson chevron. No copy, the motion is enough. */}
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 anim-fade-in delay-5 flex flex-col items-center gap-2 pointer-events-none">
-        <span
-          className="text-slate-light font-sans uppercase"
-          style={{ fontSize: "10px", letterSpacing: "0.28em" }}
-        >
-          גלול למטה
-        </span>
-        <div className="w-px h-8 bg-gradient-to-b from-slate-pale/80 to-transparent" />
+        <div className="w-px h-10 bg-gradient-to-b from-slate-pale/70 to-transparent" />
         <svg
-          width="20"
-          height="20"
+          width="22"
+          height="22"
           viewBox="0 0 24 24"
           fill="none"
           stroke="#C0392B"
@@ -674,22 +669,9 @@ const Footer = () => (
    PAGE
    ══════════════════════════════════════════════════════════════ */
 const HomePage = () => {
-  /* Force RTL on the document while the home page is mounted, then
-     restore on unmount so the /map route keeps its existing
-     direction logic untouched. */
-  useEffect(() => {
-    const prevDir = document.documentElement.getAttribute("dir");
-    const prevLang = document.documentElement.getAttribute("lang");
-    document.documentElement.setAttribute("dir", "rtl");
-    document.documentElement.setAttribute("lang", "he");
-    return () => {
-      if (prevDir) document.documentElement.setAttribute("dir", prevDir);
-      else document.documentElement.removeAttribute("dir");
-      if (prevLang) document.documentElement.setAttribute("lang", prevLang);
-      else document.documentElement.removeAttribute("lang");
-    };
-  }, []);
-
+  /* RTL is now set globally on <html dir="rtl" lang="he"> via index.html
+     so the per-page useEffect that flipped/restored direction is no
+     longer needed. The whole app is RTL across both routes. */
   return (
     <div
       className="min-h-screen home-noise font-serif"

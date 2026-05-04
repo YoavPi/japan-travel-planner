@@ -186,10 +186,10 @@ const DaySection = forwardRef(({ day, isSelected, onSelectDay, onSelectLocation,
               : "bg-cream-50 border-vermillion-400"
             }`}
         />
-        <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-sumi-800 leading-tight">
-          Day {day.day}
+        <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-sumi-800 leading-tight font-serif">
+          יום {day.day}
           <span className="text-sumi-400 font-light"> · </span>
-          <span>{baseCity}</span>
+          <span>{day.cityHe || baseCity}</span>
         </h2>
         {districts.length > 0 && (
           <p className="text-lg md:text-xl font-semibold text-sumi-500 mt-1 leading-snug">
@@ -201,7 +201,7 @@ const DaySection = forwardRef(({ day, isSelected, onSelectDay, onSelectLocation,
       {/* Phase: Morning */}
       {morning.length > 0 && (
         <>
-          <PhaseHeader label="Morning · בוקר" />
+          <PhaseHeader label="בוקר" />
           <div className="pr-8 pl-2 space-y-1">
             {morning.map((a, i) => (
               <FlowItem key={`m-${i}`} item={a} onClick={() => handleItemClick(a)} />
@@ -213,7 +213,7 @@ const DaySection = forwardRef(({ day, isSelected, onSelectDay, onSelectLocation,
       {/* Phase: Lunch */}
       {lunch && (
         <>
-          <PhaseHeader label="Lunch · צהריים" />
+          <PhaseHeader label="צהריים" />
           <div className="pr-8 pl-2">
             <FlowItem
               item={{ ...lunch, name: lunch.place }}
@@ -226,7 +226,7 @@ const DaySection = forwardRef(({ day, isSelected, onSelectDay, onSelectLocation,
       {/* Phase: Afternoon */}
       {afternoon.length > 0 && (
         <>
-          <PhaseHeader label="Afternoon · אחר הצהריים" />
+          <PhaseHeader label="אחר הצהריים" />
           <div className="pr-8 pl-2 space-y-1">
             {afternoon.map((a, i) => (
               <FlowItem key={`a-${i}`} item={a} onClick={() => handleItemClick(a)} />
@@ -238,7 +238,7 @@ const DaySection = forwardRef(({ day, isSelected, onSelectDay, onSelectLocation,
       {/* Phase: Dinner */}
       {dinner && (
         <>
-          <PhaseHeader label="Dinner · ערב" />
+          <PhaseHeader label="ערב" />
           <div className="pr-8 pl-2">
             <FlowItem
               item={{ ...dinner, name: dinner.place }}

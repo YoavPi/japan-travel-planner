@@ -5,6 +5,7 @@ import DetailModal from "../components/DetailModal";
 import BottomSheet from "../components/BottomSheet";
 import BottomFilterBar from "../components/BottomFilterBar";
 import VerticalFlow from "../components/VerticalFlow";
+import DayStrip from "../components/DayStrip";
 
 /* ══════════════════════════════════════════════════════════════
    DRAGGABLE DIVIDER (desktop split-pane resize)
@@ -208,7 +209,12 @@ const ExploreView = () => {
     <div className="h-screen w-screen bg-cream-100 p-1.5 lg:p-2">
       <div
         ref={containerRef}
-        className="h-full w-full bg-cream-50 rounded-xl overflow-hidden border-[1.5px] border-vermillion-400/35 flex flex-col lg:flex-row shadow-xl relative"
+        /* RTL note: with `dir="rtl"` set globally, `flex-row-reverse`
+           puts the LAST flex child on the visual right and the FIRST
+           on the left — i.e. the sidebar (last child) ends up on the
+           right exactly as the user expects, while the map sits on
+           the left. Mobile (`flex-col`) is unaffected. */
+        className="h-full w-full bg-cream-50 rounded-xl overflow-hidden border-[1.5px] border-vermillion-400/35 flex flex-col lg:flex-row-reverse shadow-xl relative"
       >
         {/* ═══ MAP PANEL ═══════════════════════════════════════════
               Full-bleed on mobile (sheet sits on top); split-pane
@@ -233,39 +239,63 @@ const ExploreView = () => {
             />
           </div>
 
-          {/* Map overlay button cluster — desktop only */}
-          <div className="hidden lg:flex absolute top-4 left-14 z-10 gap-2">
+          {/* "כל הימים" (Show All Days) reset button — only visible
+              when a day is currently selected. Clears the day so the
+              31-point macro view returns. Renders ABOVE the standard
+              cluster so it's a distinct affordance. */}
+          {selectedDay && (
+            <button
+              onClick={() => { setSelectedDay(null); setSelectedLocation(null); }}
+              className="absolute top-4 left-14 z-20 inline-flex items-center gap-1.5 px-3.5 py-2 bg-vermillion-500 text-white rounded-lg shadow-md text-[11px] font-bold hover:bg-vermillion-600 transition-colors min-h-[40px] max-lg:top-3 max-lg:left-3"
+              dir="rtl"
+              title="הצג את כל הימים"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+              הצג את כל הימים
+            </button>
+          )}
+
+          {/* Map overlay button cluster — desktop only.
+              In RTL the cluster sits on the LEFT edge of the map
+              (top-left in physical pixels) since the map itself is
+              on the left half of the screen. The cluster is hidden
+              on tablet/mobile sizes; mobile gets its own simpler set
+              of icon-only buttons (top-right). */}
+          <div className={`hidden lg:flex absolute ${selectedDay ? "top-16" : "top-4"} left-14 z-10 gap-2`} dir="rtl">
             <Link
               to="/"
-              className="inline-flex items-center gap-1.5 px-3 py-2 bg-cream-50/95 backdrop-blur-sm rounded-lg border border-cream-300 hover:border-vermillion-300 shadow-md text-[11px] font-display font-bold text-sumi-700 hover:text-vermillion-600 transition-all duration-200 min-h-[40px]"
-              title="Back to home"
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-cream-50/95 backdrop-blur-sm rounded-lg border border-cream-300 hover:border-vermillion-300 shadow-md text-[11px] font-bold text-sumi-700 hover:text-vermillion-600 transition-all duration-200 min-h-[40px]"
+              title="חזרה לדף הבית"
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
               </svg>
-              Home
+              בית
             </Link>
             <button
               onClick={handleMacroView}
-              className="inline-flex items-center gap-1.5 px-3 py-2 bg-cream-50/95 backdrop-blur-sm rounded-lg border border-cream-300 hover:border-vermillion-300 shadow-md text-[11px] font-display font-bold text-sumi-700 hover:text-vermillion-600 transition-all duration-200 min-h-[40px]"
-              title="Show entire trip"
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-cream-50/95 backdrop-blur-sm rounded-lg border border-cream-300 hover:border-vermillion-300 shadow-md text-[11px] font-bold text-sumi-700 hover:text-vermillion-600 transition-all duration-200 min-h-[40px]"
+              title="הצג את כל הטיול"
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
               </svg>
-              Whole Trip
+              כל הטיול
             </button>
             <button
               onClick={handleToggleMapExpand}
-              className="inline-flex items-center gap-1.5 px-3 py-2 bg-cream-50/95 backdrop-blur-sm rounded-lg border border-cream-300 hover:border-vermillion-300 shadow-md text-[11px] font-display font-bold text-sumi-700 hover:text-vermillion-600 transition-all duration-200 min-h-[40px]"
-              title={mapExpanded ? "Show side panel" : "Expand map"}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-cream-50/95 backdrop-blur-sm rounded-lg border border-cream-300 hover:border-vermillion-300 shadow-md text-[11px] font-bold text-sumi-700 hover:text-vermillion-600 transition-all duration-200 min-h-[40px]"
+              title={mapExpanded ? "הצג פאנל צד" : "הרחב מפה"}
             >
               {mapExpanded ? (
                 <>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                     <polyline points="11 19 2 12 11 5" /><line x1="2" y1="12" x2="22" y2="12" />
                   </svg>
-                  Show Flow
+                  הצג מסלול
                 </>
               ) : (
                 <>
@@ -273,18 +303,31 @@ const ExploreView = () => {
                     <polyline points="15 3 21 3 21 9" /><polyline points="9 21 3 21 3 15" />
                     <line x1="21" y1="3" x2="14" y2="10" /><line x1="3" y1="21" x2="10" y2="14" />
                   </svg>
-                  Expand Map
+                  הרחב מפה
                 </>
               )}
             </button>
           </div>
 
-          {/* Mobile-only top hint button — Whole Trip + Home in a tiny stack */}
+          {/* Mobile DayStrip — narrow column on the LEFT edge of the
+              map (doesn't collide with right-edge home/macro buttons).
+              Stops above the BottomSheet's peek state (~110px). */}
+          <div className="lg:hidden absolute top-3 left-3 bottom-[120px] z-10 w-9">
+            <div className="h-full rounded-xl border border-cream-300 shadow-md overflow-hidden">
+              <DayStrip
+                selectedDay={selectedDay}
+                onSelectDay={handleSelectDay}
+                className="h-full w-full"
+              />
+            </div>
+          </div>
+
+          {/* Mobile-only top hint buttons (icons only) */}
           <div className="lg:hidden absolute top-3 right-3 z-10 flex flex-col gap-2">
             <Link
               to="/"
-              className="inline-flex items-center gap-1 px-2.5 py-2 bg-cream-50/95 backdrop-blur-sm rounded-lg border border-cream-300 shadow text-[10px] font-display font-bold text-sumi-700 min-h-[40px]"
-              title="Home"
+              className="inline-flex items-center gap-1 px-2.5 py-2 bg-cream-50/95 backdrop-blur-sm rounded-lg border border-cream-300 shadow text-[10px] font-bold text-sumi-700 min-h-[40px]"
+              title="בית"
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
@@ -292,8 +335,8 @@ const ExploreView = () => {
             </Link>
             <button
               onClick={handleMacroView}
-              className="inline-flex items-center gap-1 px-2.5 py-2 bg-cream-50/95 backdrop-blur-sm rounded-lg border border-cream-300 shadow text-[10px] font-display font-bold text-sumi-700 min-h-[40px]"
-              title="Whole Trip"
+              className="inline-flex items-center gap-1 px-2.5 py-2 bg-cream-50/95 backdrop-blur-sm rounded-lg border border-cream-300 shadow text-[10px] font-bold text-sumi-700 min-h-[40px]"
+              title="כל הטיול"
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
@@ -307,6 +350,17 @@ const ExploreView = () => {
           <DraggableDivider onDrag={handleDividerDrag} />
         )}
 
+        {/* ═══ DAY STRIP (Quick Jump 1–31) — desktop only ═══
+              Sits between the divider and the side pane content.
+              Bi-directionally synced through `selectedDay`. */}
+        <div className={`hidden lg:block flex-shrink-0 border-l border-cream-200 ${mapExpanded ? "lg:hidden" : ""}`}>
+          <DayStrip
+            selectedDay={selectedDay}
+            onSelectDay={handleSelectDay}
+            className="h-full w-12"
+          />
+        </div>
+
         {/* ═══ DESKTOP RIGHT PANE — Filters pinned at TOP (like the
               original design), VerticalFlow scrolls beneath. The
               "drawer at bottom" pattern is mobile-only. ═══ */}
@@ -316,19 +370,19 @@ const ExploreView = () => {
             mapExpanded ? "lg:w-0 lg:hidden" : ""
           }`}
         >
-          {/* Sticky title strip */}
-          <div className="flex-shrink-0 px-5 pt-3 pb-2 border-b border-cream-200 flex items-center justify-between">
-            <div>
-              <h1 className="text-base font-display font-black text-sumi-800 tracking-tight">
-                Trip Roadmap
+          {/* Sticky title strip — RTL-aligned */}
+          <div className="flex-shrink-0 px-5 pt-3 pb-2 border-b border-cream-200 flex items-center justify-between" dir="rtl">
+            <div className="text-right">
+              <h1 className="text-base font-serif font-black text-sumi-800 tracking-tight">
+                מסלול הטיול
               </h1>
-              <p className="text-[10px] text-sumi-400 font-body mt-0.5">
-                31 Days · 9 Cities · Feb–Mar 2024
+              <p className="text-[10px] text-sumi-400 mt-0.5">
+                31 ימים · 9 ערים · פברואר–מרץ 2024
               </p>
             </div>
             {selectedDay && (
-              <span className="text-[10px] font-display font-bold text-vermillion-600 px-2 py-1 rounded-full bg-vermillion-50 border border-vermillion-200">
-                Day {selectedDay}
+              <span className="text-[10px] font-bold text-vermillion-600 px-2 py-1 rounded-full bg-vermillion-50 border border-vermillion-200">
+                יום {selectedDay}
               </span>
             )}
           </div>
