@@ -5,7 +5,7 @@ import DetailModal from "../components/DetailModal";
 import BottomSheet from "../components/BottomSheet";
 import BottomFilterBar from "../components/BottomFilterBar";
 import VerticalFlow from "../components/VerticalFlow";
-import DayStrip from "../components/DayStrip";
+import DayFilter from "../components/DayFilter";
 
 /* ══════════════════════════════════════════════════════════════
    DRAGGABLE DIVIDER (desktop split-pane resize)
@@ -309,19 +309,6 @@ const ExploreView = () => {
             </button>
           </div>
 
-          {/* Mobile DayStrip — narrow column on the LEFT edge of the
-              map (doesn't collide with right-edge home/macro buttons).
-              Stops above the BottomSheet's peek state (~110px). */}
-          <div className="lg:hidden absolute top-3 left-3 bottom-[120px] z-10 w-9">
-            <div className="h-full rounded-xl border border-cream-300 shadow-md overflow-hidden">
-              <DayStrip
-                selectedDay={selectedDay}
-                onSelectDay={handleSelectDay}
-                className="h-full w-full"
-              />
-            </div>
-          </div>
-
           {/* Mobile-only top hint buttons (icons only) */}
           <div className="lg:hidden absolute top-3 right-3 z-10 flex flex-col gap-2">
             <Link
@@ -350,16 +337,6 @@ const ExploreView = () => {
           <DraggableDivider onDrag={handleDividerDrag} />
         )}
 
-        {/* ═══ DAY STRIP (Quick Jump 1–31) — desktop only ═══
-              Sits between the divider and the side pane content.
-              Bi-directionally synced through `selectedDay`. */}
-        <div className={`hidden lg:block flex-shrink-0 border-l border-cream-200 ${mapExpanded ? "lg:hidden" : ""}`}>
-          <DayStrip
-            selectedDay={selectedDay}
-            onSelectDay={handleSelectDay}
-            className="h-full w-12"
-          />
-        </div>
 
         {/* ═══ DESKTOP RIGHT PANE — Filters pinned at TOP (like the
               original design), VerticalFlow scrolls beneath. The
@@ -387,6 +364,15 @@ const ExploreView = () => {
             )}
           </div>
 
+          {/* Day Filter — horizontal pill bar (sticky just under the
+              title strip, above the city/category filters). */}
+          <div className="flex-shrink-0">
+            <DayFilter
+              selectedDay={selectedDay}
+              onSelectDay={handleSelectDay}
+            />
+          </div>
+
           {/* Filter bar — pinned at the top of the side pane (desktop) */}
           <div className="flex-shrink-0">
             <BottomFilterBar {...filterProps} />
@@ -398,11 +384,20 @@ const ExploreView = () => {
           </div>
         </div>
 
-        {/* ═══ MOBILE BOTTOM SHEET — VerticalFlow with filter header ═══ */}
+        {/* ═══ MOBILE BOTTOM SHEET ═══
+              Header stack (top → bottom):
+                1) DayFilter  — horizontal day pills (sticky)
+                2) BottomFilterBar — city / category filters
+              Body: VerticalFlow */}
         <BottomSheet
           ref={sheetRef}
           defaultSnap="peek"
-          header={<BottomFilterBar {...filterProps} />}
+          header={
+            <>
+              <DayFilter selectedDay={selectedDay} onSelectDay={handleSelectDay} />
+              <BottomFilterBar {...filterProps} />
+            </>
+          }
         >
           <VerticalFlow ref={flowRefMobile} {...flowProps} />
         </BottomSheet>

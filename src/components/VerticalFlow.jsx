@@ -1,115 +1,126 @@
 import React, { forwardRef, useImperativeHandle, useMemo, useRef } from "react";
 import { tripData } from "../data/tripData";
+import { ActivityIcons } from "../data/illustrations";
 
 /* ══════════════════════════════════════════════════════════════
    VERTICAL FLOW — New itinerary view
    ──────────────────────────────────────────────────────────────
-   Replaces the dense DayCard list with a clean, airy timeline:
+   Clean, airy timeline:
      - Continuous crimson line on the right edge (RTL-friendly)
      - One section per day with a filled day node
      - Phases interleaved by time-of-day:
-         Morning   = first half of attractions
-         Lunch     = day.lunch
-         Afternoon = second half of attractions
-         Dinner    = day.dinner
-     - Each phase = small hollow node + label + clickable items
+         בוקר        = first half of attractions
+         צהריים      = day.lunch
+         אחר הצהריים  = second half of attractions
+         ערב         = day.dinner
+     - Every item has a category icon next to its name
 
-   Strict design rules from the spec:
+   Design rules:
      - REMOVE Japanese names from the rendered output
      - REMOVE tips and expenses (data preserved, UI only)
      - REMOVE hero illustrations on top of day rows
+     - REMOVE English district summaries — Hebrew only
      - Pointer-cursor only on items that have `coordinates`
-     - Typography hierarchy: city 32px+ / district 20px / item 18px
-
-   Reads tripData (read-only) for districts when visibleDays is
-   not pre-filtered. Otherwise consumes the days passed in via
-   props.
+     - Typography hierarchy: city 32px+ / item 18px
    ══════════════════════════════════════════════════════════════ */
 
-/* ── District extractor (heuristic, read-only) ──
-   Each city has a known list of districts/neighborhoods. We scan
-   the day's attraction names + Hebrew descriptions for matches.
-   When nothing matches, we fall back to the Hebrew city name so
-   the district line is never empty. */
-const DISTRICT_KEYWORDS = {
-  Tokyo: [
-    "Harajuku", "Shibuya", "Shinjuku", "Roppongi", "Asakusa", "Akihabara",
-    "Ginza", "Ueno", "Shimokitazawa", "Nakameguro", "Omotesando", "Yoyogi",
-    "Meiji", "Tsukiji", "Daikanyama", "Ebisu",
-  ],
-  Kyoto: [
-    "Gion", "Higashiyama", "Arashiyama", "Pontocho", "Fushimi", "Kinkaku",
-    "Kiyomizu", "Nishiki", "Nara",
-  ],
-  Osaka: [
-    "Umeda", "Namba", "Dotonbori", "Shinsaibashi", "Tennoji", "Kuromon",
-  ],
-  Kanazawa: ["Higashi", "Omicho", "Kenrokuen"],
-  Takayama: ["Sanmachi", "Hida"],
-  Matsumoto: ["Matsumoto", "Nakamachi"],
-  Nagoya: ["Sakae", "Meieki"],
-  Hakone: ["Yumoto", "Gora", "Sengokuhara"],
-  Kawaguchiko: ["Kawaguchi", "Fuji"],
+/* ── Activity icon picker ─────────────────────────────────────
+   Maps an item's name to a representative line-art icon from the
+   shared ActivityIcons library. The matcher inspects the English
+   `name` AND the Hebrew `nameHe` so we work even on items where
+   one side is sparse. Falls back to "walk" for generic locations. */
+const isHotelName = (n) => /hotel|אכסניה|מלון|ryokan/i.test(n || "");
+
+const pickIcon = (item) => {
+  const text = `${item?.name || ""} ${item?.nameHe || ""} ${item?.desc || ""}`.toLowerCase();
+
+  // Specific food/cafe before generic
+  if (/coffee|café|cafe|starbucks|bricolage|anakuma|stumptown/.test(text)) return ActivityIcons.coffee;
+  if (/onsen|hot spring|אונסן|温泉/.test(text)) return ActivityIcons.onsen;
+  if (/shrine|temple|inari|pagoda|todai|מקדש|פגוד|טירה|castle/.test(text)) return ActivityIcons.shrine;
+  if (/park|garden|gyoen|bamboo|פארק|גן /.test(text)) return ActivityIcons.park;
+  if (/market|don quijote|parco|muji|outlet|uniqlo|kappabashi|store|ameyoko|sunshine city|radio kaikan|shopping|חנות|שוק|קניות/.test(text)) return ActivityIcons.shopping;
+  if (/view|tower|crossing|teamlab|billboard|תצפית|מגדל|tower|פוג'?י/.test(text)) return ActivityIcons.viewpoint;
+  if (/ramen|sushi|food|soba|gyoza|yakitori|katsu|yakiniku|burger|pizza|pancake|udon|izakaya|duck|ראמן|סושי|אוכל|המבורגר|פיצה|אודון/.test(text)) return ActivityIcons.food;
+  if (/photo|camera|chureito|צילום/.test(text)) return ActivityIcons.camera;
+  if (/disney|universal|monsters|pirates|space mountain|tower of terror|haunted|ferris/.test(text)) return ActivityIcons.viewpoint;
+
+  return ActivityIcons.walk;
 };
 
-const extractDistricts = (day) => {
-  const baseCity = day.city.replace(/ \d+$/, "");
-  const keywords = DISTRICT_KEYWORDS[baseCity] || [];
-  const haystack = [
-    ...(day.attractions || []).map((a) => `${a.name} ${a.nameHe || ""} ${a.desc || ""}`),
-    `${day.lunch?.place || ""} ${day.lunch?.desc || ""}`,
-    `${day.dinner?.place || ""} ${day.dinner?.desc || ""}`,
-  ].join(" ").toLowerCase();
-
-  const found = [];
-  keywords.forEach((kw) => {
-    if (haystack.includes(kw.toLowerCase()) && !found.includes(kw)) {
-      found.push(kw);
-    }
-  });
-  return found;
+/* Color hint per phase so icons read well at a glance */
+const phaseAccentColor = (phase) => {
+  switch (phase) {
+    case "lunch":  return "#C4A048";
+    case "dinner": return "#D94025";
+    case "shop":   return "#57534E";
+    default:       return "#8F2818";
+  }
 };
 
 /* ── Phase node (small hollow circle on the timeline) ── */
 const PhaseHeader = ({ label }) => (
   <div className="relative pr-8 mb-3 mt-5">
     <div className="absolute right-[7px] top-[6px] w-2.5 h-2.5 rounded-full border border-vermillion-400 bg-cream-50 z-10" />
-    <p className="text-[10px] font-display font-bold uppercase tracking-[0.18em] text-sumi-400">
+    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-sumi-400">
       {label}
     </p>
   </div>
 );
 
-/* ── Single flow item (location button) ── */
-const FlowItem = ({ item, onClick }) => {
+/* ── Single flow item (location button) ──
+   Icon on the right (reading start in RTL), text on the left.
+   The button uses flex with `dir="rtl"` so the icon slot sits at
+   the visual right and the text/rating column flows leftward. */
+const FlowItem = ({ item, onClick, accentColor }) => {
   const interactive = !!item.coordinates;
+  const Icon = pickIcon(item);
+  const iconColor = accentColor || (isHotelName(item.name) ? "#5C7A2E" : "#1C1917");
+
   return (
     <button
       type="button"
       disabled={!interactive}
       onClick={interactive ? onClick : undefined}
-      className={`block w-full text-right py-1.5 px-1 rounded-md transition-colors
+      dir="rtl"
+      className={`flex items-start gap-3 w-full text-right py-2 px-2 rounded-lg transition-colors
         ${interactive
-          ? "cursor-pointer hover:bg-vermillion-50/60 hover:text-vermillion-700"
+          ? "cursor-pointer hover:bg-vermillion-50/60"
           : "cursor-default"
         }`}
     >
-      <span className="text-base md:text-lg font-medium text-sumi-700 leading-snug">
-        {item.name}
+      {/* Icon disc — soft cream background so the line-art reads */}
+      <span
+        className="flex-shrink-0 mt-0.5 inline-flex items-center justify-center rounded-full"
+        style={{
+          width: 30,
+          height: 30,
+          backgroundColor: "rgba(250,246,232,0.8)",
+          border: "1px solid #EDE5D0",
+        }}
+        aria-hidden
+      >
+        <Icon size={16} color={iconColor} />
       </span>
-      {item.rating && item.rating !== "—" && (
-        <span className="inline-flex items-center gap-1 mr-2 align-middle text-sm font-display font-semibold text-gold-400">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="#C4A048" stroke="#C4A048" strokeWidth="1.5">
-            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-          </svg>
-          {item.rating}
+
+      <span className="flex-1 min-w-0">
+        <span className="block text-base md:text-lg font-medium text-sumi-700 leading-snug">
+          {item.name}
+          {item.rating && item.rating !== "—" && (
+            <span className="inline-flex items-center gap-1 mr-2 align-middle text-sm font-semibold text-gold-400">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="#C4A048" stroke="#C4A048" strokeWidth="1.5">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+              </svg>
+              {item.rating}
+            </span>
+          )}
         </span>
-      )}
-      {item.nameHe && (
-        <span className="block text-sm text-sumi-400 mt-0.5" dir="rtl">
-          {item.nameHe}
-        </span>
-      )}
+        {item.nameHe && (
+          <span className="block text-sm text-sumi-400 mt-0.5">
+            {item.nameHe}
+          </span>
+        )}
+      </span>
     </button>
   );
 };
@@ -141,7 +152,6 @@ const shouldShowMeal = (meal, activeFilter) => {
 
 /* ── Day section ── */
 const DaySection = forwardRef(({ day, isSelected, onSelectDay, onSelectLocation, activeFilter, isLast }, ref) => {
-  const districts = useMemo(() => extractDistricts(day), [day]);
   const baseCity = day.city.replace(/ \d+$/, "");
 
   /* Time-of-day partition (heuristic on attraction order) */
@@ -191,11 +201,6 @@ const DaySection = forwardRef(({ day, isSelected, onSelectDay, onSelectLocation,
           <span className="text-sumi-400 font-light"> · </span>
           <span>{day.cityHe || baseCity}</span>
         </h2>
-        {districts.length > 0 && (
-          <p className="text-lg md:text-xl font-semibold text-sumi-500 mt-1 leading-snug">
-            {districts.join(" · ")}
-          </p>
-        )}
       </button>
 
       {/* Phase: Morning */}
@@ -218,6 +223,7 @@ const DaySection = forwardRef(({ day, isSelected, onSelectDay, onSelectLocation,
             <FlowItem
               item={{ ...lunch, name: lunch.place }}
               onClick={() => handleItemClick({ ...lunch, name: lunch.place })}
+              accentColor={phaseAccentColor("lunch")}
             />
           </div>
         </>
@@ -243,6 +249,7 @@ const DaySection = forwardRef(({ day, isSelected, onSelectDay, onSelectLocation,
             <FlowItem
               item={{ ...dinner, name: dinner.place }}
               onClick={() => handleItemClick({ ...dinner, name: dinner.place })}
+              accentColor={phaseAccentColor("dinner")}
             />
           </div>
         </>

@@ -714,38 +714,49 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
 
         {mapLoaded && (
           <>
-            {/* ─── Day-to-day dashed path ─── */}
-            <Source id="day-path" type="geojson" data={dayPathGeoJSON}>
-              <Layer
-                id="day-path-line"
-                type="line"
-                paint={{
-                  "line-color": "#DED4BA",
-                  "line-width": 1.5,
-                  "line-dasharray": [4, 4],
-                  "line-opacity": 0.6,
-                }}
-              />
-            </Source>
+            {/* ─── Global routes — visible only when NO day is selected.
+                  Once the user picks a day we drop into "Isolation Mode":
+                  the city-to-city polyline and the day-to-day dashed
+                  trail are both hidden so the only line on the map is
+                  the intra-day path connecting that day's stops. */}
+            {!selectedDay && (
+              <>
+                {/* Day-to-day dashed path */}
+                <Source id="day-path" type="geojson" data={dayPathGeoJSON}>
+                  <Layer
+                    id="day-path-line"
+                    type="line"
+                    paint={{
+                      "line-color": "#DED4BA",
+                      "line-width": 1.5,
+                      "line-dasharray": [4, 4],
+                      "line-opacity": 0.6,
+                    }}
+                  />
+                </Source>
 
-            {/* ─── Main route: solid vermillion line ─── */}
-            <Source id="route" type="geojson" data={routeGeoJSON}>
-              <Layer
-                id="route-line"
-                type="line"
-                paint={{
-                  "line-color": "#D94025",
-                  "line-width": 3,
-                  "line-opacity": 0.8,
-                }}
-                layout={{
-                  "line-cap": "round",
-                  "line-join": "round",
-                }}
-              />
-            </Source>
+                {/* Main route: solid vermillion line */}
+                <Source id="route" type="geojson" data={routeGeoJSON}>
+                  <Layer
+                    id="route-line"
+                    type="line"
+                    paint={{
+                      "line-color": "#D94025",
+                      "line-width": 3,
+                      "line-opacity": 0.8,
+                    }}
+                    layout={{
+                      "line-cap": "round",
+                      "line-join": "round",
+                    }}
+                  />
+                </Source>
+              </>
+            )}
 
-            {/* ─── Intra-day dashed path (local movement) ─── */}
+            {/* ─── Intra-day dashed path — only renders when a day is
+                  selected, by virtue of the underlying memo returning
+                  null otherwise. ─── */}
             {intraDayPathGeoJSON && (
               <Source id="intra-day-path" type="geojson" data={intraDayPathGeoJSON}>
                 <Layer
@@ -753,9 +764,9 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
                   type="line"
                   paint={{
                     "line-color": "#D94025",
-                    "line-width": 2,
+                    "line-width": 2.2,
                     "line-dasharray": [2, 3],
-                    "line-opacity": 0.5,
+                    "line-opacity": 0.7,
                   }}
                   layout={{
                     "line-cap": "round",
