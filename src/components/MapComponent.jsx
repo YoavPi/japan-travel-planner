@@ -65,43 +65,28 @@ const CITY_CENTERS = {
 };
 
 /* ══════════════════════════════════════════════
-   CUSTOM SVG MARKER — Minimalist Torii-inspired pin
+   CUSTOM SVG MARKER — Minimalist colored dot
+   No numeric label (per spec). City color is preserved so users
+   can still distinguish regions at a glance, and the dot grows +
+   gets a white inner ring on hover/select.
    ══════════════════════════════════════════════ */
-const DayMarkerSVG = ({ day, colors, isSelected, isHovered }) => {
-  const size = isSelected ? 42 : isHovered ? 38 : 34;
+const DayMarkerSVG = ({ colors, isSelected, isHovered }) => {
+  const size = isSelected ? 22 : isHovered ? 18 : 14;
   return (
-    <svg width={size} height={size + 10} viewBox="0 0 40 50" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Drop shadow */}
-      <ellipse cx="20" cy="47" rx="7" ry="2.5" fill="rgba(0,0,0,0.12)" />
-      {/* Pin body */}
-      <path
-        d="M20 46 C20 46 36 30 36 18 C36 9.16 28.84 2 20 2 C11.16 2 4 9.16 4 18 C4 30 20 46 20 46Z"
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Outer ring (white halo for legibility on the map tiles) */}
+      <circle cx="12" cy="12" r="10" fill="#FDFBF5" opacity="0.85" />
+      {/* Color dot */}
+      <circle
+        cx="12"
+        cy="12"
+        r="7"
         fill={colors.bg}
         stroke={isSelected ? "#FDFBF5" : colors.border}
-        strokeWidth={isSelected ? "2.5" : "1.5"}
+        strokeWidth={isSelected ? 2.5 : 1.25}
       />
-      {/* Inner circle */}
-      <circle cx="20" cy="18" r="11" fill="#FDFBF5" />
-      {/* Day number */}
-      <text
-        x="20"
-        y="22"
-        textAnchor="middle"
-        fontSize="12"
-        fontWeight="800"
-        fontFamily="Montserrat, sans-serif"
-        fill={colors.bg}
-      >
-        {day}
-      </text>
-      {/* Torii gate accent on top */}
-      {isSelected && (
-        <>
-          <line x1="14" y1="5" x2="26" y2="5" stroke="#FDFBF5" strokeWidth="1.5" strokeLinecap="round" />
-          <line x1="16" y1="5" x2="16" y2="8" stroke="#FDFBF5" strokeWidth="1" />
-          <line x1="24" y1="5" x2="24" y2="8" stroke="#FDFBF5" strokeWidth="1" />
-        </>
-      )}
+      {/* Inner pip on selection */}
+      {isSelected && <circle cx="12" cy="12" r="2.5" fill="#FDFBF5" />}
     </svg>
   );
 };
@@ -154,6 +139,19 @@ const resolveCity = (item, day) =>
   normalizeCityKey(item?.city || day.city);
 
 /* ── Extract filter-matching coordinates ── */
+/* ── Popup-friendly fitBounds/flyTo padding ──
+   The popup grows upward from its marker, so we always reserve a
+   generous top inset. On mobile the BottomSheet covers the bottom
+   ~140px (peek = 110, plus breathing room) so the bottom inset must
+   also account for the sheet — otherwise the marker lands underneath
+   the sheet and the popup is hidden. */
+const getPopupPadding = () => {
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 1024;
+  return isMobile
+    ? { top: 220, bottom: 160, left: 40, right: 40 }
+    : { top: 280, bottom: 40, left: 40, right: 40 };
+};
+
 const collectFilteredCoords = (filter, cityKey) => {
   const coords = [];
   // Accept cityKey as either "Tokyo" or "Tokyo#1" (chronological instance).
@@ -304,7 +302,7 @@ const MobileMapFilters = ({ activeFilter, activeCity, onFilterChange, onCityChan
   );
 };
 
-const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail, activeFilter, activeCity, onFilterChange, onCityChange }) => {
+const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail, activeFilter, activeCity, onFilterChange, onCityChange, macroSignal }) => {
   const mapRef = useRef(null);
   const [hoveredDay, setHoveredDay] = useState(null);
   const [mapLoaded, setMapLoaded] = useState(false);
@@ -400,6 +398,31 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
       { padding, duration: 1400, maxZoom: 14, essential: true }
     );
   }, [activeFilter, activeCity, mapLoaded]);
+
+  /* ─── Macro view trigger (from ExploreView "Whole Trip" button) ───
+        Parent increments macroSignal → we fitBounds across all 31
+        days' coordinates so the user sees the full journey at once. */
+  useEffect(() => {
+    if (!mapLoaded || !mapRef.current || !macroSignal) return;
+    let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
+    tripData.forEach((d) => {
+      if (!d.coordinates) return;
+      const { lng, lat } = d.coordinates;
+      if (lng < minLng) minLng = lng;
+      if (lng > maxLng) maxLng = lng;
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+    });
+    if (minLng === Infinity) return;
+    const isMobile = typeof window !== "undefined" && window.innerWidth < 1024;
+    const padding = isMobile
+      ? { top: 80, bottom: 130, left: 40, right: 40 }
+      : 80;
+    mapRef.current.fitBounds(
+      [[minLng, minLat], [maxLng, maxLat]],
+      { padding, duration: 1800, maxZoom: 7, essential: true }
+    );
+  }, [macroSignal, mapLoaded]);
 
   /* ─── Category-emoji markers (filter mode) ───
      When a category filter is active we replace the default day pins
@@ -628,7 +651,7 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
       mapRef.current.flyTo({
         center: [selectedLocation.lng, selectedLocation.lat],
         zoom: 16,
-        padding: { top: 280, bottom: 40, left: 40, right: 40 },
+        padding: getPopupPadding(),
         duration: 1400,
         essential: true,
       });
@@ -691,38 +714,49 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
 
         {mapLoaded && (
           <>
-            {/* ─── Day-to-day dashed path ─── */}
-            <Source id="day-path" type="geojson" data={dayPathGeoJSON}>
-              <Layer
-                id="day-path-line"
-                type="line"
-                paint={{
-                  "line-color": "#DED4BA",
-                  "line-width": 1.5,
-                  "line-dasharray": [4, 4],
-                  "line-opacity": 0.6,
-                }}
-              />
-            </Source>
+            {/* ─── Global routes — visible only when NO day is selected.
+                  Once the user picks a day we drop into "Isolation Mode":
+                  the city-to-city polyline and the day-to-day dashed
+                  trail are both hidden so the only line on the map is
+                  the intra-day path connecting that day's stops. */}
+            {!selectedDay && (
+              <>
+                {/* Day-to-day dashed path */}
+                <Source id="day-path" type="geojson" data={dayPathGeoJSON}>
+                  <Layer
+                    id="day-path-line"
+                    type="line"
+                    paint={{
+                      "line-color": "#DED4BA",
+                      "line-width": 1.5,
+                      "line-dasharray": [4, 4],
+                      "line-opacity": 0.6,
+                    }}
+                  />
+                </Source>
 
-            {/* ─── Main route: solid vermillion line ─── */}
-            <Source id="route" type="geojson" data={routeGeoJSON}>
-              <Layer
-                id="route-line"
-                type="line"
-                paint={{
-                  "line-color": "#D94025",
-                  "line-width": 3,
-                  "line-opacity": 0.8,
-                }}
-                layout={{
-                  "line-cap": "round",
-                  "line-join": "round",
-                }}
-              />
-            </Source>
+                {/* Main route: solid vermillion line */}
+                <Source id="route" type="geojson" data={routeGeoJSON}>
+                  <Layer
+                    id="route-line"
+                    type="line"
+                    paint={{
+                      "line-color": "#D94025",
+                      "line-width": 3,
+                      "line-opacity": 0.8,
+                    }}
+                    layout={{
+                      "line-cap": "round",
+                      "line-join": "round",
+                    }}
+                  />
+                </Source>
+              </>
+            )}
 
-            {/* ─── Intra-day dashed path (local movement) ─── */}
+            {/* ─── Intra-day dashed path — only renders when a day is
+                  selected, by virtue of the underlying memo returning
+                  null otherwise. ─── */}
             {intraDayPathGeoJSON && (
               <Source id="intra-day-path" type="geojson" data={intraDayPathGeoJSON}>
                 <Layer
@@ -730,9 +764,9 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
                   type="line"
                   paint={{
                     "line-color": "#D94025",
-                    "line-width": 2,
+                    "line-width": 2.2,
                     "line-dasharray": [2, 3],
-                    "line-opacity": 0.5,
+                    "line-opacity": 0.7,
                   }}
                   layout={{
                     "line-cap": "round",
@@ -744,62 +778,57 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
           </>
         )}
 
-        {/* ─── Day markers (custom SVG) — hidden when a category filter is
-              active because emoji markers (below) take over to keep the
-              map readable. ─── */}
-        {!activeFilter && tripData.map((d) => {
-          const isSelected = selectedDay === d.day;
-          const isHovered = hoveredDay === d.day;
-          const colors = getCityColor(d.city);
+        {/* ─── Day markers (clean dots) ───
+              Visibility rules (per spec):
+                • category filter active → hidden (emoji markers
+                  below take over)
+                • a single day is selected → hide ALL 30 other day
+                  pins. Sub-location markers for that day take over.
+                • otherwise → render all 31 dots (macro view).
+              The map effectively "filters by day" automatically once
+              the user picks a day from any source. */}
+        {!activeFilter && tripData
+          .filter((d) => !selectedDay || selectedDay === d.day)
+          .map((d) => {
+            const isSelected = selectedDay === d.day;
+            const isHovered = hoveredDay === d.day;
+            const colors = getCityColor(d.city);
 
-          return (
-            <Marker
-              key={d.day}
-              longitude={d.coordinates.lng}
-              latitude={d.coordinates.lat}
-              anchor="bottom"
-              onClick={(e) => {
-                e.originalEvent.stopPropagation();
-                handleMarkerClick(d.day);
-              }}
-            >
-              <div
-                className="cursor-pointer relative"
-                onMouseEnter={() => setHoveredDay(d.day)}
-                onMouseLeave={() => setHoveredDay(null)}
-                style={{
-                  transition: "transform 0.25s ease",
-                  transform: isSelected ? "scale(1.15)" : isHovered ? "scale(1.1)" : "scale(1)",
-                  zIndex: isSelected ? 100 : isHovered ? 50 : 1,
+            /* When a day is selected we already render rich sub-location
+               markers + the map flyTo'd in close — the day pin itself
+               can be hidden so it doesn't clutter the close view. */
+            if (isSelected) return null;
+
+            return (
+              <Marker
+                key={d.day}
+                longitude={d.coordinates.lng}
+                latitude={d.coordinates.lat}
+                anchor="center"
+                onClick={(e) => {
+                  e.originalEvent.stopPropagation();
+                  handleMarkerClick(d.day);
                 }}
               >
-                {/* Pulse ring */}
-                {isSelected && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      left: "50%",
-                      bottom: "12px",
-                      transform: "translateX(-50%)",
-                      width: "40px",
-                      height: "40px",
-                      borderRadius: "50%",
-                      backgroundColor: colors.bg,
-                      opacity: 0.3,
-                      animation: "ping 1.5s cubic-bezier(0,0,0.2,1) infinite",
-                    }}
+                <div
+                  className="cursor-pointer relative"
+                  onMouseEnter={() => setHoveredDay(d.day)}
+                  onMouseLeave={() => setHoveredDay(null)}
+                  style={{
+                    transition: "transform 0.25s ease",
+                    transform: isHovered ? "scale(1.2)" : "scale(1)",
+                    zIndex: isHovered ? 50 : 1,
+                  }}
+                >
+                  <DayMarkerSVG
+                    colors={colors}
+                    isSelected={false}
+                    isHovered={isHovered}
                   />
-                )}
-                <DayMarkerSVG
-                  day={d.day}
-                  colors={colors}
-                  isSelected={isSelected}
-                  isHovered={isHovered}
-                />
-              </div>
-            </Marker>
-          );
-        })}
+                </div>
+              </Marker>
+            );
+          })}
 
         {/* ─── Category-emoji markers (filter mode) ───
               Replace the heavier day pins with an emoji-on-cream chip
@@ -823,7 +852,7 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
                   mapRef.current.flyTo({
                     center: [item.lng, item.lat],
                     zoom: 15.5,
-                    padding: { top: 280, bottom: 40, left: 40, right: 40 },
+                    padding: getPopupPadding(),
                     duration: 900,
                     essential: true,
                   });
@@ -887,7 +916,7 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
                   mapRef.current.flyTo({
                     center: [loc.lng, loc.lat],
                     zoom: 16,
-                    padding: { top: 280, bottom: 40, left: 40, right: 40 },
+                    padding: getPopupPadding(),
                     duration: 900,
                     essential: true,
                   });
@@ -955,7 +984,7 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
                   mapRef.current.flyTo({
                     center: [bullet.lng, bullet.lat],
                     zoom: 16,
-                    padding: { top: 280, bottom: 40, left: 40, right: 40 },
+                    padding: getPopupPadding(),
                     duration: 1000,
                     essential: true,
                   });
@@ -1003,13 +1032,11 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
         )}
       </Map>
 
-      {/* ═══ Mobile-only floating filter bar (Categories + Cities) ═══ */}
-      <MobileMapFilters
-        activeFilter={activeFilter}
-        activeCity={activeCity}
-        onFilterChange={onFilterChange}
-        onCityChange={onCityChange}
-      />
+      {/* Legacy <MobileMapFilters/> removed — the BottomSheet's
+          BottomFilterBar (rendered by ExploreView) is now the single
+          mobile filter UI. The component definition above is kept
+          as dead code so the previous behaviour can be restored
+          by re-mounting it here. */}
 
       {/* ═══ Map overlay — Trip title (top-right, desktop only) ═══ */}
       <div className="hidden lg:block absolute top-4 right-4 bg-cream-50/95 backdrop-blur-sm rounded-lg px-2.5 py-2 sm:px-4 sm:py-3 shadow-lg border-2 border-vermillion-500/20">
@@ -1067,8 +1094,9 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
         </div>
       </div>
 
-      {/* ═══ Legend (bottom-right) ═══ */}
-      <div className="hidden sm:block absolute bottom-6 right-4 bg-cream-50/95 backdrop-blur-sm rounded-lg px-3 py-2.5 shadow-lg border border-cream-300">
+      {/* ═══ Legend (bottom-right) — desktop only so it never
+              overlaps the mobile BottomSheet at peek (110px tall). ═══ */}
+      <div className="hidden lg:block absolute bottom-6 right-4 bg-cream-50/95 backdrop-blur-sm rounded-lg px-3 py-2.5 shadow-lg border border-cream-300">
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <div style={{ width: "20px", height: "3px", backgroundColor: "#D94025", borderRadius: "2px" }} />

@@ -1,11 +1,14 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import MapComponent from "../components/MapComponent";
-import ItineraryList from "../components/ItineraryList";
 import DetailModal from "../components/DetailModal";
+import BottomSheet from "../components/BottomSheet";
+import BottomFilterBar from "../components/BottomFilterBar";
+import VerticalFlow from "../components/VerticalFlow";
+import DayFilter from "../components/DayFilter";
 
 /* ══════════════════════════════════════════════════════════════
-   DRAGGABLE DIVIDER
+   DRAGGABLE DIVIDER (desktop split-pane resize)
    ══════════════════════════════════════════════════════════════ */
 const DraggableDivider = ({ onDrag }) => {
   const isDragging = useRef(false);
@@ -48,25 +51,36 @@ const DraggableDivider = ({ onDrag }) => {
 };
 
 /* ══════════════════════════════════════════════════════════════
-   EXPLORE VIEW — Map + Itinerary side by side
-   Mounted at /map. Reads optional ?city= and ?day= from the URL so
-   the home-page chapter cards can deep-link directly into a city or
-   day view (e.g. /map?city=Tokyo).
+   EXPLORE VIEW — Map + VerticalFlow (sprint/spatial-flow-redesign)
+   ──────────────────────────────────────────────────────────────
+   Desktop (lg+):
+     [Map  | divider |  RightPane{ VerticalFlow + footer Filters }]
+   Mobile (<lg):
+     [Full-screen Map]
+     [BottomSheet over map: Filters + VerticalFlow]
    ══════════════════════════════════════════════════════════════ */
 const ExploreView = () => {
   const [searchParams] = useSearchParams();
 
+  // ── Existing state
   const [selectedDay, setSelectedDay] = useState(null);
   const [selectedLocation, setSelectedLocation] = useState(null);
-  const [showMap, setShowMap] = useState(true);
   const [activeFilter, setActiveFilter] = useState(null);
   const [activeCity, setActiveCity] = useState(null);
   const [mapExpanded, setMapExpanded] = useState(false);
   const [modalData, setModalData] = useState(null);
   const [mapWidthPct, setMapWidthPct] = useState(50);
-  const containerRef = useRef(null);
 
-  /* ── Read deep-link params on mount: ?city=Tokyo or ?day=12 ── */
+  // ── New: macro-view signal (incrementing counter triggers fitBounds in map)
+  const [macroSignal, setMacroSignal] = useState(0);
+
+  // ── Refs
+  const containerRef = useRef(null);
+  const sheetRef = useRef(null);
+  const flowRefMobile = useRef(null);
+  const flowRefDesktop = useRef(null);
+
+  /* ── Deep-link query params on mount: ?city= and ?day= ── */
   useEffect(() => {
     const cityParam = searchParams.get("city");
     const dayParam = searchParams.get("day");
@@ -78,6 +92,22 @@ const ExploreView = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /* ── Map → flow sync: scroll the visible flow to the selected day ── */
+  useEffect(() => {
+    if (selectedDay == null) return;
+    /* Both refs may exist (CSS-hidden on the inactive breakpoint).
+       Calling scrollIntoView on the hidden one is a no-op. */
+    setTimeout(() => {
+      flowRefMobile.current?.scrollToDay?.(selectedDay);
+      flowRefDesktop.current?.scrollToDay?.(selectedDay);
+    }, 60);
+    /* Mobile only: peek → half so the user can read the day */
+    if (sheetRef.current?.getSnap?.() === "peek") {
+      sheetRef.current.snapTo("half");
+    }
+  }, [selectedDay]);
+
+  /* ── State handlers (stable) ── */
   const handleSelectDay = useCallback((day) => {
     setSelectedDay(day);
     setSelectedLocation(null);
@@ -85,6 +115,14 @@ const ExploreView = () => {
 
   const handleSelectLocation = useCallback((location) => {
     setSelectedLocation(location);
+    /* Mobile UX: tapping a specific location means the user wants to
+       see it on the map. Drop the sheet to peek so the map (with its
+       popup anchored to the marker) is fully visible. The user can
+       drag the sheet back up after to keep reading. */
+    const cur = sheetRef.current?.getSnap?.();
+    if (cur === "full" || cur === "half") {
+      sheetRef.current.snapTo("peek");
+    }
   }, []);
 
   const handleOpenDetail = useCallback((data) => {
@@ -106,7 +144,6 @@ const ExploreView = () => {
         setSelectedDay(null);
         setSelectedLocation(null);
       }
-      setActiveCity(null);
       return next;
     });
   }, []);
@@ -114,12 +151,34 @@ const ExploreView = () => {
   const handleClearFilters = useCallback(() => {
     setActiveFilter(null);
     setActiveCity(null);
+    setSelectedDay(null);
+    setSelectedLocation(null);
   }, []);
 
   const handleCityChange = useCallback((cityKey) => {
-    setActiveCity((prev) => (prev === cityKey ? null : cityKey));
+    setActiveCity((prev) => {
+      const next = prev === cityKey ? null : cityKey;
+      /* Mobile UX: entering Phase B (a city is now active) needs more
+         vertical room for the second pill row, so auto-snap to half
+         if currently at peek. Leaving Phase B is left as-is. */
+      if (next && sheetRef.current?.getSnap?.() === "peek") {
+        sheetRef.current.snapTo("half");
+      }
+      return next;
+    });
     setSelectedDay(null);
     setSelectedLocation(null);
+  }, []);
+
+  /* ── Macro view: clear all filters and trigger map fitBounds-all ── */
+  const handleMacroView = useCallback(() => {
+    setSelectedDay(null);
+    setSelectedLocation(null);
+    setActiveFilter(null);
+    setActiveCity(null);
+    setMacroSignal((s) => s + 1);
+    /* Mobile: collapse sheet so the macro view is fully visible */
+    sheetRef.current?.snapTo?.("peek");
   }, []);
 
   const handleDividerDrag = useCallback((clientX) => {
@@ -129,49 +188,42 @@ const ExploreView = () => {
     setMapWidthPct(Math.min(75, Math.max(25, pct)));
   }, []);
 
+  /* ── Common props for both flow instances ── */
+  const flowProps = {
+    selectedDay,
+    onSelectDay: handleSelectDay,
+    onSelectLocation: handleSelectLocation,
+    activeFilter,
+    activeCity,
+  };
+
+  const filterProps = {
+    activeCity,
+    activeFilter,
+    onCityChange: handleCityChange,
+    onFilterChange: handleFilterChange,
+    onClearAll: handleClearFilters,
+  };
+
   return (
     <div className="h-screen w-screen bg-cream-100 p-1.5 lg:p-2">
       <div
         ref={containerRef}
-        className="h-full w-full bg-cream-50 rounded-xl overflow-hidden border-[1.5px] border-vermillion-400/35 flex flex-col lg:flex-row shadow-xl"
+        /* RTL note: with `dir="rtl"` set globally, `flex-row-reverse`
+           puts the LAST flex child on the visual right and the FIRST
+           on the left — i.e. the sidebar (last child) ends up on the
+           right exactly as the user expects, while the map sits on
+           the left. Mobile (`flex-col`) is unaffected. */
+        className="h-full w-full bg-cream-50 rounded-xl overflow-hidden border-[1.5px] border-vermillion-400/35 flex flex-col lg:flex-row-reverse shadow-xl relative"
       >
-        {/* Mobile toggle bar */}
-        <div className="lg:hidden flex items-center justify-between px-4 py-2.5 bg-cream-50 border-b border-cream-300 z-20">
-          <Link to="/" className="flex items-center gap-2 hover:opacity-70 transition-opacity" title="Back to home">
-            <div className="w-8 h-8 border-2 border-sumi-800 rounded flex items-center justify-center">
-              <span className="text-[8px] font-display font-black text-sumi-800 leading-none tracking-tighter">JP<br/>N</span>
-            </div>
-            <span className="text-sm font-display font-bold text-sumi-800">日本旅行</span>
-          </Link>
-          <button
-            onClick={() => setShowMap(!showMap)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-display font-semibold bg-vermillion-500 text-white hover:bg-vermillion-600 transition-colors shadow-sm min-h-[44px]"
-          >
-            {showMap ? (
-              <>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
-                  <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
-                </svg>
-                Trip Roadmap
-              </>
-            ) : (
-              <>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/>
-                </svg>
-                Map
-              </>
-            )}
-          </button>
-        </div>
-
-        {/* Map panel */}
+        {/* ═══ MAP PANEL ═══════════════════════════════════════════
+              Full-bleed on mobile (sheet sits on top); split-pane
+              on desktop (toggleable expand to full).            ═══ */}
         <div
           data-panel="map"
-          className={`relative z-0 transition-all ease-in-out ${
-            mapExpanded ? "lg:w-full lg:block duration-500" : "lg:block duration-100"
-          } ${showMap ? "max-lg:flex-1 max-lg:min-h-0 block lg:h-full" : "hidden"}`}
+          className={`relative z-0 max-lg:flex-1 max-lg:min-h-0 max-lg:h-full block lg:h-full transition-all ease-in-out duration-100 ${
+            mapExpanded ? "lg:w-full" : ""
+          }`}
         >
           <div className="w-full h-full">
             <MapComponent
@@ -183,74 +235,175 @@ const ExploreView = () => {
               activeCity={activeCity}
               onFilterChange={handleFilterChange}
               onCityChange={handleCityChange}
+              macroSignal={macroSignal}
             />
           </div>
 
-          {/* Back-to-home link (desktop only — top-right of the map panel) */}
-          <Link
-            to="/"
-            className="hidden lg:inline-flex absolute top-4 left-44 z-10 items-center gap-1.5 px-3 py-2 bg-cream-50/95 backdrop-blur-sm rounded-lg border border-cream-300 hover:border-vermillion-300 shadow-md text-[11px] font-display font-bold text-sumi-700 hover:text-vermillion-600 transition-all duration-200 min-h-[44px]"
-            title="Back to home"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
-            </svg>
-            Home
-          </Link>
+          {/* "כל הימים" (Show All Days) reset button — only visible
+              when a day is currently selected. Clears the day so the
+              31-point macro view returns. Renders ABOVE the standard
+              cluster so it's a distinct affordance. */}
+          {selectedDay && (
+            <button
+              onClick={() => { setSelectedDay(null); setSelectedLocation(null); }}
+              className="absolute top-4 left-14 z-20 inline-flex items-center gap-1.5 px-3.5 py-2 bg-vermillion-500 text-white rounded-lg shadow-md text-[11px] font-bold hover:bg-vermillion-600 transition-colors min-h-[40px] max-lg:top-3 max-lg:left-3"
+              dir="rtl"
+              title="הצג את כל הימים"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+              הצג את כל הימים
+            </button>
+          )}
 
-          {/* Full-screen map toggle */}
-          <button
-            onClick={handleToggleMapExpand}
-            className="hidden lg:flex absolute top-4 left-14 z-10 items-center gap-1.5 px-3 py-2 bg-cream-50/95 backdrop-blur-sm rounded-lg border border-cream-300 hover:border-vermillion-300 shadow-md text-[11px] font-display font-bold text-sumi-700 hover:text-vermillion-600 transition-all duration-200 min-h-[44px]"
-            title={mapExpanded ? "Show Trip Roadmap" : "Expand map"}
-          >
-            {mapExpanded ? (
-              <>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <polyline points="11 19 2 12 11 5" />
-                  <line x1="2" y1="12" x2="22" y2="12" />
-                </svg>
-                Show Trip Roadmap
-              </>
-            ) : (
-              <>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <polyline points="15 3 21 3 21 9" /><polyline points="9 21 3 21 3 15" />
-                  <line x1="21" y1="3" x2="14" y2="10" /><line x1="3" y1="21" x2="10" y2="14" />
-                </svg>
-                Expand Map
-              </>
-            )}
-          </button>
+          {/* Map overlay button cluster — desktop only.
+              In RTL the cluster sits on the LEFT edge of the map
+              (top-left in physical pixels) since the map itself is
+              on the left half of the screen. The cluster is hidden
+              on tablet/mobile sizes; mobile gets its own simpler set
+              of icon-only buttons (top-right). */}
+          <div className={`hidden lg:flex absolute ${selectedDay ? "top-16" : "top-4"} left-14 z-10 gap-2`} dir="rtl">
+            <Link
+              to="/"
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-cream-50/95 backdrop-blur-sm rounded-lg border border-cream-300 hover:border-vermillion-300 shadow-md text-[11px] font-bold text-sumi-700 hover:text-vermillion-600 transition-all duration-200 min-h-[40px]"
+              title="חזרה לדף הבית"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+              </svg>
+              בית
+            </Link>
+            <button
+              onClick={handleMacroView}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-cream-50/95 backdrop-blur-sm rounded-lg border border-cream-300 hover:border-vermillion-300 shadow-md text-[11px] font-bold text-sumi-700 hover:text-vermillion-600 transition-all duration-200 min-h-[40px]"
+              title="הצג את כל הטיול"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+              </svg>
+              כל הטיול
+            </button>
+            <button
+              onClick={handleToggleMapExpand}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-cream-50/95 backdrop-blur-sm rounded-lg border border-cream-300 hover:border-vermillion-300 shadow-md text-[11px] font-bold text-sumi-700 hover:text-vermillion-600 transition-all duration-200 min-h-[40px]"
+              title={mapExpanded ? "הצג פאנל צד" : "הרחב מפה"}
+            >
+              {mapExpanded ? (
+                <>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <polyline points="11 19 2 12 11 5" /><line x1="2" y1="12" x2="22" y2="12" />
+                  </svg>
+                  הצג מסלול
+                </>
+              ) : (
+                <>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <polyline points="15 3 21 3 21 9" /><polyline points="9 21 3 21 3 15" />
+                    <line x1="21" y1="3" x2="14" y2="10" /><line x1="3" y1="21" x2="10" y2="14" />
+                  </svg>
+                  הרחב מפה
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Mobile-only top hint buttons (icons only) */}
+          <div className="lg:hidden absolute top-3 right-3 z-10 flex flex-col gap-2">
+            <Link
+              to="/"
+              className="inline-flex items-center gap-1 px-2.5 py-2 bg-cream-50/95 backdrop-blur-sm rounded-lg border border-cream-300 shadow text-[10px] font-bold text-sumi-700 min-h-[40px]"
+              title="בית"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
+              </svg>
+            </Link>
+            <button
+              onClick={handleMacroView}
+              className="inline-flex items-center gap-1 px-2.5 py-2 bg-cream-50/95 backdrop-blur-sm rounded-lg border border-cream-300 shadow text-[10px] font-bold text-sumi-700 min-h-[40px]"
+              title="כל הטיול"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
+              </svg>
+            </button>
+          </div>
         </div>
 
+        {/* ═══ DESKTOP DIVIDER ═══ */}
         {!mapExpanded && (
           <DraggableDivider onDrag={handleDividerDrag} />
         )}
 
-        {/* Itinerary panel */}
+
+        {/* ═══ DESKTOP RIGHT PANE — Filters pinned at TOP (like the
+              original design), VerticalFlow scrolls beneath. The
+              "drawer at bottom" pattern is mobile-only. ═══ */}
         <div
           data-panel="itinerary"
-          className={`transition-all ease-in-out ${
-            mapExpanded
-              ? "lg:w-0 lg:hidden duration-500"
-              : "lg:block duration-100"
-          } ${showMap ? "hidden lg:block" : "block"} flex-1 overflow-hidden`}
+          className={`hidden lg:flex lg:flex-col flex-1 overflow-hidden bg-cream-50 transition-all ease-in-out duration-100 ${
+            mapExpanded ? "lg:w-0 lg:hidden" : ""
+          }`}
         >
-          <ItineraryList
-            selectedDay={selectedDay}
-            onSelectDay={handleSelectDay}
-            onSelectLocation={handleSelectLocation}
-            activeFilter={activeFilter}
-            activeCity={activeCity}
-            onFilterChange={handleFilterChange}
-            onCityChange={handleCityChange}
-            onClearFilters={handleClearFilters}
-            onOpenDetail={handleOpenDetail}
-          />
+          {/* Sticky title strip — RTL-aligned */}
+          <div className="flex-shrink-0 px-5 pt-3 pb-2 border-b border-cream-200 flex items-center justify-between" dir="rtl">
+            <div className="text-right">
+              <h1 className="text-base font-serif font-black text-sumi-800 tracking-tight">
+                מסלול הטיול
+              </h1>
+              <p className="text-[10px] text-sumi-400 mt-0.5">
+                31 ימים · 9 ערים · פברואר–מרץ 2024
+              </p>
+            </div>
+            {selectedDay && (
+              <span className="text-[10px] font-bold text-vermillion-600 px-2 py-1 rounded-full bg-vermillion-50 border border-vermillion-200">
+                יום {selectedDay}
+              </span>
+            )}
+          </div>
+
+          {/* Day Filter — horizontal pill bar (sticky just under the
+              title strip, above the city/category filters). */}
+          <div className="flex-shrink-0">
+            <DayFilter
+              selectedDay={selectedDay}
+              onSelectDay={handleSelectDay}
+            />
+          </div>
+
+          {/* Filter bar — pinned at the top of the side pane (desktop) */}
+          <div className="flex-shrink-0">
+            <BottomFilterBar {...filterProps} />
+          </div>
+
+          {/* Flow scroll area */}
+          <div className="flex-1 overflow-y-auto overscroll-contain scrollbar-thin">
+            <VerticalFlow ref={flowRefDesktop} {...flowProps} />
+          </div>
         </div>
+
+        {/* ═══ MOBILE BOTTOM SHEET ═══
+              Header stack (top → bottom):
+                1) DayFilter  — horizontal day pills (sticky)
+                2) BottomFilterBar — city / category filters
+              Body: VerticalFlow */}
+        <BottomSheet
+          ref={sheetRef}
+          defaultSnap="peek"
+          header={
+            <>
+              <DayFilter selectedDay={selectedDay} onSelectDay={handleSelectDay} />
+              <BottomFilterBar {...filterProps} />
+            </>
+          }
+        >
+          <VerticalFlow ref={flowRefMobile} {...flowProps} />
+        </BottomSheet>
       </div>
 
+      {/* Detail Modal portal */}
       {modalData && (
         <DetailModal
           data={modalData}
@@ -260,6 +413,7 @@ const ExploreView = () => {
         />
       )}
 
+      {/* Dynamic split-pane CSS (desktop only) */}
       {!mapExpanded && (
         <style>{`
           @media (min-width: 1024px) {

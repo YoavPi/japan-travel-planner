@@ -21,7 +21,13 @@ body,
 }
 
 body {
-  font-family: "Noto Sans JP", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  /* Hebrew renders in Noto Serif Hebrew (premium serif). Japanese
+     characters fall back to Noto Sans JP. Latin/numerals fall back
+     to system sans for legibility. This font stack is the global
+     default — components can override via Tailwind font-* classes
+     where a different look is intentional. */
+  font-family: "Noto Serif Hebrew", "Noto Sans JP", "Inter",
+               -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   /* Soft cream background — the visible "frame" around the app is now
@@ -29,6 +35,8 @@ body {
      thick saturated padding. Keeps the Modern Japan feel while
      letting content breathe. */
   background-color: #FAF6E8;
+  /* RTL is set on <html> in index.html so this just inherits. */
+  text-align: right;
 }
 
 /* Custom scrollbar — warm tones */
@@ -179,6 +187,12 @@ html { scroll-behavior: smooth; }
   50%      { box-shadow: 0 0 0 8px rgba(192, 57, 43, 0); }
 }
 .dot-pulse { animation: pulse-dot 2.5s infinite; }
+
+/* Hero scroll-down chevron — gentle vertical bounce */
+@keyframes scrollBounce {
+  0%, 100% { transform: translateY(0); opacity: 0.65; }
+  50%      { transform: translateY(6px); opacity: 1; }
+}
 
 /* Stats card hover */
 .stat-item { transition: transform 0.3s ease; }
