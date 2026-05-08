@@ -1,49 +1,24 @@
 import React, { useEffect, useRef } from "react";
 import { tripData } from "../data/tripData";
+import { cityAbbreviation } from "../data/tripHelpers";
 
 /* ══════════════════════════════════════════════════════════════
-   DAY FILTER — Horizontal "Circle Pill" bar (Dubai-trip style)
+   DAY FILTER — Horizontal "Day Scroller" pills
    ──────────────────────────────────────────────────────────────
    Sticky top bar with a horizontally-scrollable list of round
    pills, one per trip day. Each pill shows:
-     • the calendar day-of-month (large, bold)
-     • the Hebrew month abbreviation (small, below)
+     • the trip-day number (large, bold) — e.g. "1", "15", "31"
+     • the city's 3-letter abbreviation (small, below) —
+       e.g. "TOK", "OSA", "KYO"
+
    Active pill = solid fill in the city's accent color.
-   Inactive pill = white circle with thin city-colored border.
+   Inactive pill = white circle with thin cream border.
 
    In RTL, day 1 is on the right (reading start) and day 31 is on
-   the left (reading end). The container uses `dir="rtl"` and
-   horizontal scroll so all 31 pills are reachable on any screen.
-
-   Bi-directional sync via `selectedDay`:
-     - Tap a pill        → onSelectDay(n)  (parent flies map + scrolls flow)
+   the left (reading end). Bi-directional sync via `selectedDay`:
+     - Tap a pill        → onSelectDay(n)
      - selectedDay flips → active pill auto-scrolls into view here
-
-   tripData.js is read-only — calendar dates are derived from a
-   constant TRIP_START_DATE since the per-day calendar date isn't
-   stored on the data records.
    ══════════════════════════════════════════════════════════════ */
-
-/* Trip kickoff: Day 1 = Sunday, Feb 25, 2024.
-   (Feb 25 -> Mar 26 = 31 days, matches the "פברואר–מרץ 2024" copy
-   already in the side-pane title.) Tweak this constant if the
-   real itinerary started on a different day. */
-const TRIP_START_DATE = new Date(2024, 1, 25); // month is 0-indexed
-
-const HE_MONTH_ABBR = [
-  "ינו׳", "פבר׳", "מרץ", "אפר׳", "מאי", "יוני",
-  "יולי", "אוג׳", "ספט׳", "אוק׳", "נוב׳", "דצמ׳",
-];
-
-/** Calendar date for Day N of the trip (1-based). */
-export const getDateForDay = (dayNumber) => {
-  const d = new Date(TRIP_START_DATE);
-  d.setDate(d.getDate() + (dayNumber - 1));
-  return {
-    day: d.getDate(),                // e.g. 25
-    monthAbbr: HE_MONTH_ABBR[d.getMonth()], // e.g. "פבר׳"
-  };
-};
 
 /* City palette (kept inline to avoid a circular import with
    MapComponent — they MUST stay in sync). */
@@ -90,7 +65,7 @@ const DayFilter = ({ selectedDay, onSelectDay, className = "" }) => {
       {tripData.map((d) => {
         const isActive = selectedDay === d.day;
         const c = cityColor(d.city);
-        const { day: dayOfMonth, monthAbbr } = getDateForDay(d.day);
+        const abbr = cityAbbreviation(d.city);
 
         return (
           <button
@@ -111,19 +86,19 @@ const DayFilter = ({ selectedDay, onSelectDay, className = "" }) => {
           >
             <span
               className="font-bold leading-none"
-              style={{ fontSize: "16px", letterSpacing: "-0.02em" }}
+              style={{ fontSize: "17px", letterSpacing: "-0.02em" }}
             >
-              {dayOfMonth}
+              {d.day}
             </span>
             <span
-              className="leading-none mt-0.5"
+              className="leading-none mt-0.5 font-semibold"
               style={{
                 fontSize: "9px",
                 opacity: isActive ? 0.92 : 0.55,
-                fontWeight: 500,
+                letterSpacing: "0.06em",
               }}
             >
-              {monthAbbr}
+              {abbr}
             </span>
           </button>
         );
