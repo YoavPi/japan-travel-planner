@@ -338,6 +338,15 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
     // No active filter at all → let user navigate freely.
     if (!activeFilter && !activeCity) return;
 
+    /* Map-Locking rule (mobile-first sprint):
+       When the user activates a CATEGORY filter (food/attractions/
+       shopping/hotels), the side pane switches to a city-grouped
+       browse view. The map stays at the user's current viewport so
+       they can compare list and map without losing context. We
+       still allow the city-only flyTo below to run, since picking
+       a city is a clear "take me there" gesture. */
+    if (activeFilter) return;
+
     const coords = collectFilteredCoords(activeFilter, activeCity);
     if (coords.length === 0) return;
 
@@ -1373,19 +1382,25 @@ const DayInfoCard = ({ data, onSelectBullet }) => {
    • Google Maps link
    ───────────────────────────────────────────────────────────── */
 const SubLocationInfoCard = ({ loc, onOpenFullDetail }) => {
-  const typeLabel = loc.type === "lunch" ? "Lunch · 昼食" : loc.type === "dinner" ? "Dinner · 夕食" : "Attraction · 観光";
-  const typeColor = loc.type === "lunch" ? "#C4A048" : loc.type === "dinner" ? "#D94025" : "#8F2818";
+  /* Hebrew-only category labels — no Japanese kanji, no English. */
+  const typeLabel = loc.type === "lunch" ? "צהריים"
+                  : loc.type === "dinner" ? "ערב"
+                  : loc.type === "hotel"  ? "מלון"
+                  : "אטרקציה";
+  const typeColor = loc.type === "lunch" ? "#C4A048"
+                  : loc.type === "dinner" ? "#D94025"
+                  : loc.type === "hotel"  ? "#5C7A2E"
+                  : "#8F2818";
   const Icon = loc.type === "lunch" || loc.type === "dinner" ? ActivityIcons.food : getPopupIcon(loc.name);
-  // Curated `desc` from tripData wins; `vibeDescriptions` is fallback only.
-  // This keeps the map popup, sidebar, and modal showing identical text.
+  /* Curated `desc` from tripData wins; `vibeDescriptions` is fallback only. */
   const vibe = loc.desc || vibeDescriptions[loc.name];
-  const fallbackDesc = null;
   const photo = getLocationPhoto(loc.name);
 
   return (
     <div
+      dir="rtl"
       style={{
-        fontFamily: "Noto Sans JP, sans-serif",
+        fontFamily: "'Noto Serif Hebrew', 'Noto Sans JP', sans-serif",
         overflow: "hidden",
         borderRadius: "12px",
         width: "280px",
@@ -1394,7 +1409,7 @@ const SubLocationInfoCard = ({ loc, onOpenFullDetail }) => {
         flexDirection: "column",
       }}
     >
-      {/* Photo banner — click to open the same unified detail Modal as the sidebar */}
+      {/* Photo banner — minimalist tag overlay (no big button-style UI). */}
       {photo && (
         <div
           style={{
@@ -1413,72 +1428,81 @@ const SubLocationInfoCard = ({ loc, onOpenFullDetail }) => {
             style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
             onError={(e) => { e.target.style.display = "none"; }}
           />
-          {/* Subtle gradient for legibility if ever overlaid */}
-          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0) 60%, rgba(0,0,0,0.12) 100%)" }} />
+          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0) 65%, rgba(0,0,0,0.18) 100%)" }} />
+          {/* Small minimalist tag (top-right, plain text + arrow) */}
           {onOpenFullDetail && (
             <div style={{
-              position: "absolute", bottom: "6px", right: "6px",
-              padding: "3px 7px", borderRadius: "6px",
-              backgroundColor: "rgba(28,25,23,0.55)", color: "#FDFBF5",
-              fontSize: "9px", fontWeight: 700, letterSpacing: "0.4px",
-              fontFamily: "Montserrat", display: "inline-flex", alignItems: "center", gap: "4px",
+              position: "absolute", top: "8px", left: "8px",
+              padding: "2px 6px", borderRadius: "4px",
+              backgroundColor: "rgba(255,255,255,0.85)", color: "#1C1917",
+              fontSize: "10px", fontWeight: 600, letterSpacing: "0.02em",
+              display: "inline-flex", alignItems: "center", gap: "3px",
             }}>
-              ↗ View Details
+              פרטים ↗
             </div>
           )}
         </div>
       )}
 
-      {/* Scrollable content (expands with description length) */}
+      {/* Scrollable content */}
       <div
         style={{
-          padding: "12px 14px 14px",
+          padding: "11px 14px 14px",
           overflowY: "auto",
           flex: "1 1 auto",
           minHeight: 0,
         }}
       >
-        {/* Category badge + rating */}
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", flexWrap: "wrap" }}>
-          <div style={{
-            display: "inline-flex", alignItems: "center", gap: "6px",
-            padding: "3px 8px", borderRadius: "6px",
-            backgroundColor: `${typeColor}12`, border: `1px solid ${typeColor}35`,
+        {/* Category tag — small, single line, no shouty caps */}
+        <div style={{
+          display: "inline-flex", alignItems: "center", gap: "5px",
+          padding: "2px 7px", borderRadius: "4px",
+          backgroundColor: `${typeColor}12`, border: `1px solid ${typeColor}30`,
+          marginBottom: "8px",
+        }}>
+          <Icon size={11} color={typeColor} />
+          <span style={{
+            fontSize: "10px", fontWeight: 700, color: typeColor,
           }}>
-            <Icon size={12} color={typeColor} />
-            <span style={{
-              fontSize: "9px", fontWeight: 800, color: typeColor,
-              textTransform: "uppercase", letterSpacing: "0.8px", fontFamily: "Montserrat",
-            }}>
-              {typeLabel}
-            </span>
-          </div>
-          {loc.rating && loc.rating !== "—" && (
-            <span style={{
-              display: "inline-flex", alignItems: "center", gap: "3px",
-              padding: "3px 7px", borderRadius: "6px",
-              backgroundColor: "#FBF8EE", border: "1px solid #F5EDCE",
-              fontSize: "10px", fontWeight: 800, color: "#C4A048",
-            }}>★ {loc.rating}</span>
-          )}
+            {typeLabel}
+          </span>
         </div>
 
-        {/* Trilingual name */}
-        {loc.nameJa && (
-          <p style={{ fontSize: "10px", color: "#A39E96", margin: 0, fontFamily: "Noto Sans JP" }}>{loc.nameJa}</p>
+        {/* Hebrew name (PRIMARY) */}
+        {loc.nameHe && (
+          <p style={{
+            fontSize: "16px", fontWeight: 800, color: "#1C1917",
+            margin: 0, lineHeight: 1.25,
+          }}>
+            {loc.nameHe}
+          </p>
         )}
+        {/* English name (SECONDARY) */}
         <p style={{
-          fontSize: "15px", fontWeight: 800, color: "#1C1917",
-          margin: "2px 0 2px", fontFamily: "Montserrat, Noto Sans JP",
-          lineHeight: 1.25,
+          fontSize: "11px", color: "#A39E96", margin: "2px 0 0",
+          fontWeight: 500, letterSpacing: "0.02em",
         }}>
           {loc.name}
         </p>
-        {loc.nameHe && (
-          <p style={{ fontSize: "11px", color: "#78716C", margin: 0 }} dir="rtl">{loc.nameHe}</p>
+
+        {/* Rating row — dedicated UI element when present */}
+        {loc.rating && loc.rating !== "—" && (
+          <div style={{
+            marginTop: "10px",
+            display: "inline-flex", alignItems: "center", gap: "6px",
+            padding: "5px 9px", borderRadius: "999px",
+            backgroundColor: "#FBF8EE", border: "1px solid #F5EDCE",
+          }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="#C4A048" stroke="#C4A048" strokeWidth="1.5">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+            </svg>
+            <span style={{ fontSize: "11px", fontWeight: 700, color: "#A08030" }}>
+              דירוג {loc.rating}
+            </span>
+          </div>
         )}
 
-        {/* Full Hebrew vibe description — no truncation, neutral grey */}
+        {/* Hebrew description — no Japanese */}
         {vibe && (
           <div style={{
             marginTop: "10px",
@@ -1488,13 +1512,11 @@ const SubLocationInfoCard = ({ loc, onOpenFullDetail }) => {
             border: "1px solid #F1E9CE",
           }}>
             <p
-              dir="rtl"
               style={{
-                fontSize: "12px",
+                fontSize: "12.5px",
                 color: "#44403C",
                 margin: 0,
-                lineHeight: 1.55,
-                fontFamily: "Noto Sans JP, sans-serif",
+                lineHeight: 1.6,
               }}
             >
               {vibe}
@@ -1502,38 +1524,20 @@ const SubLocationInfoCard = ({ loc, onOpenFullDetail }) => {
           </div>
         )}
 
-        {/* Fallback short description (only when no vibe available) */}
-        {fallbackDesc && (
-          <p
-            dir="rtl"
-            style={{
-              fontSize: "12px",
-              color: "#44403C",
-              margin: "10px 0 0",
-              lineHeight: 1.55,
-            }}
-          >
-            {fallbackDesc}
-          </p>
-        )}
-
-        {/* Actions: Full Details + Google Maps */}
+        {/* Actions row */}
         <div style={{ display: "flex", gap: "8px", marginTop: "12px", flexWrap: "wrap" }}>
           {onOpenFullDetail && (
             <button
               onClick={(e) => { e.stopPropagation(); onOpenFullDetail(loc); }}
               style={{
                 display: "inline-flex", alignItems: "center", gap: "5px",
-                padding: "6px 10px", borderRadius: "8px",
+                padding: "6px 11px", borderRadius: "8px",
                 backgroundColor: "#FEF0EE", border: "1px solid #FDDCD8",
-                color: "#B8331E", fontSize: "10px", fontWeight: 700,
-                fontFamily: "Montserrat", cursor: "pointer",
+                color: "#B8331E", fontSize: "11px", fontWeight: 700,
+                cursor: "pointer",
               }}
             >
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
-              </svg>
-              View Details
+              עוד פרטים
             </button>
           )}
           <a
@@ -1543,10 +1547,10 @@ const SubLocationInfoCard = ({ loc, onOpenFullDetail }) => {
             onClick={(e) => e.stopPropagation()}
             style={{
               display: "inline-flex", alignItems: "center", gap: "5px",
-              padding: "6px 10px", borderRadius: "8px",
+              padding: "6px 11px", borderRadius: "8px",
               backgroundColor: "#FFFFFF", border: "1px solid #E7DFCF",
-              color: "#44403C", fontSize: "10px", fontWeight: 700,
-              textDecoration: "none", fontFamily: "Montserrat",
+              color: "#44403C", fontSize: "11px", fontWeight: 700,
+              textDecoration: "none",
             }}
           >
             <svg width="11" height="11" viewBox="0 0 24 24" fill="#4285F4"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/></svg>

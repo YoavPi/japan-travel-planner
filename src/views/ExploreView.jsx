@@ -101,9 +101,11 @@ const ExploreView = () => {
       flowRefMobile.current?.scrollToDay?.(selectedDay);
       flowRefDesktop.current?.scrollToDay?.(selectedDay);
     }, 60);
-    /* Mobile only: peek → half so the user can read the day */
+    /* Mobile only: when the sheet is tucked at peek and a day is
+       selected, snap it open. There's no mid-state — the sheet is
+       either at the bottom (peek) or the top (full). */
     if (sheetRef.current?.getSnap?.() === "peek") {
-      sheetRef.current.snapTo("half");
+      sheetRef.current.snapTo("full");
     }
   }, [selectedDay]);
 
@@ -115,12 +117,10 @@ const ExploreView = () => {
 
   const handleSelectLocation = useCallback((location) => {
     setSelectedLocation(location);
-    /* Mobile UX: tapping a specific location means the user wants to
-       see it on the map. Drop the sheet to peek so the map (with its
-       popup anchored to the marker) is fully visible. The user can
-       drag the sheet back up after to keep reading. */
-    const cur = sheetRef.current?.getSnap?.();
-    if (cur === "full" || cur === "half") {
+    /* Mobile UX: tapping a specific location means the user wants
+       to see it on the map. Drop the sheet to peek so the map
+       (with its popup anchored to the marker) is fully visible. */
+    if (sheetRef.current?.getSnap?.() === "full") {
       sheetRef.current.snapTo("peek");
     }
   }, []);
@@ -143,6 +143,10 @@ const ExploreView = () => {
       if (next) {
         setSelectedDay(null);
         setSelectedLocation(null);
+        /* Mobile: a category filter switches the sheet into the
+           city-grouped browse view, which needs full height to
+           breathe. Snap to full on activation. */
+        sheetRef.current?.snapTo?.("full");
       }
       return next;
     });
@@ -156,18 +160,12 @@ const ExploreView = () => {
   }, []);
 
   const handleCityChange = useCallback((cityKey) => {
-    setActiveCity((prev) => {
-      const next = prev === cityKey ? null : cityKey;
-      /* Mobile UX: entering Phase B (a city is now active) needs more
-         vertical room for the second pill row, so auto-snap to half
-         if currently at peek. Leaving Phase B is left as-is. */
-      if (next && sheetRef.current?.getSnap?.() === "peek") {
-        sheetRef.current.snapTo("half");
-      }
-      return next;
-    });
+    setActiveCity((prev) => (prev === cityKey ? null : cityKey));
     setSelectedDay(null);
     setSelectedLocation(null);
+    /* Per the spec, city selection alone doesn't change the sheet
+       snap state — only day selection (→ half) or category filter
+       activation (→ full) do. The user keeps their current view. */
   }, []);
 
   /* ── Macro view: clear all filters and trigger map fitBounds-all ── */
@@ -386,14 +384,39 @@ const ExploreView = () => {
 
         {/* ═══ MOBILE BOTTOM SHEET ═══
               Header stack (top → bottom):
-                1) DayFilter  — horizontal day pills (sticky)
-                2) BottomFilterBar — city / category filters
+                1) Title strip — 'מסלול הטיול' + Home button
+                2) DayFilter   — horizontal day pills
+                3) BottomFilterBar — city / category filters
               Body: VerticalFlow */}
         <BottomSheet
           ref={sheetRef}
           defaultSnap="peek"
           header={
             <>
+              <div
+                dir="rtl"
+                className="flex items-center justify-between px-4 pt-1 pb-2 border-b border-cream-200"
+              >
+                <div className="text-right">
+                  <h1 className="text-base font-serif font-black text-sumi-800 leading-tight">
+                    מסלול הטיול
+                  </h1>
+                  <p className="text-[10px] text-sumi-400 leading-snug">
+                    31 ימים · 9 ערים
+                  </p>
+                </div>
+                <Link
+                  to="/"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-cream-100 text-sumi-600 hover:bg-vermillion-50 hover:text-vermillion-600 text-[11px] font-bold transition-colors min-h-[36px] border border-cream-300"
+                  title="חזרה לדף הבית"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                    <polyline points="9 22 9 12 15 12 15 22" />
+                  </svg>
+                  בית
+                </Link>
+              </div>
               <DayFilter selectedDay={selectedDay} onSelectDay={handleSelectDay} />
               <BottomFilterBar {...filterProps} />
             </>
