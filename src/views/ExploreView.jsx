@@ -101,9 +101,11 @@ const ExploreView = () => {
       flowRefMobile.current?.scrollToDay?.(selectedDay);
       flowRefDesktop.current?.scrollToDay?.(selectedDay);
     }, 60);
-    /* Mobile only: peek → half so the user can read the day */
+    /* Mobile only: when the sheet is tucked at peek and a day is
+       selected, snap it open. There's no mid-state — the sheet is
+       either at the bottom (peek) or the top (full). */
     if (sheetRef.current?.getSnap?.() === "peek") {
-      sheetRef.current.snapTo("half");
+      sheetRef.current.snapTo("full");
     }
   }, [selectedDay]);
 
@@ -115,12 +117,10 @@ const ExploreView = () => {
 
   const handleSelectLocation = useCallback((location) => {
     setSelectedLocation(location);
-    /* Mobile UX: tapping a specific location means the user wants to
-       see it on the map. Drop the sheet to peek so the map (with its
-       popup anchored to the marker) is fully visible. The user can
-       drag the sheet back up after to keep reading. */
-    const cur = sheetRef.current?.getSnap?.();
-    if (cur === "full" || cur === "half") {
+    /* Mobile UX: tapping a specific location means the user wants
+       to see it on the map. Drop the sheet to peek so the map
+       (with its popup anchored to the marker) is fully visible. */
+    if (sheetRef.current?.getSnap?.() === "full") {
       sheetRef.current.snapTo("peek");
     }
   }, []);

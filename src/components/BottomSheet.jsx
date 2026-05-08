@@ -10,10 +10,13 @@ import React, {
 /* ══════════════════════════════════════════════════════════════
    BOTTOM SHEET — Mobile-only Google-Maps-style draggable panel
    ──────────────────────────────────────────────────────────────
-   Three snap points:
+   Two snap points only:
      • peek  — shows just the handle + filter strip (~110px)
-     • half  — half-viewport (50vh)
-     • full  — almost full-screen, leaving a strip of map (~92vh)
+     • full  — almost full-screen, leaving a thin strip of map
+
+   No mid-drag resting state. A drag either snaps to peek (back to
+   bottom) or to full (top). This keeps the interaction binary and
+   predictable — just like Google Maps' modern bottom sheet.
 
    Renders as `position: fixed` above the map on screens < lg.
    On lg+ the sheet is hidden (CSS `lg:hidden`); the desktop layout
@@ -23,34 +26,34 @@ import React, {
    Interaction model:
      - Drag anywhere on the handle area (data-sheet-handle)
      - During drag: transform updates immediately (no transition)
-     - On release: velocity determines whether to snap to nearest
-       point or fling to the next point in the drag direction
-     - imperative API: ref.current.snapTo('peek'|'half'|'full')
+     - On release: position past the midpoint OR fling-velocity
+       toward a side decides which snap to land on
+     - imperative API: ref.current.snapTo('peek'|'full')
 
    Zero deps — raw pointer events + CSS transform.
+
+   NOTE: 'half' is accepted for backwards compatibility (treated as
+   'full') so older call sites don't break, but new code should
+   use 'full' / 'peek' only.
    ══════════════════════════════════════════════════════════════ */
 
 const SHEET_HEIGHT_VH = 92; // sheet itself is 92vh tall on screen
 
 const peekPx = 110;          // exposed when in 'peek'
-const FLING_THRESHOLD = 0.6; // px / ms — fling triggers next snap
+const FLING_THRESHOLD = 0.4; // px / ms — fling triggers snap toward direction
 
 const computeOffset = (snap, vh) => {
   // Returns the top-edge translateY (px from top of viewport) for a
   // sheet that is `SHEET_HEIGHT_VH%` tall pinned at top:0 conceptually.
   // Larger value = sheet pushed down (more hidden).
-  switch (snap) {
-    case "full":
-      return vh - vh * (SHEET_HEIGHT_VH / 100);  // sheet top near top
-    case "half":
-      return vh * 0.5;                            // sheet top at 50vh
-    case "peek":
-    default:
-      return vh - peekPx;                         // sheet top near bottom
+  // 'half' is mapped to 'full' for backwards compatibility.
+  if (snap === "full" || snap === "half") {
+    return vh - vh * (SHEET_HEIGHT_VH / 100);  // sheet top near top
   }
+  return vh - peekPx;                          // peek: sheet top near bottom
 };
 
-const ALL_SNAPS = ["full", "half", "peek"]; // ordered top → bottom
+const ALL_SNAPS = ["full", "peek"]; // ordered top → bottom
 
 const BottomSheet = forwardRef(({ children, header, defaultSnap = "peek", onSnapChange }, ref) => {
   const [snap, setSnapState] = useState(defaultSnap);
@@ -136,25 +139,23 @@ const BottomSheet = forwardRef(({ children, header, defaultSnap = "peek", onSnap
       velocity = (b.y - a.y) / dt;
     }
 
+    /* Binary snap decision:
+       1. If the user flung clearly in a direction → go that way.
+       2. Otherwise compare the current translateY to the midpoint
+          between 'full' and 'peek' offsets and snap to whichever
+          half the sheet is closer to. */
     const vh = lastVHRef.current;
-    const currentIdx = ALL_SNAPS.indexOf(snap);
-    let target = snap;
+    const fullY = computeOffset("full", vh);
+    const peekY = computeOffset("peek", vh);
 
+    let target;
     if (velocity > FLING_THRESHOLD) {
-      // Flinging downward → toward 'peek' (later in array)
-      target = ALL_SNAPS[Math.min(ALL_SNAPS.length - 1, currentIdx + 1)] || "peek";
+      target = "peek";   // flung downward
     } else if (velocity < -FLING_THRESHOLD) {
-      // Flinging upward → toward 'full' (earlier in array)
-      target = ALL_SNAPS[Math.max(0, currentIdx - 1)] || "full";
+      target = "full";   // flung upward
     } else {
-      // Slow / stationary release → snap to nearest by current offset
-      let bestIdx = currentIdx;
-      let bestDist = Infinity;
-      ALL_SNAPS.forEach((s, i) => {
-        const d = Math.abs(translateY - computeOffset(s, vh));
-        if (d < bestDist) { bestDist = d; bestIdx = i; }
-      });
-      target = ALL_SNAPS[bestIdx];
+      const midpoint = (fullY + peekY) / 2;
+      target = translateY < midpoint ? "full" : "peek";
     }
     setSnap(target);
   };
