@@ -63,66 +63,64 @@ const normalizedCityName = (city) => {
   return PARENT_MAP[base] || base;
 };
 
-/** Build the chronological "visit path" used by the city filter:
-    one entry per consecutive run of days in the same (normalized)
-    city. Cities visited more than once are numbered ("Tokyo 1",
-    "Tokyo 2", …); single-visit cities use their bare name.
-    Each entry: { key, label, labelHe, cityIdx, instance,
-                   startDay, endDay, color } */
+/** Unique city list used by the InfoBar.
+    One entry per distinct city in the order it's first visited.
+    Cities visited multiple times (e.g. Tokyo on days 1-5, 19-22,
+    26-31) collapse into a single "Tokyo" entry — selecting it
+    surfaces ALL Tokyo days at once. Each entry:
+      { key, label, labelHe, cityIdx, color,
+        days: Set<number>,   // every day-number tagged to this city
+        firstDay, visits }   // 'firstDay' for sorting, 'visits' for badges */
 export const getChronologicalCityPath = () => {
-  const path = [];
-  let current = null;
-  const counts = {};
-
+  const seen = new Map(); /* norm → entry */
   tripData.forEach((day) => {
     const norm = normalizedCityName(day.city);
-    if (!current || current.norm !== norm) {
-      if (current) path.push(current);
-      counts[norm] = (counts[norm] || 0) + 1;
-      current = {
+    if (!seen.has(norm)) {
+      seen.set(norm, {
         norm,
         cityIdx: STORY_CITIES.findIndex((c) => c.nameEn === norm) + 1 || 1,
-        instance: counts[norm],
-        startDay: day.day,
-        endDay: day.day,
-      };
+        days: new Set([day.day]),
+        firstDay: day.day,
+        visits: 1,
+        _lastDay: day.day,
+      });
     } else {
-      current.endDay = day.day;
+      const e = seen.get(norm);
+      e.days.add(day.day);
+      /* A new visit = non-contiguous day */
+      if (day.day - e._lastDay > 1) e.visits += 1;
+      e._lastDay = day.day;
     }
   });
-  if (current) path.push(current);
 
-  const total = {};
-  path.forEach((p) => {
-    total[p.norm] = (total[p.norm] || 0) + 1;
-  });
-  path.forEach((p) => {
-    const rec = STORY_CITIES[p.cityIdx - 1] || STORY_CITIES[0];
-    p.color = rec.color;
-    if (total[p.norm] > 1) {
-      p.key     = `${p.norm}#${p.instance}`;
-      p.label   = `${rec.nameEn} ${p.instance}`;
-      p.labelHe = `${rec.nameHe} ${p.instance}`;
-    } else {
-      p.key     = p.norm;
-      p.label   = rec.nameEn;
-      p.labelHe = rec.nameHe;
-    }
-  });
-  return path;
+  return Array.from(seen.values())
+    .sort((a, b) => a.firstDay - b.firstDay)
+    .map((e) => {
+      const rec = STORY_CITIES[e.cityIdx - 1] || STORY_CITIES[0];
+      return {
+        key:     e.norm,
+        norm:    e.norm,
+        cityIdx: e.cityIdx,
+        label:   rec.nameEn,
+        labelHe: rec.nameHe,
+        color:   rec.color,
+        days:    e.days,
+        firstDay: e.firstDay,
+        visits:  e.visits,
+      };
+    });
 };
 
-/* Resolve a city-key (e.g. "Tokyo#2" or "Kanazawa") to its day-range. */
-const dayRangeForCityKey = (cityKey) => {
+/** Returns a Set of day-numbers belonging to a given city key.
+    Replaces the older 'single contiguous range' approach so the
+    merged-city filter can surface all visits at once. */
+const daysInCity = (cityKey) => {
   if (!cityKey) return null;
   const path = getChronologicalCityPath();
-  /* Support both "Tokyo#2" and bare "Tokyo" (= first instance) */
-  const direct = path.find((p) => p.key === cityKey);
-  if (direct) return { start: direct.startDay, end: direct.endDay };
-  const baseName = cityKey.split("#")[0];
-  const first = path.find((p) => p.norm === baseName);
-  if (first) return { start: first.startDay, end: first.endDay };
-  return null;
+  const baseName = cityKey.split("#")[0]; /* tolerate legacy "Tokyo#2" too */
+  const entry = path.find((p) => p.key === cityKey)
+             || path.find((p) => p.norm === baseName);
+  return entry ? entry.days : null;
 };
 
 /* ─── Category filter (shopping/attractions/food/hotels) ─── */
@@ -446,12 +444,14 @@ export const buildStory = ({ cityKey = null, category = null } = {}) => {
     return { index: s.days.indexOf(dayNum) + 1, total: s.days.length };
   };
 
-  const range = dayRangeForCityKey(cityKey);
+  const citySet = daysInCity(cityKey);
   const isFiltered = !!(cityKey || category);
 
   tripData.forEach((day, dayIdx) => {
-    /* City filter — drop days outside the chronological range */
-    if (range && (day.day < range.start || day.day > range.end)) return;
+    /* City filter — drop days that aren't tagged to the selected
+       city. The merged-city pill (e.g. "Tokyo") surfaces every
+       visit at once. */
+    if (citySet && !citySet.has(day.day)) return;
 
     const districts = districtsFor(day);
     const cityIdx = cityIndexByName(day.city);
@@ -467,7 +467,7 @@ export const buildStory = ({ cityKey = null, category = null } = {}) => {
        only the hotel row anchored under the header. */
     const showHotelOnly = category === "hotels";
     const wantHotel = !!day.hotel && day.hotel !== "—" &&
-      (!cityKey || (range && day.day >= range.start && day.day <= range.end));
+      (!citySet || citySet.has(day.day));
 
     /* Skip the entire day when no content survives the filter */
     if (category && !showHotelOnly && visibleStops.length === 0) return;

@@ -946,34 +946,70 @@ const StoryFlow = forwardRef(({ activeStopId, onSelectStop, onOpenDetail, onClos
     [activeCityKey, activeCategory]
   );
 
-  /* Auto-scroll to the active stop / day */
+  /* Auto-scroll to the active stop / day.
+     ──────────────────────────────────────────────────────────────
+     Why this is non-trivial under filtering:
+       1. activeFilter / activeCity changes trigger a full
+          buildStory rebuild → React re-renders the scroller.
+       2. dayRefs.current[dayNum] briefly returns null/undefined
+          for days that are about to mount (or unmount).
+       3. A naive scrollTo fires BEFORE the new DOM commits and
+          either targets a stale element or no-ops silently.
+
+     Fix: depend on `story` itself (a different array reference on
+     every rebuild) and defer the scroll inside a double rAF so
+     the new layout has finished committing. */
   useEffect(() => {
     if (!scrollerRef.current) return;
-    const targetEl = (activeStopId && stopRefs.current[activeStopId])
-      || (activeDay && dayRefs.current[activeDay]);
-    if (!targetEl) return;
-    const scroller = scrollerRef.current;
-    const top = targetEl.offsetTop - scroller.offsetTop - 100;
-    scroller.scrollTo({ top, behavior: "smooth" });
-  }, [activeStopId, activeDay]);
+    let cancelled = false;
+    let raf1 = 0;
+    let raf2 = 0;
 
-  /* Imperative scrollToDay used by ExploreView when a map pin is tapped */
-  useImperativeHandle(ref, () => ({
-    scrollToDay: (dayNum) => {
-      const el = dayRefs.current[dayNum];
-      if (el && scrollerRef.current) {
-        const scroller = scrollerRef.current;
-        scroller.scrollTo({ top: el.offsetTop - scroller.offsetTop - 12, behavior: "smooth" });
-      }
-    },
-    scrollToStop: (stopId) => {
-      const el = stopRefs.current[stopId];
-      if (el && scrollerRef.current) {
-        const scroller = scrollerRef.current;
-        scroller.scrollTo({ top: el.offsetTop - scroller.offsetTop - 100, behavior: "smooth" });
-      }
-    },
-  }), []);
+    const attempt = () => {
+      if (cancelled) return;
+      const scroller = scrollerRef.current;
+      if (!scroller) return;
+      const targetEl = (activeStopId && stopRefs.current[activeStopId])
+        || (activeDay != null && dayRefs.current[activeDay]);
+      if (!targetEl) return;
+      const top = targetEl.offsetTop - scroller.offsetTop - 100;
+      scroller.scrollTo({ top, behavior: "smooth" });
+    };
+
+    /* Double rAF defers past the React commit + layout pass so
+       freshly-mounted day sections have valid offsetTop. */
+    raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(attempt);
+    });
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+    };
+  }, [activeStopId, activeDay, story]);
+
+  /* Imperative API — same robust deferral so external callers
+     (the map's pin click in ExploreView) hit the post-commit DOM. */
+  useImperativeHandle(ref, () => {
+    const deferredScroll = (el, offsetTop = 100) => {
+      if (!el || !scrollerRef.current) return;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const scroller = scrollerRef.current;
+          if (!scroller || !el) return;
+          scroller.scrollTo({
+            top: el.offsetTop - scroller.offsetTop - offsetTop,
+            behavior: "smooth",
+          });
+        });
+      });
+    };
+    return {
+      scrollToDay: (dayNum) => deferredScroll(dayRefs.current[dayNum], 12),
+      scrollToStop: (stopId) => deferredScroll(stopRefs.current[stopId], 100),
+    };
+  }, []);
 
   /* zig-zag side toggle per day */
   let stopSideToggle = 0;
@@ -1037,7 +1073,13 @@ const StoryFlow = forwardRef(({ activeStopId, onSelectStop, onOpenDetail, onClos
         )}
       </div>
 
-      {/* InfoBar — Phase A/B city → category filter */}
+      {/* Day pill row — primary navigation, sits directly under
+          the title so the day grid is the first thing users scan. */}
+      <DayPillRow activeDay={activeDay} onSelectDay={onSelectDay} />
+
+      {/* InfoBar — secondary filter (Phase A city → Phase B
+          category). Lives BELOW the day grid so the hierarchy reads
+          'pick a day' → 'narrow it further'. */}
       <InfoBar
         activeCityKey={activeCityKey}
         activeCategory={activeCategory}
@@ -1045,9 +1087,6 @@ const StoryFlow = forwardRef(({ activeStopId, onSelectStop, onOpenDetail, onClos
         onCategoryChange={onCategoryChange}
         onClearAll={onClearFilters}
       />
-
-      {/* Day pill row */}
-      <DayPillRow activeDay={activeDay} onSelectDay={onSelectDay} />
 
       {/* Scroller */}
       <div

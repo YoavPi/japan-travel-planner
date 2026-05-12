@@ -72,15 +72,16 @@ const ExploreView = () => {
   }, [selectedDay]);
 
   /* ── Handlers ── */
-  /* Picking a new day clears any active category filter ("Clean
-     State" rule). Without this, a user with Food filter on then
-     tapping Day 9 would land on an empty Day 9 (because the food
-     filter hides everything else). */
+  /* Picking a new day is a "Full Reset": both the city pill AND
+     the category sub-filter snap back to the default 'all'
+     state. This guarantees the chosen day is always renderable —
+     filters can never hide the day a user just asked for. */
   const handleSelectDay = useCallback((day) => {
     setSelectedDay((prev) => prev === day ? prev : day);
     setSelectedLocation(null);
     setActiveStopId(null);
     setActiveFilter(null);
+    setActiveCity(null);
   }, []);
 
   const handleSelectStop = useCallback((payload) => {
