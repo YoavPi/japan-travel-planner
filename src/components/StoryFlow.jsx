@@ -1,7 +1,10 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from "react";
 import { buildStory, STORY_CITIES } from "../data/storyBuilder";
-import { atmospherePhotoFor } from "../data/tripHelpers";
 import { Glyph, MetaIcon, TRANSIT_LABEL_HE } from "./StoryFlowGlyph";
+
+/* NOTE: atmospherePhotoFor is intentionally NOT imported here.
+   Atmosphere photos are reserved for the Home Page "תמונות מהדרך"
+   gallery only. The Trip Roadmap / map components stay text-only. */
 
 /* ══════════════════════════════════════════════════════════════
    STORY FLOW v3 — Right-panel travel-story timeline
@@ -87,92 +90,54 @@ const DayPillRow = ({ activeDay, onSelectDay }) => {
   );
 };
 
-/* ───────── Day header block ─────────
+/* ───────── Day header block (text-only) ─────────
    Stack:
-     [atmosphere hero photo, ~180px, soft cream fade at the bottom]
      date label · DAY N pill
      יום N · עיר            (big serif, city-accent on the number)
      שכונה · שכונה · שכונה   (sub-line)
      city-abbr · יום-N      (mono caption)
+
+   Atmosphere photos are intentionally NOT rendered here — they
+   live exclusively in the Home-Page "תמונות מהדרך" gallery so
+   the Trip Roadmap stays a clean, text-first reading surface.
 */
 const DayHeader = ({ item }) => {
   const c = STORY_CITIES[item.city - 1];
-  const atmosphere = atmospherePhotoFor(item.day);
 
   return (
-    <div style={{ position: "relative", textAlign: "right" }}>
-      {/* Atmosphere hero — sets the day's vibe before any details */}
-      {atmosphere && (
-        <div
+    <div style={{ position: "relative", padding: "28px 24px 16px", textAlign: "right" }}>
+      <div style={{ display: "inline-flex", alignItems: "baseline", gap: 8, marginTop: 8, marginBottom: 6 }}>
+        <span className="mono" style={{ fontSize: 10, color: "var(--muted)", letterSpacing: "0.16em" }}>
+          {item.date}
+        </span>
+        <span
           style={{
-            position: "relative",
-            width: "100%",
-            height: 180,
-            overflow: "hidden",
-            marginTop: 12,
+            fontSize: 10,
+            fontWeight: 700,
+            letterSpacing: "0.18em",
+            textTransform: "uppercase",
+            color: c.color,
+            padding: "2px 8px",
+            border: `1px solid ${c.color}55`,
+            borderRadius: 10,
           }}
         >
-          <img
-            src={atmosphere}
-            alt=""
-            aria-hidden
-            loading="lazy"
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-              objectPosition: "center",
-              display: "block",
-              filter: "saturate(0.92)",
-            }}
-          />
-          {/* Bottom fade into paper, so the text below sits on a soft cream */}
-          <div
-            aria-hidden
-            style={{
-              position: "absolute",
-              inset: 0,
-              background: "linear-gradient(to bottom, transparent 55%, var(--paper) 100%)",
-              pointerEvents: "none",
-            }}
-          />
+          DAY {item.day}
+        </span>
+      </div>
+      <div
+        className="he-display"
+        style={{ fontSize: 24, fontWeight: 700, color: "var(--ink)", lineHeight: 1.15 }}
+      >
+        יום <span style={{ color: c.color }}>{item.day}</span> · {item.cityHe}
+      </div>
+      {item.subtitleHe && (
+        <div className="he-sans" style={{ fontSize: 13, color: "var(--ink-2)", marginTop: 4 }}>
+          {item.subtitleHe}
         </div>
       )}
-
-      <div style={{ padding: "20px 24px 16px" }}>
-        <div style={{ display: "inline-flex", alignItems: "baseline", gap: 8, marginBottom: 6 }}>
-          <span className="mono" style={{ fontSize: 10, color: "var(--muted)", letterSpacing: "0.16em" }}>
-            {item.date}
-          </span>
-          <span
-            style={{
-              fontSize: 10,
-              fontWeight: 700,
-              letterSpacing: "0.18em",
-              textTransform: "uppercase",
-              color: c.color,
-              padding: "2px 8px",
-              border: `1px solid ${c.color}55`,
-              borderRadius: 10,
-            }}
-          >
-            DAY {item.day}
-          </span>
-        </div>
-        <div
-          className="he-display"
-          style={{ fontSize: 24, fontWeight: 700, color: "var(--ink)", lineHeight: 1.15 }}
-        >
-          יום <span style={{ color: c.color }}>{item.day}</span> · {item.cityHe}
-        </div>
-        {item.subtitleHe && (
-          <div className="he-sans" style={{ fontSize: 13, color: "var(--ink-2)", marginTop: 4 }}>
-            {item.subtitleHe}
-          </div>
-        )}
-        <div style={{ fontSize: 10.5, color: "var(--muted)", letterSpacing: "0.04em", marginTop: 4 }}>
-          {item.meta}
-        </div>
+      <div style={{ fontSize: 10.5, color: "var(--muted)", letterSpacing: "0.04em", marginTop: 4 }}>
+        {item.meta}
       </div>
     </div>
   );

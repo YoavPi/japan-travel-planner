@@ -237,3 +237,108 @@ export const atmospherePhotoFor = (dayNumber) => {
   const file = ATMOSPHERE_FILE[dayNumber];
   return file ? `/photos/source/${file}` : null;
 };
+
+/* ══════════════════════════════════════════════════════════════
+   Districts: English keyword → Hebrew transliteration
+   ──────────────────────────────────────────────────────────────
+   Used by the home-page gallery and (eventually) by the day
+   sub-header to surface a few neighbourhood names for context
+   (e.g. "שיבויה · גולדן גאי"). tripData.js stays read-only —
+   we just scan its strings for known keywords. */
+const DISTRICTS_HE = {
+  Tokyo: {
+    "Harajuku":       "האראג׳וקו",
+    "Shibuya":        "שיבויה",
+    "Shinjuku":       "שינג׳וקו",
+    "Roppongi":       "רופונגי",
+    "Asakusa":        "אסקוסה",
+    "Akihabara":      "אקיהברה",
+    "Ginza":          "גינזה",
+    "Ueno":           "אואנו",
+    "Shimokitazawa":  "שימוקיטאזאווה",
+    "Nakameguro":     "נקאמגורו",
+    "Omotesando":     "אומוטסנדו",
+    "Yoyogi":         "יויוגי",
+    "Meiji":          "מייג׳י",
+    "Tsukiji":        "צוקיג׳י",
+    "Daikanyama":     "דייקנימה",
+    "Ebisu":          "אביסו",
+    "Golden Gai":     "גולדן גאי",
+    "Tsukishima":     "צוקישימה",
+    "Kappabashi":     "קאפאבאשי",
+    "Sunshine City":  "סאנשיין סיטי",
+    "Maihama":        "מאיהאמה",
+  },
+  Kyoto: {
+    "Gion":           "גיון",
+    "Higashiyama":    "היגאשיאמה",
+    "Arashiyama":     "אראשיאמה",
+    "Pontocho":       "פונטוצ׳ו",
+    "Fushimi":        "פושימי",
+    "Kinkaku":        "קינקאקו",
+    "Kiyomizu":       "קיומיזו",
+    "Nishiki":        "נישיקי",
+    "Maruyama":       "מריומה",
+  },
+  Osaka: {
+    "Umeda":          "אומדה",
+    "Namba":          "נמבה",
+    "Dotonbori":      "דוטונבורי",
+    "Shinsaibashi":   "שינסאיבאשי",
+    "Tennoji":        "טנוג׳י",
+    "Kuromon":        "קורומון",
+  },
+  Kanazawa: {
+    "Higashi":        "היגאשי",
+    "Omicho":         "אומיצ׳ו",
+    "Kenrokuen":      "קנרוקואן",
+  },
+  Takayama: {
+    "Sanmachi":       "סאנמאצ׳י",
+    "Hida":           "הידה",
+    "Shirakawa":      "שירקאווה",
+  },
+  Matsumoto: {
+    "Matsumoto":      "מטסומוטו",
+    "Nakamachi":      "נאקאמאצ׳י",
+  },
+  Nagoya: {
+    "Sakae":          "סאקאי",
+    "Meieki":         "מאיאקי",
+  },
+  Hakone: {
+    "Yumoto":         "יומוטו",
+    "Gora":           "גורה",
+    "Sengokuhara":    "סנגוקוהארה",
+    "Gotemba":        "גוטמבה",
+  },
+  Kawaguchiko: {
+    "Kawaguchi":      "קוואגוצ׳י",
+    "Chureito":       "צ׳ורייטו",
+    "Fuji":           "פוג׳י",
+  },
+  Nara: {
+    "Nara":           "נארה",
+  },
+};
+
+/** Returns up to N Hebrew district names mentioned in the day's content. */
+export const extractDistrictsHe = (day, max = 3) => {
+  if (!day) return [];
+  const baseCity = (day.city || "").replace(/ \d+$/, "");
+  const map = DISTRICTS_HE[baseCity] || {};
+  if (!Object.keys(map).length) return [];
+  const haystack = [
+    ...(day.attractions || []).map((a) => `${a.name || ""} ${a.nameHe || ""} ${a.desc || ""}`),
+    `${day.lunch?.place  || ""} ${day.lunch?.nameHe  || ""} ${day.lunch?.desc  || ""}`,
+    `${day.dinner?.place || ""} ${day.dinner?.nameHe || ""} ${day.dinner?.desc || ""}`,
+    day.title || "",
+  ].join(" ");
+  const found = [];
+  Object.entries(map).forEach(([en, he]) => {
+    if (haystack.includes(en) || haystack.includes(he)) {
+      if (!found.includes(he)) found.push(he);
+    }
+  });
+  return found.slice(0, max);
+};
