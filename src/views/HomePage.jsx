@@ -40,67 +40,89 @@ function useVisible(threshold = 0.15) {
 }
 
 /* ─── DATA ─── */
+/* Seven canonical chapters that split the 31-day roadmap into
+   thematic legs. The day ranges here MUST match the runtime data
+   in src/data/tripData.js exactly so each chapter card deep-links
+   to the first day of its segment via /map?day=<dayStart>.
+   Tokyo appears three separate times (Parts 1, 5, 7) because the
+   city was visited in three distinct, non-contiguous legs. */
 const chapters = [
   {
     num: "01",
     city: "טוקיו (חלק ראשון)",
-    cityEn: "Tokyo I",
-    days: "ימים 1–7",
-    desc: "הימים הראשונים בעיר, האזורים המרכזיים ופארקי דיסני.",
+    cityEn: "Tokyo",
+    days: "ימים 1–5",
+    desc: "הימים הראשונים בטוקיו — הראג׳וקו, שיבויה, שינג׳וקו, רופונגי ופארקי דיסני.",
     bg: "rgba(192,57,43,0.08)",
     accent: "#C0392B",
-    /* Deep-link target on the /map route */
-    cityKey: "Tokyo#1",
+    dayStart: 1,
+    dayEnd: 5,
   },
   {
     num: "02",
     city: "קנזוואה והאלפים היפניים",
-    cityEn: "Kanazawa & Alps",
-    days: "ימים 8–13",
-    desc: "נסיעה לצפון-מערב, שוק הדגים, גני קנזוואה, שירקאווה-גו וסקי.",
+    cityEn: "Kanazawa & The Japanese Alps",
+    days: "ימים 6–9",
+    desc: "שינקנסן צפונה, גן קנרוקואן, הכפר המסורתי שירקאווה-גו, סקי בהיראיו וטירת מטסומוטו.",
     bg: "rgba(61,74,92,0.06)",
     accent: "#3D4A5C",
-    cityKey: "Kanazawa",
+    dayStart: 6,
+    dayEnd: 9,
   },
   {
     num: "03",
     city: "אוסקה, נארה ונגויה",
     cityEn: "Osaka, Nara & Nagoya",
-    days: "ימים 14–19",
-    desc: "המעבר לאוסקה, יוניברסל סטודיוס, נארה וסיורי אוכל.",
+    days: "ימים 10–13",
+    desc: "טירת אוסקה, סיור אוכל, יוניברסל סטודיוס, דוטונבורי וקוף איילי נארה.",
     bg: "rgba(192,57,43,0.06)",
     accent: "#C0392B",
-    cityKey: "Osaka",
+    dayStart: 10,
+    dayEnd: 13,
   },
   {
     num: "04",
     city: "קיוטו",
     cityEn: "Kyoto",
-    days: "ימים 20–24",
-    desc: "חמישה ימים המוקדשים למקדשים, יער הבמבוק, שווקים מקומיים וחיי לילה.",
+    days: "ימים 14–18",
+    desc: "חמישה ימים של מקדשים — פושימי אינארי, קינקאקוג׳י, פגודת הוקאנג׳י, יער הבמבוק וטים-לאב UZU.",
     bg: "rgba(61,74,92,0.06)",
     accent: "#3D4A5C",
-    cityKey: "Kyoto",
+    dayStart: 14,
+    dayEnd: 18,
   },
   {
     num: "05",
-    city: "האקונה ופוג׳י",
-    cityEn: "Hakone & Fuji",
-    days: "ימים 24–25",
-    desc: "השכרת רכב באזור חמשת האגמים, תצפיות פוג׳י, אונסן ושקיעה.",
-    bg: "rgba(61,74,92,0.06)",
-    accent: "#3D4A5C",
-    cityKey: "Hakone",
+    city: "טוקיו (ביקור שני)",
+    cityEn: "Tokyo (Second Visit)",
+    days: "ימים 19–22",
+    desc: "חזרה לעיר האהובה — שימוקיטזאווה, אקיהברה, פארק אואנו, רחוב קפאבאשי, וטים-לאב פלאנטס.",
+    bg: "rgba(192,57,43,0.06)",
+    accent: "#C0392B",
+    dayStart: 19,
+    dayEnd: 22,
   },
   {
     num: "06",
-    city: "טוקיו (חלק שני)",
-    cityEn: "Tokyo II",
+    city: "פוג׳י והאקונה",
+    cityEn: "Fuji & Hakone",
+    days: "ימים 23–25",
+    desc: "השכרת רכב לאזור חמשת האגמים, אגם קוואגוצ׳י, פגודת צ׳ורייטו, אאוטלט גוטמבה ואונסן בהאקונה.",
+    bg: "rgba(61,74,92,0.06)",
+    accent: "#3D4A5C",
+    dayStart: 23,
+    dayEnd: 25,
+  },
+  {
+    num: "07",
+    city: "טוקיו (חלק שלישי)",
+    cityEn: "Tokyo (Final Leg)",
     days: "ימים 26–31",
-    desc: "החזרה לטוקיו — אקיהברה, אוקנו, צעצועים ושופינג, וסיום הטיול.",
+    desc: "סיום הטיול: מוזיאון הפתוח, ראמן Iruca, מאפיית BRICOLAGE, סאנשיין סיטי, נאקאמגורו ופרידה.",
     bg: "rgba(192,57,43,0.06)",
     accent: "#C0392B",
-    cityKey: "Tokyo#3",
+    dayStart: 26,
+    dayEnd: 31,
   },
 ];
 
@@ -324,7 +346,13 @@ const ChapterCard = ({ chapter, index, isLast }) => {
   return (
     <Link
       ref={ref}
-      to={`/map?city=${encodeURIComponent(chapter.cityKey)}`}
+      /* Deep-link to the first day of this segment. ExploreView
+         reads ?day=N on mount and selectedDay drives a flyTo +
+         a scroll-to-day in the Trip Roadmap panel. Using a day
+         (rather than a city key) guarantees the user lands on
+         the exact start of the chapter, even when Tokyo appears
+         in multiple non-contiguous legs. */
+      to={`/map?day=${chapter.dayStart}`}
       className="chapter-card relative flex gap-0 cursor-pointer no-underline"
       style={{
         opacity: visible ? 1 : 0,
