@@ -26,8 +26,12 @@ const ExploreView = () => {
 
   /* Filters are kept around for the MapComponent's existing logic.
      The new StoryFlow doesn't expose them yet — the day-pill row is
-     the primary nav. We can re-introduce category filters later. */
-  const [activeFilter] = useState(null);
+     the primary nav. We can re-introduce category filters later.
+     IMPORTANT: clearing on day/city change is enforced inside the
+     respective handlers (see handleSelectDay / handleCityChange) so
+     we never end up with active filters + a focused day that hides
+     all the day's content. */
+  const [activeFilter, setActiveFilter] = useState(null);
   const [activeCity, setActiveCity] = useState(null);
 
   const [modalData, setModalData] = useState(null);
@@ -66,25 +70,37 @@ const ExploreView = () => {
   }, [selectedDay]);
 
   /* ── Handlers ── */
+  /* Picking a new day clears any active category filter ("Clean
+     State" rule). Without this, a user with Food filter on then
+     tapping Day 9 would land on an empty Day 9 (because the food
+     filter hides everything else). */
   const handleSelectDay = useCallback((day) => {
     setSelectedDay((prev) => prev === day ? prev : day);
     setSelectedLocation(null);
     setActiveStopId(null);
+    setActiveFilter(null);
   }, []);
 
   const handleSelectStop = useCallback((payload) => {
     if (!payload) return;
     setActiveStopId(payload.stopId);
-    if (payload.coordinates) {
+    /* Detail-First navigation:
+       - When `skipMapFly` is set (a tap inside StoryFlow that opens
+         the DetailModal), we DON'T fly the map. The modal is the
+         primary surface and the map stays put so the user keeps
+         their context.
+       - When the click came from a map marker (no skipMapFly), we
+         set selectedLocation so the map flies + the popup pins. */
+    if (payload.coordinates && !payload.skipMapFly) {
       setSelectedLocation({
         lng: payload.coordinates.lng,
         lat: payload.coordinates.lat,
         name: payload.name,
       });
-    }
-    /* Mobile: drop sheet to peek so map+popup are visible */
-    if (sheetRef.current?.getSnap?.() === "full") {
-      sheetRef.current.snapTo("peek");
+      /* Mobile: drop sheet to peek so map+popup are visible */
+      if (sheetRef.current?.getSnap?.() === "full") {
+        sheetRef.current.snapTo("peek");
+      }
     }
   }, []);
 
@@ -100,15 +116,26 @@ const ExploreView = () => {
     sheetRef.current?.snapTo?.("peek");
   }, []);
 
-  const handleFilterChange = useCallback(() => {}, []);     /* placeholder — filter UI deferred */
-  const handleCityChange   = useCallback(() => {}, []);     /* placeholder */
+  const handleFilterChange = useCallback((next) => {
+    setActiveFilter(next);
+  }, []);
+  /* Same Clean-State rule for the city pill: switching city clears
+     the category filter so we never show an empty city × category
+     intersection. */
+  const handleCityChange = useCallback((cityKey) => {
+    setActiveCity((prev) => prev === cityKey ? null : cityKey);
+    setActiveFilter(null);
+    setSelectedLocation(null);
+    setActiveStopId(null);
+  }, []);
 
   const storyProps = useMemo(() => ({
     activeStopId,
     onSelectStop: handleSelectStop,
+    onOpenDetail: handleOpenDetail,
     activeDay: selectedDay,
     onSelectDay: handleSelectDay,
-  }), [activeStopId, handleSelectStop, selectedDay, handleSelectDay]);
+  }), [activeStopId, handleSelectStop, handleOpenDetail, selectedDay, handleSelectDay]);
 
   return (
     <div

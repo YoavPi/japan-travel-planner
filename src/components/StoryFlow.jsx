@@ -1,5 +1,6 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from "react";
 import { buildStory, STORY_CITIES } from "../data/storyBuilder";
+import { atmospherePhotoFor } from "../data/tripHelpers";
 import { Glyph, MetaIcon, TRANSIT_LABEL_HE } from "./StoryFlowGlyph";
 
 /* ══════════════════════════════════════════════════════════════
@@ -86,43 +87,92 @@ const DayPillRow = ({ activeDay, onSelectDay }) => {
   );
 };
 
-/* ───────── Day header block ───────── */
+/* ───────── Day header block ─────────
+   Stack:
+     [atmosphere hero photo, ~180px, soft cream fade at the bottom]
+     date label · DAY N pill
+     יום N · עיר            (big serif, city-accent on the number)
+     שכונה · שכונה · שכונה   (sub-line)
+     city-abbr · יום-N      (mono caption)
+*/
 const DayHeader = ({ item }) => {
   const c = STORY_CITIES[item.city - 1];
+  const atmosphere = atmospherePhotoFor(item.day);
+
   return (
-    <div style={{ position: "relative", padding: "28px 24px 16px", textAlign: "right" }}>
-      <div style={{ display: "inline-flex", alignItems: "baseline", gap: 8, marginTop: 8, marginBottom: 6 }}>
-        <span className="mono" style={{ fontSize: 10, color: "var(--muted)", letterSpacing: "0.16em" }}>
-          {item.date}
-        </span>
-        <span
+    <div style={{ position: "relative", textAlign: "right" }}>
+      {/* Atmosphere hero — sets the day's vibe before any details */}
+      {atmosphere && (
+        <div
           style={{
-            fontSize: 10,
-            fontWeight: 700,
-            letterSpacing: "0.18em",
-            textTransform: "uppercase",
-            color: c.color,
-            padding: "2px 8px",
-            border: `1px solid ${c.color}55`,
-            borderRadius: 10,
+            position: "relative",
+            width: "100%",
+            height: 180,
+            overflow: "hidden",
+            marginTop: 12,
           }}
         >
-          DAY {item.day}
-        </span>
-      </div>
-      <div
-        className="he-display"
-        style={{ fontSize: 24, fontWeight: 700, color: "var(--ink)", lineHeight: 1.15 }}
-      >
-        יום <span style={{ color: c.color }}>{item.day}</span> · {item.cityHe}
-      </div>
-      {item.subtitleHe && (
-        <div className="he-sans" style={{ fontSize: 13, color: "var(--ink-2)", marginTop: 4 }}>
-          {item.subtitleHe}
+          <img
+            src={atmosphere}
+            alt=""
+            aria-hidden
+            loading="lazy"
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              objectPosition: "center",
+              display: "block",
+              filter: "saturate(0.92)",
+            }}
+          />
+          {/* Bottom fade into paper, so the text below sits on a soft cream */}
+          <div
+            aria-hidden
+            style={{
+              position: "absolute",
+              inset: 0,
+              background: "linear-gradient(to bottom, transparent 55%, var(--paper) 100%)",
+              pointerEvents: "none",
+            }}
+          />
         </div>
       )}
-      <div style={{ fontSize: 10.5, color: "var(--muted)", letterSpacing: "0.04em", marginTop: 4 }}>
-        {item.meta}
+
+      <div style={{ padding: "20px 24px 16px" }}>
+        <div style={{ display: "inline-flex", alignItems: "baseline", gap: 8, marginBottom: 6 }}>
+          <span className="mono" style={{ fontSize: 10, color: "var(--muted)", letterSpacing: "0.16em" }}>
+            {item.date}
+          </span>
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: "0.18em",
+              textTransform: "uppercase",
+              color: c.color,
+              padding: "2px 8px",
+              border: `1px solid ${c.color}55`,
+              borderRadius: 10,
+            }}
+          >
+            DAY {item.day}
+          </span>
+        </div>
+        <div
+          className="he-display"
+          style={{ fontSize: 24, fontWeight: 700, color: "var(--ink)", lineHeight: 1.15 }}
+        >
+          יום <span style={{ color: c.color }}>{item.day}</span> · {item.cityHe}
+        </div>
+        {item.subtitleHe && (
+          <div className="he-sans" style={{ fontSize: 13, color: "var(--ink-2)", marginTop: 4 }}>
+            {item.subtitleHe}
+          </div>
+        )}
+        <div style={{ fontSize: 10.5, color: "var(--muted)", letterSpacing: "0.04em", marginTop: 4 }}>
+          {item.meta}
+        </div>
       </div>
     </div>
   );
@@ -685,7 +735,7 @@ const CityTransit = ({ item }) => {
 /* ══════════════════════════════════════════════════════════════
    MAIN COMPONENT
    ══════════════════════════════════════════════════════════════ */
-const StoryFlow = forwardRef(({ activeStopId, onSelectStop, onClose, activeDay, onSelectDay, compact = false }, ref) => {
+const StoryFlow = forwardRef(({ activeStopId, onSelectStop, onOpenDetail, onClose, activeDay, onSelectDay, compact = false }, ref) => {
   const scrollerRef = useRef(null);
   const stopRefs = useRef({});
   const dayRefs = useRef({});
@@ -822,11 +872,40 @@ const StoryFlow = forwardRef(({ activeStopId, onSelectStop, onClose, activeDay, 
                   side={side}
                   compact={compact}
                   isActive={activeStopId === item.stopId}
-                  onClick={() => onSelectStop && onSelectStop({
-                    stopId: item.stopId,
-                    coordinates: item.coordinates,
-                    name: item.titleHe || item.titleEn,
-                  })}
+                  onClick={(e) => {
+                    /* Prevent the click from bubbling into the panel /
+                       day-card / sheet drag listeners. Detail modal is
+                       the primary surface here. */
+                    if (e && typeof e.stopPropagation === "function") {
+                      e.stopPropagation();
+                    }
+                    /* PRIMARY: open the Detail Info modal */
+                    if (onOpenDetail) {
+                      onOpenDetail({
+                        name:        item.titleEn || item.titleHe,
+                        nameHe:      item.titleHe,
+                        nameJa:      "",
+                        desc:        item.note ? item.note.textHe : item.descHe || "",
+                        day:         item.day || null,
+                        city:        "",
+                        cityHe:      "",
+                        category:    item.kind || "attraction",
+                        rating:      item.rating || null,
+                        coordinates: item.coordinates || null,
+                      });
+                    }
+                    /* SECONDARY: still update active state + map pin
+                       so the marker highlights — but no flyTo on
+                       the parent map (modal is foreground). */
+                    if (onSelectStop) {
+                      onSelectStop({
+                        stopId: item.stopId,
+                        coordinates: item.coordinates,
+                        name: item.titleHe || item.titleEn,
+                        skipMapFly: true, /* hint for parent */
+                      });
+                    }
+                  }}
                 />
               </div>
             );

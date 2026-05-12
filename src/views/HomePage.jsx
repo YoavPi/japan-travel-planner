@@ -179,7 +179,11 @@ const CtaArrow = ({ size = 18 }) => (
    ══════════════════════════════════════════════════════════════ */
 const Hero = () => {
   return (
-    <section className="relative min-h-screen flex flex-col lg:flex-row items-center overflow-hidden px-6 md:px-16 lg:px-0">
+    /* Hero deliberately stops short of full viewport (~88vh on desktop,
+       90vh on mobile) so the Timeline section peeks into the bottom of
+       the initial fold. That visual "more below" cue is more discoverable
+       than a static chevron alone — users see the next card and scroll. */
+    <section className="relative min-h-[90vh] lg:min-h-[88vh] flex flex-col lg:flex-row items-center overflow-hidden px-6 md:px-16 lg:px-0">
       {/* Decorative kanji (very subtle) */}
       <span className="jp-deco" style={{ top: "8%", left: "2%", fontSize: "10rem" }}>日</span>
       <span className="jp-deco" style={{ bottom: "10%", left: "4%", fontSize: "6rem" }}>本</span>

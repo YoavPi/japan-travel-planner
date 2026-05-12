@@ -186,3 +186,54 @@ export const transitLabelHe = (mode) => {
     default:           return "מעבר";
   }
 };
+
+/* ══════════════════════════════════════════════════════════════
+   ATMOSPHERE PHOTO PER DAY
+   ──────────────────────────────────────────────────────────────
+   Hand-picked "vibe shot" for each trip-day — a landscape, street
+   scene, garden, castle, or other scenery photo. Surfaced at the
+   top of each day's section in StoryFlow as a hero image.
+
+   All filenames already exist under public/photos/source/ so no
+   asset copying is required. tripData.js stays untouched.
+   ══════════════════════════════════════════════════════════════ */
+const ATMOSPHERE_FILE = {
+   1: "day01_harajuku.jpg",
+   2: "day02_shinjuku-gyoen.jpg",
+   3: "day03_pirates.jpg",
+   4: "day04_tower-of-terror.jpg",
+   5: "day05_3d-billboard.jpg",
+   6: "day06_kenrokuen.jpg",
+   7: "day07_shirakawago.jpg",
+   8: "day08_hirayu-ski.jpg",
+   9: "day09_matsumoto-castle.jpg",
+  10: "day10_osaka-castle.jpg",
+  11: "day11_nintendo-world.jpg",
+  12: "day12_dotonbori.jpg",
+  13: "day13_nara-deer.jpg",
+  14: "day14_maruyama.jpg",
+  15: "day15_fushimi-inari.jpg",
+  16: "day16_stumptown.jpg",
+  17: "day17_arashiyama-bamboo.jpg",
+  18: "day18_hokanji-morning.jpg",
+  19: "day19_shimokitazawa.jpg",
+  20: "day20_ueno-park.jpg",
+  21: "day21_akihabara.jpg",
+  22: "day22_teamlab-planets.jpg",
+  23: "day23_lake-kawaguchiko.jpg",
+  24: "day24_the-park.jpg",
+  25: "day25_fuji-view.jpg",
+  26: "day26_tmg-building.jpg",
+  27: "day27_muji.jpg",
+  28: "day28_aquarium.jpg",
+  29: "day29_starbucks-reserve.jpg",
+  30: "day30_nakameguro.jpg",
+  31: "day31_harajuku-last.jpg",
+};
+
+/** Returns the public URL of the atmosphere photo for a given
+    trip day, or null when no curated photo is mapped. */
+export const atmospherePhotoFor = (dayNumber) => {
+  const file = ATMOSPHERE_FILE[dayNumber];
+  return file ? `/photos/source/${file}` : null;
+};

@@ -973,38 +973,13 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
           </Marker>
         )}
 
-        {/* ─── Info card popup: Day overview ─── */}
-        {popupData && !activeSubLoc && (
-          <Popup
-            longitude={popupData.coordinates.lng}
-            latitude={popupData.coordinates.lat}
-            anchor="bottom"
-            closeButton={false}
-            closeOnClick={false}
-            offset={50}
-            maxWidth="280px"
-          >
-            <DayInfoCard
-              data={popupData}
-              onSelectBullet={(bullet) => {
-                // Fly map to the bullet location, then swap the day popup
-                // for the unified sub-location info card (pinned).
-                if (mapRef.current) {
-                  mapRef.current.flyTo({
-                    center: [bullet.lng, bullet.lat],
-                    zoom: 16,
-                    padding: getPopupPadding(),
-                    duration: 1000,
-                    essential: true,
-                  });
-                }
-                setActivePopupDay(null);
-                setHoveredSubLoc(null);
-                setPinnedSubLoc(bullet);
-              }}
-            />
-          </Popup>
-        )}
+        {/* Day-overview popup intentionally removed:
+            the bullet-list of every stop in the day duplicated the
+            Trip Roadmap panel and crowded the map. We keep individual
+            sub-location popups only (rendered below). The day-pin
+            click still toggles selectedDay + activePopupDay state so
+            the timeline panel scrolls into view, but no overlay UI is
+            rendered for the day itself. */}
 
         {/* ─── Info card popup: Sub-location (click-persistent when pinned) ─── */}
         {activeSubLoc && (
