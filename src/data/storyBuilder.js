@@ -159,7 +159,14 @@ const CASTLE_RX = /castle|tower|טירה|מגדל/i;
 const SUSHI_RX  = /sushi|סושי/i;
 const RAMEN_RX  = /ramen|udon|soba|noodle|ראמן|אודון|סובה/i;
 const CAFE_RX   = /coffee|café|cafe|starbucks|bricolage|anakuma|stumptown|בית קפה|קפה/i;
-const BAR_RX    = /bar|izakaya|golden gai|בר|אזקאיה/i;
+/* BAR detection — keep Latin keywords + the long Hebrew word for
+   izakaya only. The two-letter "בר" matched too eagerly inside
+   common Hebrew words like ברחוב / ברווז / ברצינות, which is why
+   Harajuku ("הסתובבנו ברחוב…") used to read as "באר אינטימי".
+   English "bar", "izakaya", "golden gai" cover every actual bar
+   in tripData; we don't lose any coverage by dropping the
+   two-letter Hebrew literal. */
+const BAR_RX    = /\bbar\b|izakaya|golden gai|אזקאיה/i;
 const PARK_RX   = /park|garden|gyoen|forest|פארק|גן /i;
 const VIEW_RX   = /view|crossing|teamlab|sky deck|observation|תצפית|חציית/i;
 const SHOPPING_RX = /market|don quijote|parco|muji|outlet|uniqlo|kappabashi|store|ameyoko|shopping|חנות|שוק|קניות/i;
