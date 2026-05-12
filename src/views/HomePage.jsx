@@ -1,5 +1,7 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link } from "react-router-dom";
+import { tripData } from "../data/tripData";
+import { atmospherePhotoFor, extractDistrictsHe } from "../data/tripHelpers";
 
 /* ══════════════════════════════════════════════════════════════
    HOME PAGE — Modern Japanese Minimalism
@@ -102,15 +104,9 @@ const chapters = [
   },
 ];
 
-const galleryItems = [
-  { label: "ראמן Afuri, טוקיו",   labelEn: "Afuri Ramen · Tokyo",   img: "/photos/source/day01_afuri.jpg",         day: "יום 1"  },
-  { label: "ארמון אוסקה",          labelEn: "Osaka Castle",           img: "/photos/source/day10_osaka-castle.jpg",  day: "יום 10" },
-  { label: "פושימי אינארי, קיוטו", labelEn: "Fushimi Inari · Kyoto",  img: "/photos/source/day15_fushimi-inari.jpg", day: "יום 15" },
-  { label: "TeamLab, אוסקה",       labelEn: "teamLab · Osaka",        img: "/photos/source/day18_uzu-teamlab.jpg",   day: "יום 18" },
-  { label: "אקיהברה, טוקיו",       labelEn: "Akihabara · Tokyo",      img: "/photos/source/day21_akihabara.jpg",     day: "יום 21" },
-  { label: "צ׳ורייטו — הר פוג׳י",  labelEn: "Chureito · Mt. Fuji",    img: "/photos/source/day25_chureito.jpg",      day: "יום 25" },
-  { label: "ראמן בטוקיו",          labelEn: "Ramen · Tokyo",          img: "/photos/source/day26_lunch_hiruka.jpg",  day: "יום 26" },
-];
+/* Legacy galleryItems constant removed — the Gallery section now
+   builds its 31-day list from tripData + atmospherePhotoFor() at
+   render time. See <Gallery /> below. */
 
 /* ─── Custom line-art icons for stats (replacing default emoji) ─── */
 const StatIcon = {
@@ -179,7 +175,11 @@ const CtaArrow = ({ size = 18 }) => (
    ══════════════════════════════════════════════════════════════ */
 const Hero = () => {
   return (
-    <section className="relative min-h-screen flex flex-col lg:flex-row items-center overflow-hidden px-6 md:px-16 lg:px-0">
+    /* Hero deliberately stops short of full viewport (~88vh on desktop,
+       90vh on mobile) so the Timeline section peeks into the bottom of
+       the initial fold. That visual "more below" cue is more discoverable
+       than a static chevron alone — users see the next card and scroll. */
+    <section className="relative min-h-[90vh] lg:min-h-[88vh] flex flex-col lg:flex-row items-center overflow-hidden px-6 md:px-16 lg:px-0">
       {/* Decorative kanji (very subtle) */}
       <span className="jp-deco" style={{ top: "8%", left: "2%", fontSize: "10rem" }}>日</span>
       <span className="jp-deco" style={{ bottom: "10%", left: "4%", fontSize: "6rem" }}>本</span>
@@ -446,8 +446,15 @@ const Timeline = () => {
 /* ══════════════════════════════════════════════════════════════
    3. GALLERY
    ══════════════════════════════════════════════════════════════ */
-const GalleryCard = ({ item, index, tall }) => {
-  const [ref, visible] = useVisible(0.08);
+/* ══════════════════════════════════════════════════════════════
+   GALLERY CARD — single day's vibe shot
+   ──────────────────────────────────────────────────────────────
+   Used by <Gallery /> on the Home Page only. Atmosphere photos
+   are NEVER injected into MapMarker / DetailModal / StoryFlow —
+   this card is the one and only place they surface.
+   ══════════════════════════════════════════════════════════════ */
+const GalleryCard = ({ card, index }) => {
+  const [ref, visible] = useVisible(0.06);
   return (
     <div
       ref={ref}
@@ -455,19 +462,20 @@ const GalleryCard = ({ item, index, tall }) => {
       style={{
         opacity: visible ? 1 : 0,
         transform: visible ? "none" : "scale(0.96)",
-        transition: `opacity 0.65s ease ${index * 0.07}s, transform 0.65s cubic-bezier(0.22,1,0.36,1) ${index * 0.07}s`,
+        transition: `opacity 0.6s ease ${Math.min(index, 12) * 0.04}s, transform 0.6s cubic-bezier(0.22,1,0.36,1) ${Math.min(index, 12) * 0.04}s`,
       }}
     >
-      <div className="relative w-full overflow-hidden" style={{ paddingBottom: tall ? "118%" : "80%" }}>
+      <div className="relative w-full overflow-hidden" style={{ paddingBottom: "115%" }}>
         <img
-          src={item.img}
-          alt={item.label}
+          src={card.img}
+          alt={`${card.cityHe} · יום ${card.day}`}
+          loading="lazy"
           className="absolute inset-0 w-full h-full object-cover"
           style={{ transition: "transform 0.6s cubic-bezier(0.22,1,0.36,1)" }}
           onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.05)")}
           onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
         />
-        {/* Day badge */}
+        {/* Day badge — top-right */}
         <div
           className="absolute top-3 right-3 font-sans text-white px-2 py-0.5"
           style={{
@@ -477,37 +485,44 @@ const GalleryCard = ({ item, index, tall }) => {
             letterSpacing: "0.1em",
           }}
         >
-          {item.day}
+          יום {card.day}
         </div>
-        {/* Hover overlay */}
+
+        {/* Hover overlay — surfaces caption (districts) and city */}
         <div
           className="absolute inset-0 flex items-end p-4 opacity-0 group-hover:opacity-100"
           style={{
-            background: "linear-gradient(to top, rgba(28,35,51,0.75) 0%, transparent 55%)",
+            background: "linear-gradient(to top, rgba(28,35,51,0.78) 0%, transparent 55%)",
             transition: "opacity 0.35s ease",
           }}
         >
-          <div>
+          <div dir="rtl">
             <div
+              className="font-sans"
               style={{
-                color: "rgba(255,255,255,0.55)",
+                color: "rgba(255,255,255,0.6)",
                 fontSize: "9px",
-                letterSpacing: "0.2em",
+                letterSpacing: "0.22em",
                 textTransform: "uppercase",
                 marginBottom: "3px",
               }}
             >
-              {item.labelEn}
+              Day {card.day} · {card.cityEn}
             </div>
-            <div className="font-serif text-white" style={{ fontSize: "1rem", fontWeight: 600, lineHeight: 1.3 }}>
-              {item.label}
+            <div
+              className="font-serif text-white"
+              style={{ fontSize: "1rem", fontWeight: 600, lineHeight: 1.3 }}
+            >
+              {card.captionHe}
             </div>
           </div>
         </div>
       </div>
-      {/* Card label */}
-      <div className="px-3 py-2.5" style={{ background: "#F7F5F0" }}>
+
+      {/* Card footer — always visible caption */}
+      <div className="px-3 py-2.5" style={{ background: "#F7F5F0" }} dir="rtl">
         <div
+          className="font-sans"
           style={{
             fontSize: "9px",
             letterSpacing: "0.18em",
@@ -516,18 +531,51 @@ const GalleryCard = ({ item, index, tall }) => {
             marginBottom: "2px",
           }}
         >
-          {item.labelEn}
+          Day {card.day} · {card.cityEn}
         </div>
         <div className="font-serif text-slate-deep" style={{ fontSize: "0.9rem", fontWeight: 600 }}>
-          {item.label}
+          {card.captionHe}
         </div>
       </div>
     </div>
   );
 };
 
+/* ══════════════════════════════════════════════════════════════
+   GALLERY — "תמונות מהדרך"
+   ──────────────────────────────────────────────────────────────
+   One card per trip-day (up to 31). Source data is built right
+   here inside the home page — the mapping does NOT leak into
+   any shared component. The atmospherePhotoFor() helper only
+   resolves a relative URL; the per-day caption is composed
+   from the city name + districts pulled out of tripData.
+   ══════════════════════════════════════════════════════════════ */
 const Gallery = () => {
   const [ref, visible] = useVisible(0.1);
+
+  /* Build the per-day list of {day, cityHe, cityEn, captionHe, img} */
+  const cards = useMemo(() => {
+    return tripData
+      .map((day) => {
+        const baseCity = (day.city || "").replace(/ \d+$/, "");
+        const districts = extractDistrictsHe(day, 3);
+        const img = atmospherePhotoFor(day.day);
+        if (!img) return null; /* skip days without an atmosphere photo */
+        const captionHe =
+          districts.length > 0
+            ? districts.join(" · ")
+            : (day.cityHe || baseCity);
+        return {
+          day:       day.day,
+          cityEn:    baseCity,
+          cityHe:    day.cityHe || baseCity,
+          captionHe,
+          img,
+        };
+      })
+      .filter(Boolean);
+  }, []);
+
   return (
     <section className="px-6 md:px-16 lg:px-24 py-24 bg-parchment">
       <div
@@ -541,33 +589,33 @@ const Gallery = () => {
         <div className="flex items-center gap-3 mb-4">
           <div className="w-8 h-px bg-crimson" />
           <span className="text-crimson uppercase font-sans" style={{ fontSize: "11px", letterSpacing: "0.22em" }}>
-            Gallery
+            Photos from the Road
           </span>
         </div>
         <h2
-          className="font-serif text-slate-deep mb-12"
+          className="font-serif text-slate-deep mb-3"
           style={{ fontSize: "clamp(1.6rem, 4vw, 2.8rem)", fontWeight: 300, lineHeight: 1.25 }}
         >
           תמונות<br />
           <span style={{ fontWeight: 600 }}>מהדרך</span>
         </h2>
+        <p
+          className="font-sans text-slate-mid mb-12"
+          style={{ fontSize: "0.95rem", fontWeight: 300, lineHeight: 1.8, maxWidth: "520px" }}
+        >
+          תמונה אחת לכל יום מהמסע — נוף, שכונה, מקדש או פינה
+          שזכרנו. כל הקליק מוביל לכותרת היום, השכונות שביקרנו,
+          והקטע במסלול.
+        </p>
       </div>
 
-      {/* Desktop: Row 1 (3 tall) + Row 2 (4 short) */}
-      <div className="hidden md:grid gap-4" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
-        {galleryItems.slice(0, 3).map((item, i) => (
-          <GalleryCard key={item.label} item={item} index={i} tall={true} />
-        ))}
-      </div>
-      <div className="hidden md:grid gap-4 mt-4" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
-        {galleryItems.slice(3).map((item, i) => (
-          <GalleryCard key={item.label} item={item} index={i + 3} tall={false} />
-        ))}
-      </div>
-      {/* Mobile: 2 columns */}
-      <div className="grid md:hidden grid-cols-2 gap-4">
-        {galleryItems.map((item, i) => (
-          <GalleryCard key={item.label} item={item} index={i} tall={false} />
+      {/* Responsive grid:
+            mobile 2 cols / md 3 cols / lg 4 cols
+          The card height is uniform (paddingBottom: 115%) so the
+          rows stay tidy with 31 entries. */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
+        {cards.map((card, i) => (
+          <GalleryCard key={`gallery-day-${card.day}`} card={card} index={i} />
         ))}
       </div>
     </section>

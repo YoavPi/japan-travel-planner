@@ -2,8 +2,42 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&family=Noto+Sans+JP:wght@300;400;500;700;900&family=Noto+Serif+Hebrew:wght@300;400;600;700&family=Noto+Sans+Hebrew:wght@300;400;500&display=swap');
+/* Google Fonts
+   Travel-Story v3 typography stack:
+   - Noto Serif Hebrew  — primary Hebrew display (he-display)
+   - Noto Sans Hebrew   — Hebrew body / captions (he-sans)
+   - Suez One           — Hebrew "handwritten" personal notes
+   - Caveat             — Latin handwritten labels ("from us", "tip")
+   - DM Sans            — Latin sans (English subtitles, controls)
+   - DM Mono            — tabular labels (DAY 1, dates, times)
+   Plus legacy Montserrat + Noto Sans JP kept for HomePage compat. */
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&family=Noto+Sans+JP:wght@300;400;500;700;900&family=Noto+Serif+Hebrew:wght@300;400;500;600;700;800&family=Noto+Sans+Hebrew:wght@300;400;500;600&family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&family=Caveat:wght@400;500;600;700&family=Suez+One&display=swap');
+
+/* ── Story-Flow design tokens ────────────────────────────────── */
+:root {
+  --paper:      #F7F2E6;
+  --paper-2:    #FDFCF7;
+  --ink:        #1C2333;
+  --ink-2:      #3D4A5C;
+  --muted:      #8A8472;
+  --line:       rgba(28, 35, 51, 0.10);
+  --line-2:     rgba(28, 35, 51, 0.18);
+  --vermillion: #C0392B;
+  --matcha:     #2E7D52;
+  --teal:       #1F7A8C;
+  --indigo:     #3F4A8C;
+  --plum:       #6B3FA0;
+  --slate:      #1A5276;
+  --ochre:      #C05C1A;
+}
+
+/* Story-flow font helpers (parallel to Tailwind's font-* utilities) */
+.he-display { font-family: 'Noto Serif Hebrew', serif; }
+.he-sans    { font-family: 'Noto Sans Hebrew', sans-serif; }
+.he-handy   { font-family: 'Suez One', 'Noto Serif Hebrew', serif; letter-spacing: 0.01em; }
+.handy      { font-family: 'Caveat', cursive; }
+.mono       { font-family: 'DM Mono', monospace; }
+.dm-sans    { font-family: 'DM Sans', system-ui, sans-serif; }
 
 /* Base resets */
 *,
@@ -115,6 +149,40 @@ body {
 /* Location button hover glow */
 .location-btn:hover {
   box-shadow: 0 0 0 2px rgba(217, 64, 37, 0.15);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   STORY FLOW v3 — paper timeline / right-panel
+   ══════════════════════════════════════════════════════════════ */
+
+/* Thin warm scrollbar inside the story panel */
+.story-scroll::-webkit-scrollbar { width: 6px; }
+.story-scroll::-webkit-scrollbar-track { background: transparent; }
+.story-scroll::-webkit-scrollbar-thumb {
+  background: rgba(28, 35, 51, 0.12);
+  border-radius: 3px;
+}
+.story-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(28, 35, 51, 0.22);
+}
+
+/* Day-pill row: hide horizontal scrollbar entirely */
+.pill-row::-webkit-scrollbar { display: none; }
+.pill-row { scrollbar-width: none; }
+
+/* Pulsing ring around the active medallion on the timeline */
+@keyframes story-medallion-pulse {
+  0%   { transform: scale(0.9); opacity: 0.55; }
+  100% { transform: scale(1.45); opacity: 0; }
+}
+.story-medallion-active::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  opacity: 0.4;
+  animation: story-medallion-pulse 2s ease-out infinite;
 }
 
 /* ══════════════════════════════════════════════════════════════
