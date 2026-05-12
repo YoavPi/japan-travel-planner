@@ -24,13 +24,15 @@ const ExploreView = () => {
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [activeStopId, setActiveStopId] = useState(null);
 
-  /* Filters are kept around for the MapComponent's existing logic.
-     The new StoryFlow doesn't expose them yet — the day-pill row is
-     the primary nav. We can re-introduce category filters later.
-     IMPORTANT: clearing on day/city change is enforced inside the
-     respective handlers (see handleSelectDay / handleCityChange) so
-     we never end up with active filters + a focused day that hides
-     all the day's content. */
+  /* Hierarchical filters (Phase A city → Phase B category):
+       activeCity     — chronological key like "Tokyo#1" / "Kanazawa".
+                        Controls StoryFlow AND drives the map's
+                        city-filter logic.
+       activeFilter   — category sub-filter inside the active city.
+                        One of: 'attractions' | 'food' | 'shopping' |
+                        'hotels' | null. Forced null whenever the
+                        user changes day or city ("clean state"
+                        rule, see handleSelectDay / handleCityChange). */
   const [activeFilter, setActiveFilter] = useState(null);
   const [activeCity, setActiveCity] = useState(null);
 
@@ -116,14 +118,26 @@ const ExploreView = () => {
     sheetRef.current?.snapTo?.("peek");
   }, []);
 
+  /* Phase B: toggle the category sub-filter. Picking the same
+     category again clears it. */
   const handleFilterChange = useCallback((next) => {
-    setActiveFilter(next);
+    setActiveFilter((prev) => (prev === next ? null : next));
   }, []);
-  /* Same Clean-State rule for the city pill: switching city clears
-     the category filter so we never show an empty city × category
-     intersection. */
+
+  /* Phase A: tap a city pill to toggle. Whenever the city changes
+     (including toggling it off), we wipe the category sub-filter
+     and any active stop/location so the user never lands on an
+     empty intersection. */
   const handleCityChange = useCallback((cityKey) => {
-    setActiveCity((prev) => prev === cityKey ? null : cityKey);
+    setActiveCity((prev) => (prev === cityKey ? null : cityKey));
+    setActiveFilter(null);
+    setSelectedLocation(null);
+    setActiveStopId(null);
+  }, []);
+
+  /* Clear all filters (the "כל הטיול" pill). */
+  const handleClearFilters = useCallback(() => {
+    setActiveCity(null);
     setActiveFilter(null);
     setSelectedLocation(null);
     setActiveStopId(null);
@@ -131,11 +145,22 @@ const ExploreView = () => {
 
   const storyProps = useMemo(() => ({
     activeStopId,
-    onSelectStop: handleSelectStop,
-    onOpenDetail: handleOpenDetail,
-    activeDay: selectedDay,
-    onSelectDay: handleSelectDay,
-  }), [activeStopId, handleSelectStop, handleOpenDetail, selectedDay, handleSelectDay]);
+    onSelectStop:    handleSelectStop,
+    onOpenDetail:    handleOpenDetail,
+    activeDay:       selectedDay,
+    onSelectDay:     handleSelectDay,
+    /* Hierarchical filter wiring */
+    activeCityKey:   activeCity,
+    activeCategory:  activeFilter,
+    onCityChange:    handleCityChange,
+    onCategoryChange: handleFilterChange,
+    onClearFilters:  handleClearFilters,
+  }), [
+    activeStopId, handleSelectStop, handleOpenDetail,
+    selectedDay, handleSelectDay,
+    activeCity, activeFilter,
+    handleCityChange, handleFilterChange, handleClearFilters,
+  ]);
 
   return (
     <div

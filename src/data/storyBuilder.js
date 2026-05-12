@@ -50,6 +50,98 @@ const cityIndexByName = (city) => {
   return idx >= 0 ? idx + 1 : 1; /* fallback to TOK */
 };
 
+/* ─── Normalize for city-instance grouping ──
+   Day-trips and sub-parks share the parent city: Tokyo Disney/
+   DisneySea group with Tokyo, Universal groups with Osaka. */
+const PARENT_MAP = {
+  "Tokyo Disney":    "Tokyo",
+  "Tokyo DisneySea": "Tokyo",
+  "Osaka Universal": "Osaka",
+};
+const normalizedCityName = (city) => {
+  const base = (city || "").replace(/ \d+$/, "");
+  return PARENT_MAP[base] || base;
+};
+
+/** Build the chronological "visit path" used by the city filter:
+    one entry per consecutive run of days in the same (normalized)
+    city. Cities visited more than once are numbered ("Tokyo 1",
+    "Tokyo 2", …); single-visit cities use their bare name.
+    Each entry: { key, label, labelHe, cityIdx, instance,
+                   startDay, endDay, color } */
+export const getChronologicalCityPath = () => {
+  const path = [];
+  let current = null;
+  const counts = {};
+
+  tripData.forEach((day) => {
+    const norm = normalizedCityName(day.city);
+    if (!current || current.norm !== norm) {
+      if (current) path.push(current);
+      counts[norm] = (counts[norm] || 0) + 1;
+      current = {
+        norm,
+        cityIdx: STORY_CITIES.findIndex((c) => c.nameEn === norm) + 1 || 1,
+        instance: counts[norm],
+        startDay: day.day,
+        endDay: day.day,
+      };
+    } else {
+      current.endDay = day.day;
+    }
+  });
+  if (current) path.push(current);
+
+  const total = {};
+  path.forEach((p) => {
+    total[p.norm] = (total[p.norm] || 0) + 1;
+  });
+  path.forEach((p) => {
+    const rec = STORY_CITIES[p.cityIdx - 1] || STORY_CITIES[0];
+    p.color = rec.color;
+    if (total[p.norm] > 1) {
+      p.key     = `${p.norm}#${p.instance}`;
+      p.label   = `${rec.nameEn} ${p.instance}`;
+      p.labelHe = `${rec.nameHe} ${p.instance}`;
+    } else {
+      p.key     = p.norm;
+      p.label   = rec.nameEn;
+      p.labelHe = rec.nameHe;
+    }
+  });
+  return path;
+};
+
+/* Resolve a city-key (e.g. "Tokyo#2" or "Kanazawa") to its day-range. */
+const dayRangeForCityKey = (cityKey) => {
+  if (!cityKey) return null;
+  const path = getChronologicalCityPath();
+  /* Support both "Tokyo#2" and bare "Tokyo" (= first instance) */
+  const direct = path.find((p) => p.key === cityKey);
+  if (direct) return { start: direct.startDay, end: direct.endDay };
+  const baseName = cityKey.split("#")[0];
+  const first = path.find((p) => p.norm === baseName);
+  if (first) return { start: first.startDay, end: first.endDay };
+  return null;
+};
+
+/* ─── Category filter (shopping/attractions/food/hotels) ─── */
+const isShoppingName = (name = "") => {
+  const n = name.toLowerCase();
+  return ["market", "don quijote", "parco", "muji", "outlet", "uniqlo",
+          "kappabashi", "shopping", "store", "ameyoko", "sunshine city",
+          "radio kaikan"].some((kw) => n.includes(kw));
+};
+
+const stopMatchesCategory = (stop, category) => {
+  if (!category) return true;
+  if (category === "food")        return stop.kind === "lunch" || stop.kind === "dinner";
+  if (category === "shopping")    return stop.kind === "attraction" && isShoppingName(stop.titleEn || stop.name);
+  if (category === "attractions") return stop.kind === "attraction" && !isShoppingName(stop.titleEn || stop.name);
+  if (category === "hotels")      return false; /* hotels handled separately as their own row */
+  return true;
+};
+
 /* ─── Calendar dates ─── */
 const TRIP_START = new Date(2024, 1, 18); // Feb 18, 2024 = Day 1
 const HE_MONTH = [
@@ -329,8 +421,20 @@ const buildHotelStreaks = () => {
 /* ══════════════════════════════════════════════════════════════
    PUBLIC API — buildStory()
    Returns the flat STORY[] array consumed by <StoryFlow />.
+
+   Optional filters:
+     cityKey    — restrict to a single chronological visit, e.g.
+                  "Tokyo#2" or "Kanazawa". Days outside the range
+                  are dropped along with the inter-city transit
+                  cards that surround them.
+     category   — one of: 'food' | 'attractions' | 'shopping' |
+                  'hotels'. Inside each day we keep only the
+                  matching stops. Transit chips between stops are
+                  suppressed (they only make sense for a full day
+                  flow). Hotels become the sole content when
+                  category === 'hotels'.
    ══════════════════════════════════════════════════════════════ */
-export const buildStory = ({ onlyCity = null } = {}) => {
+export const buildStory = ({ cityKey = null, category = null } = {}) => {
   const items = [];
   const transitionsAfterDay = new Map();
   cityTransitions.forEach((t) => transitionsAfterDay.set(t.afterDay, t));
@@ -342,15 +446,32 @@ export const buildStory = ({ onlyCity = null } = {}) => {
     return { index: s.days.indexOf(dayNum) + 1, total: s.days.length };
   };
 
+  const range = dayRangeForCityKey(cityKey);
+  const isFiltered = !!(cityKey || category);
+
   tripData.forEach((day, dayIdx) => {
-    /* City-only filter (used by city pills) — drop days not in city */
-    if (onlyCity && cityIndexByName(day.city) !== onlyCity) {
-      return;
-    }
+    /* City filter — drop days outside the chronological range */
+    if (range && (day.day < range.start || day.day > range.end)) return;
 
     const districts = districtsFor(day);
     const cityIdx = cityIndexByName(day.city);
     const cityRec = STORY_CITIES[cityIdx - 1];
+
+    /* Build raw stops + filter by category */
+    const rawStops = stopsForDay(day);
+    const visibleStops = rawStops
+      .map((rawStop, i) => buildStop({ ...rawStop, city: day.city }, day.day, i + 1))
+      .filter((stop) => stopMatchesCategory(stop, category));
+
+    /* For 'hotels' category, skip day if no hotel; otherwise show
+       only the hotel row anchored under the header. */
+    const showHotelOnly = category === "hotels";
+    const wantHotel = !!day.hotel && day.hotel !== "—" &&
+      (!cityKey || (range && day.day >= range.start && day.day <= range.end));
+
+    /* Skip the entire day when no content survives the filter */
+    if (category && !showHotelOnly && visibleStops.length === 0) return;
+    if (showHotelOnly && !wantHotel) return;
 
     /* Day header */
     items.push({
@@ -364,27 +485,41 @@ export const buildStory = ({ onlyCity = null } = {}) => {
       date: dateLabelHe(day.day),
     });
 
-    /* Stops + transits */
-    const stops = stopsForDay(day);
-    stops.forEach((rawStop, i) => {
-      const stop = buildStop({ ...rawStop, city: day.city }, day.day, i + 1);
-      items.push(stop);
-      const next = stops[i + 1];
-      if (next) {
-        const transit = buildTransit(rawStop, next);
-        if (transit) items.push(transit);
+    if (!showHotelOnly) {
+      visibleStops.forEach((stop, i) => {
+        /* Re-stamp stopNum so it reads sequentially after filtering */
+        items.push({ ...stop, stopNum: i + 1 });
+        /* Transit chips only when no category filter is active —
+           otherwise the chain has gaps and the times mislead. */
+        if (!category) {
+          const next = visibleStops[i + 1];
+          if (next && stop.coordinates && next.coordinates) {
+            const transit = buildTransit(
+              { coordinates: stop.coordinates },
+              { coordinates: next.coordinates }
+            );
+            if (transit) items.push(transit);
+          }
+        }
+      });
+    }
+
+    /* Hotel anchor — always render except when category filter
+       is active and category !== 'hotels' */
+    if (wantHotel && (!category || category === "hotels")) {
+      const hotel = buildHotel(day, dayIdx, streakInfo(day.hotel, day.day));
+      if (hotel) items.push(hotel);
+    }
+
+    /* Inter-city transit AFTER this day — suppressed when filters
+       are active (the next day after the transit might be filtered
+       out, leaving an orphan transit card). */
+    if (!isFiltered) {
+      const transition = transitionsAfterDay.get(day.day);
+      if (transition) {
+        const ct = buildCityTransit(transition);
+        if (ct) items.push(ct);
       }
-    });
-
-    /* Hotel anchor */
-    const hotel = buildHotel(day, dayIdx, streakInfo(day.hotel, day.day));
-    if (hotel) items.push(hotel);
-
-    /* Inter-city transit AFTER this day */
-    const transition = transitionsAfterDay.get(day.day);
-    if (transition) {
-      const ct = buildCityTransit(transition);
-      if (ct) items.push(ct);
     }
   });
 

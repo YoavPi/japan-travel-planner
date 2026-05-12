@@ -1,10 +1,18 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from "react";
-import { buildStory, STORY_CITIES } from "../data/storyBuilder";
+import { buildStory, STORY_CITIES, getChronologicalCityPath } from "../data/storyBuilder";
 import { Glyph, MetaIcon, TRANSIT_LABEL_HE } from "./StoryFlowGlyph";
 
 /* NOTE: atmospherePhotoFor is intentionally NOT imported here.
    Atmosphere photos are reserved for the Home Page "תמונות מהדרך"
    gallery only. The Trip Roadmap / map components stay text-only. */
+
+/* ─── Categories (Phase B sub-filters) ─── */
+const CATEGORIES = [
+  { key: "attractions", labelHe: "אטרקציות",   labelEn: "Attractions" },
+  { key: "food",        labelHe: "אוכל",        labelEn: "Food" },
+  { key: "shopping",    labelHe: "קניות",       labelEn: "Shopping" },
+  { key: "hotels",      labelHe: "מלונות",      labelEn: "Hotels" },
+];
 
 /* ══════════════════════════════════════════════════════════════
    STORY FLOW v3 — Right-panel travel-story timeline
@@ -698,14 +706,245 @@ const CityTransit = ({ item }) => {
 };
 
 /* ══════════════════════════════════════════════════════════════
+   INFO BAR — hierarchical city → category filter
+   ──────────────────────────────────────────────────────────────
+   Phase A: city pills only (no city selected). Tapping a city
+            sets activeCityKey and reveals Phase B.
+   Phase B: a "← Back" chip + the active city's name + a row of
+            sub-category pills (Attractions / Food / Shopping /
+            Hotels). Tapping one toggles activeCategory.
+   ══════════════════════════════════════════════════════════════ */
+const InfoBar = ({ activeCityKey, activeCategory, onCityChange, onCategoryChange, onClearAll }) => {
+  const path = useMemo(() => getChronologicalCityPath(), []);
+  const activeCity = path.find((p) => p.key === activeCityKey);
+  const phase = activeCityKey ? "B" : "A";
+
+  /* Phase A — pick a city */
+  if (phase === "A") {
+    return (
+      <div
+        style={{
+          background: "var(--paper)",
+          borderBottom: "1px solid var(--line)",
+          padding: "10px 18px",
+          direction: "rtl",
+        }}
+      >
+        <div
+          className="pill-row"
+          style={{
+            display: "flex",
+            gap: 6,
+            overflowX: "auto",
+            scrollbarWidth: "none",
+          }}
+        >
+          <button
+            onClick={onClearAll}
+            style={{
+              flexShrink: 0,
+              padding: "6px 12px",
+              borderRadius: 16,
+              border: "1px solid var(--line-2)",
+              background: "var(--paper-2)",
+              fontFamily: "DM Sans, system-ui, sans-serif",
+              fontSize: 11,
+              fontWeight: 600,
+              color: "var(--ink-2)",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            כל הטיול
+          </button>
+          {path.map((cp) => {
+            const c = STORY_CITIES[cp.cityIdx - 1] || STORY_CITIES[0];
+            return (
+              <button
+                key={cp.key}
+                onClick={() => onCityChange && onCityChange(cp.key)}
+                style={{
+                  flexShrink: 0,
+                  padding: "6px 12px",
+                  borderRadius: 16,
+                  border: `1px solid ${c.color}55`,
+                  background: "var(--paper-2)",
+                  color: c.color,
+                  fontFamily: "Noto Serif Hebrew, serif",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+                title={cp.label}
+              >
+                <span>{cp.labelHe}</span>
+                <span
+                  style={{
+                    fontFamily: "DM Mono, monospace",
+                    fontSize: 9,
+                    color: "var(--muted)",
+                    letterSpacing: "0.08em",
+                  }}
+                >
+                  · {cp.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  /* Phase B — picked a city, show context + category sub-pills */
+  const accent = activeCity ? activeCity.color : "#C0392B";
+  return (
+    <div
+      style={{
+        background: "var(--paper)",
+        borderBottom: "1px solid var(--line)",
+        direction: "rtl",
+      }}
+    >
+      {/* Context strip: back + city + clear-category */}
+      <div
+        style={{
+          padding: "8px 18px 6px",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          borderBottom: "1px solid var(--line)",
+        }}
+      >
+        <button
+          onClick={() => onCityChange && onCityChange(activeCityKey)} /* toggle off */
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "4px 10px",
+            borderRadius: 8,
+            border: "1px solid var(--line-2)",
+            background: "transparent",
+            color: "var(--ink-2)",
+            cursor: "pointer",
+            fontFamily: "DM Sans, system-ui, sans-serif",
+            fontSize: 11,
+            fontWeight: 600,
+          }}
+          title="חזרה לכל הערים"
+        >
+          <span style={{ transform: "rotate(180deg)", display: "inline-flex" }}>
+            <MetaIcon name="back" size={12} />
+          </span>
+          חזור
+        </button>
+        <span style={{ height: 14, width: 1, background: "var(--line-2)" }} />
+        <span
+          className="he-display"
+          style={{ fontSize: 14, fontWeight: 700, color: accent }}
+        >
+          {activeCity ? activeCity.labelHe : ""}
+        </span>
+        {activeCategory && (
+          <button
+            onClick={() => onCategoryChange && onCategoryChange(activeCategory)}
+            style={{
+              marginInlineStart: "auto",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+              padding: "3px 8px",
+              borderRadius: 8,
+              border: "none",
+              background: "transparent",
+              color: "var(--muted)",
+              cursor: "pointer",
+              fontFamily: "DM Sans, system-ui, sans-serif",
+              fontSize: 10,
+              fontWeight: 600,
+            }}
+            title="נקה סינון"
+          >
+            נקה סינון
+            <MetaIcon name="close" size={10} color="currentColor" />
+          </button>
+        )}
+      </div>
+
+      {/* Category pills */}
+      <div
+        className="pill-row"
+        style={{
+          display: "flex",
+          gap: 6,
+          padding: "8px 18px",
+          overflowX: "auto",
+        }}
+      >
+        <button
+          onClick={() => onCategoryChange && onCategoryChange(null)}
+          style={{
+            flexShrink: 0,
+            padding: "5px 12px",
+            borderRadius: 14,
+            border: `1px solid ${!activeCategory ? "var(--ink)" : "var(--line-2)"}`,
+            background: !activeCategory ? "var(--ink)" : "var(--paper-2)",
+            color: !activeCategory ? "var(--paper)" : "var(--ink-2)",
+            fontFamily: "DM Sans, system-ui, sans-serif",
+            fontSize: 11,
+            fontWeight: 600,
+            cursor: "pointer",
+            whiteSpace: "nowrap",
+          }}
+        >
+          הכל
+        </button>
+        {CATEGORIES.map((cat) => {
+          const isActive = activeCategory === cat.key;
+          return (
+            <button
+              key={cat.key}
+              onClick={() => onCategoryChange && onCategoryChange(cat.key)}
+              style={{
+                flexShrink: 0,
+                padding: "5px 12px",
+                borderRadius: 14,
+                border: `1px solid ${isActive ? accent : "var(--line-2)"}`,
+                background: isActive ? accent : "var(--paper-2)",
+                color: isActive ? "#FDFCF7" : "var(--ink-2)",
+                fontFamily: "DM Sans, system-ui, sans-serif",
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {cat.labelHe}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+/* ══════════════════════════════════════════════════════════════
    MAIN COMPONENT
    ══════════════════════════════════════════════════════════════ */
-const StoryFlow = forwardRef(({ activeStopId, onSelectStop, onOpenDetail, onClose, activeDay, onSelectDay, compact = false }, ref) => {
+const StoryFlow = forwardRef(({ activeStopId, onSelectStop, onOpenDetail, onClose, activeDay, onSelectDay, activeCityKey = null, activeCategory = null, onCityChange, onCategoryChange, onClearFilters, compact = false }, ref) => {
   const scrollerRef = useRef(null);
   const stopRefs = useRef({});
   const dayRefs = useRef({});
 
-  const story = useMemo(() => buildStory(), []);
+  const story = useMemo(
+    () => buildStory({ cityKey: activeCityKey, category: activeCategory }),
+    [activeCityKey, activeCategory]
+  );
 
   /* Auto-scroll to the active stop / day */
   useEffect(() => {
@@ -751,7 +990,7 @@ const StoryFlow = forwardRef(({ activeStopId, onSelectStop, onOpenDetail, onClos
         position: "relative",
       }}
     >
-      {/* HEAD */}
+      {/* HEAD — "מפת המסע / Trip Roadmap" */}
       <div
         style={{
           padding: "18px 24px 12px",
@@ -763,8 +1002,17 @@ const StoryFlow = forwardRef(({ activeStopId, onSelectStop, onOpenDetail, onClos
         }}
       >
         <div>
+          <div
+            className="dm-sans"
+            style={{
+              fontSize: 9.5, color: "var(--muted)", letterSpacing: "0.22em",
+              textTransform: "uppercase", marginBottom: 2,
+            }}
+          >
+            Trip Roadmap
+          </div>
           <div className="he-display" style={{ fontSize: 18, fontWeight: 700 }}>
-            סיפור הטיול
+            מפת המסע
           </div>
           <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 3 }}>
             31 ימים · 9 ערים · פברואר–מרץ 2024
@@ -788,6 +1036,15 @@ const StoryFlow = forwardRef(({ activeStopId, onSelectStop, onOpenDetail, onClos
           </button>
         )}
       </div>
+
+      {/* InfoBar — Phase A/B city → category filter */}
+      <InfoBar
+        activeCityKey={activeCityKey}
+        activeCategory={activeCategory}
+        onCityChange={onCityChange}
+        onCategoryChange={onCategoryChange}
+        onClearAll={onClearFilters}
+      />
 
       {/* Day pill row */}
       <DayPillRow activeDay={activeDay} onSelectDay={onSelectDay} />
