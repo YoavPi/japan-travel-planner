@@ -237,10 +237,16 @@ const ExploreView = () => {
         </div>
       </div>
 
-      {/* ═══ DESKTOP STORY PANEL (560px, collapsible) ═══════════ */}
+      {/* ═══ DESKTOP STORY PANEL (560px, collapsible) ═══════════
+            Desktop now uses the SAME compact (edge-spine, right-
+            aligned) layout as mobile. The earlier zigzag layout
+            put medallions at the panel centre — in a 560px panel
+            the two columns ended up so cramped that the spine and
+            icons looked clipped against the alternating content.
+            The unified edge-spine reads cleanly at any width.    */}
       {!panelCollapsed && (
         <div
-          className="hidden lg:flex"
+          className="hidden lg:flex story-flow-desktop"
           style={{
             width: 560,
             flexShrink: 0,
@@ -252,7 +258,7 @@ const ExploreView = () => {
             ref={storyDeskRef}
             {...storyProps}
             onClose={() => setPanelCollapsed(true)}
-            compact={false}
+            compact={true}
           />
         </div>
       )}

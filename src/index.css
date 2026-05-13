@@ -186,6 +186,61 @@ body {
 }
 
 /* ══════════════════════════════════════════════════════════════
+   STORY FLOW — Desktop-only adjustments (lg+ : ≥1024px)
+   ──────────────────────────────────────────────────────────────
+   All rules below are scoped to the desktop media query so the
+   mobile bottom-sheet experience is unaffected. Two goals:
+
+     1. Guarantee the edge-spine + medallion at the right side of
+        each StopRow have a clear visible margin and never get
+        clipped by the panel's right border. We give the inner
+        scroll-area an extra 8px of right padding so the
+        medallion's box-shadow halo stays inside the panel.
+
+     2. Make the horizontal day-pill scroller discoverable.
+        Mobile keeps the hidden-scrollbar look (touch friendly),
+        but on desktop we show a thin scrollbar so users can see
+        and drag through all 31 days even when the pill row
+        exceeds the 560px panel width.
+   ══════════════════════════════════════════════════════════════ */
+@media (min-width: 1024px) {
+  /* Story flow — Task 1: right-edge safety inside the panel */
+  .story-flow-desktop .story-scroll {
+    /* Extra right padding ensures the edge-spine and medallion
+       (which sit ~28px in from the StopRow's right side) never
+       collide with the panel's left border on the map side or
+       get clipped by any overflow:hidden ancestor. */
+    padding-right: 4px;
+  }
+
+  /* Pill row — Task 2: visible thin scrollbar
+     Override the global .pill-row { scrollbar-width: none } so
+     desktop users get a draggable, discoverable horizontal track
+     while mobile keeps the clean touch-only look. */
+  .story-flow-desktop .pill-row {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(28, 35, 51, 0.22) transparent;
+    /* Reserve a slim band under the pills for the scrollbar so
+       the day circles don't get visually cramped. */
+    padding-bottom: 14px !important;
+  }
+  .story-flow-desktop .pill-row::-webkit-scrollbar {
+    display: block;
+    height: 5px;
+  }
+  .story-flow-desktop .pill-row::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .story-flow-desktop .pill-row::-webkit-scrollbar-thumb {
+    background: rgba(28, 35, 51, 0.22);
+    border-radius: 3px;
+  }
+  .story-flow-desktop .pill-row::-webkit-scrollbar-thumb:hover {
+    background: rgba(28, 35, 51, 0.38);
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
    HOME PAGE — Modern Japanese Minimalism design system
    ══════════════════════════════════════════════════════════════ */
 
