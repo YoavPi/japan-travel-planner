@@ -59,6 +59,20 @@ const DayPillRow = ({ activeDay, onSelectDay }) => {
         gap: 6,
         padding: "12px 18px",
         overflowX: "auto",
+        overflowY: "hidden",
+        /* `min-width: 0` and `width: 100%` are CRITICAL here. A flex
+           item's default `min-width: auto` lets it expand to its
+           min-content size — for this row that's 31 × 46px circles
+           + gaps ≈ 1600px, far wider than the 560px panel. Without
+           these two rules the container refuses to shrink, the
+           viewport overflow-hidden at the outer ExploreView clips
+           the visual, and the user can't actually scroll because
+           the SCROLL container itself never has a constrained
+           width. Setting min-width:0 + width:100% pins the row to
+           the panel width and lets overflow-x:auto take over. */
+        minWidth: 0,
+        width: "100%",
+        boxSizing: "border-box",
         borderBottom: "1px solid var(--line)",
         direction: "ltr",
         background: "var(--paper)",
@@ -1019,7 +1033,16 @@ const StoryFlow = forwardRef(({ activeStopId, onSelectStop, onOpenDetail, onClos
     <div
       className="panel"
       style={{
+        /* Width inherits from the flex parent in ExploreView
+           (`width: 560` on the desktop wrapper, `100vw` inside
+           the BottomSheet on mobile). min-width: 0 + width: 100%
+           lets the inner pill-row scroller honour the parent
+           width instead of expanding to its intrinsic content
+           width. Without it the day pills couldn't scroll
+           horizontally on desktop. */
         height: "100%",
+        width: "100%",
+        minWidth: 0,
         display: "flex",
         flexDirection: "column",
         background: "var(--paper)",
