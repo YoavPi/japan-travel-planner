@@ -110,25 +110,31 @@ export const descriptiveTitleHe = (item) => {
 };
 
 /* ─── Chronological day items ─────────────────────────────────
-   Returns the day's stops in the order:
-     [first half of attractions] → lunch → [second half] → dinner
-   This mirrors the previous Morning/Afternoon split but flattens
-   it into a single linear sequence (no phase headers).
-   Each entry is `{ ...item, kind: 'attraction'|'lunch'|'dinner' }` */
+   Attractions[] is the canonical chronological order — items are
+   returned exactly as authored. Lunch/dinner are honoured ONLY
+   as a legacy fallback when they don't already appear in
+   attractions (older data shape). The previous morning/lunch/
+   afternoon/dinner interleaving was dropped because it shuffled
+   the order away from how the data was written. */
 export const dayItemsInOrder = (day) => {
   if (!day) return [];
   const attractions = day.attractions || [];
-  const splitIdx = Math.ceil(attractions.length / 2);
-  const morning  = attractions.slice(0, splitIdx).map((a) => ({ ...a, kind: "attraction" }));
-  const afternoon = attractions.slice(splitIdx).map((a) => ({ ...a, kind: "attraction" }));
+  const lunchName  = day.lunch  && day.lunch.place  && day.lunch.place  !== "—" ? day.lunch.place  : null;
+  const dinnerName = day.dinner && day.dinner.place && day.dinner.place !== "—" ? day.dinner.place : null;
 
-  const list = [...morning];
-  if (day.lunch && day.lunch.place && day.lunch.place !== "—") {
-    list.push({ ...day.lunch, name: day.lunch.place, kind: "lunch" });
+  const list = attractions.map((a) => {
+    let kind = "attraction";
+    if (lunchName  && a.name === lunchName)  kind = "lunch";
+    else if (dinnerName && a.name === dinnerName) kind = "dinner";
+    return { ...a, kind };
+  });
+
+  const have = new Set(list.map((it) => it.name));
+  if (lunchName  && !have.has(lunchName)) {
+    list.push({ ...day.lunch,  name: lunchName,  kind: "lunch" });
   }
-  list.push(...afternoon);
-  if (day.dinner && day.dinner.place && day.dinner.place !== "—") {
-    list.push({ ...day.dinner, name: day.dinner.place, kind: "dinner" });
+  if (dinnerName && !have.has(dinnerName)) {
+    list.push({ ...day.dinner, name: dinnerName, kind: "dinner" });
   }
   return list;
 };

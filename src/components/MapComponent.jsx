@@ -130,6 +130,25 @@ const isShoppingName = (name) => {
   return SHOPPING_KEYWORDS.some((kw) => n.includes(kw));
 };
 
+/* ── Food keyword matcher ──
+   tripData now treats attractions[] as the chronological source of
+   truth; food items are interleaved with regular stops. The Food
+   filter on the map looks for keywords that signal restaurants,
+   cafes, ramen-yas etc. in the English / Hebrew / desc text. */
+const FOOD_KEYWORDS = [
+  "ramen", "sushi", "udon", "soba", "noodle", "gyoza", "yakitori",
+  "yakiniku", "katsu", "burger", "pizza", "pancake", "izakaya",
+  "duck", "konbini", "lawson", "mcdonald", "cafe", "café", "coffee",
+  "starbucks", "bricolage", "anakuma", "stumptown", "buffet",
+  "restaurant", "ראמן", "סושי", "אודון", "סובה", "גיוזה", "מסעדה",
+  "מסעדת", "ארוחה", "המבורגר", "פיצה", "פנקייק", "באר", "אזקאיה",
+  "בית קפה", "קפה", "מאפייה", "קונביני",
+];
+const isFoodName = (item) => {
+  const t = `${item.name || ""} ${item.nameHe || ""} ${item.desc || ""}`.toLowerCase();
+  return FOOD_KEYWORDS.some((kw) => t.includes(kw));
+};
+
 /* ── Per-item city resolver ──
    An attraction/meal can override the day's city via its own `city`
    field (used when the activity happened in a different city than
@@ -185,10 +204,20 @@ const collectFilteredCoords = (filter, cityKey) => {
     }
 
     if (filter === "food") {
+      /* Food = restaurants / cafes / bars / konbini found anywhere
+         in attractions. Also picks up legacy lunch/dinner slots
+         when present, so older days still surface their meals. */
+      day.attractions.forEach((a) => {
+        if (a.coordinates && isFoodName(a) && cityMatchesItem(a, day)) {
+          coords.push([a.coordinates.lng, a.coordinates.lat]);
+        }
+      });
       ["lunch", "dinner"].forEach((m) => {
         const meal = day[m];
         if (meal && meal.place && meal.place !== "—" && meal.coordinates && cityMatchesItem(meal, day)) {
-          coords.push([meal.coordinates.lng, meal.coordinates.lat]);
+          /* Skip if already covered by an attraction with the same name */
+          const already = (day.attractions || []).some((a) => a.name === meal.place);
+          if (!already) coords.push([meal.coordinates.lng, meal.coordinates.lat]);
         }
       });
     } else if (filter === "shopping") {
@@ -199,7 +228,7 @@ const collectFilteredCoords = (filter, cityKey) => {
       });
     } else if (filter === "attractions") {
       day.attractions.forEach((a) => {
-        if (!isShoppingName(a.name) && a.coordinates && cityMatchesItem(a, day)) {
+        if (!isShoppingName(a.name) && !isFoodName(a) && a.coordinates && cityMatchesItem(a, day)) {
           coords.push([a.coordinates.lng, a.coordinates.lat]);
         }
       });
@@ -455,27 +484,51 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
     const items = [];
     tripData.forEach((day) => {
       if (activeFilter === "food") {
+        /* Scan the FULL attractions[] (the chronological order
+           list) and emit one marker per food-keyword match. Then
+           append any legacy lunch/dinner slots that aren't already
+           represented by an attraction with the same name. */
+        const seenNames = new Set();
+        (day.attractions || []).forEach((a, i) => {
+          if (a.coordinates && isFoodName(a) && itemCityMatches(a, day)) {
+            seenNames.add(a.name);
+            items.push({
+              key:    `${day.day}-fa-${i}`,
+              day:    day.day,
+              type:   "food",
+              emoji:  "🍜",
+              lng:    a.coordinates.lng,
+              lat:    a.coordinates.lat,
+              name:   a.name,
+              nameJa: a.nameJa,
+              nameHe: a.nameHe,
+              desc:   a.desc,
+              rating: a.rating,
+            });
+          }
+        });
         ["lunch", "dinner"].forEach((m) => {
           const meal = day[m];
-          if (meal && meal.place && meal.place !== "—" && meal.coordinates && itemCityMatches(meal, day)) {
+          if (meal && meal.place && meal.place !== "—" && meal.coordinates &&
+              !seenNames.has(meal.place) && itemCityMatches(meal, day)) {
             items.push({
-              key: `${day.day}-${m}`,
-              day: day.day,
-              type: m,
-              emoji: "🍜",
-              lng: meal.coordinates.lng,
-              lat: meal.coordinates.lat,
-              name: meal.place,
+              key:    `${day.day}-${m}`,
+              day:    day.day,
+              type:   m,
+              emoji:  "🍜",
+              lng:    meal.coordinates.lng,
+              lat:    meal.coordinates.lat,
+              name:   meal.place,
               nameJa: meal.nameJa,
               nameHe: meal.nameHe,
-              desc: meal.desc,
+              desc:   meal.desc,
               rating: meal.rating,
             });
           }
         });
       } else if (activeFilter === "attractions") {
         (day.attractions || []).forEach((a, i) => {
-          if (a.coordinates && !isShoppingName(a.name) && itemCityMatches(a, day)) {
+          if (a.coordinates && !isShoppingName(a.name) && !isFoodName(a) && itemCityMatches(a, day)) {
             items.push({
               key: `${day.day}-a-${i}`,
               day: day.day,

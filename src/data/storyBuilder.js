@@ -133,7 +133,13 @@ const isShoppingName = (name = "") => {
 
 const stopMatchesCategory = (stop, category) => {
   if (!category) return true;
-  if (category === "food")        return stop.kind === "lunch" || stop.kind === "dinner";
+  /* "food" matches anything tagged lunch/dinner/food OR with a food
+     category (cafe/ramen/sushi/food). Lets the filter work even
+     when the data uses a flat attractions list without lunch/
+     dinner slots. */
+  if (category === "food") {
+    return stop.kind === "lunch" || stop.kind === "dinner" || stop.kind === "food";
+  }
   if (category === "shopping")    return stop.kind === "attraction" && isShoppingName(stop.titleEn || stop.name);
   if (category === "attractions") return stop.kind === "attraction" && !isShoppingName(stop.titleEn || stop.name);
   if (category === "hotels")      return false; /* hotels handled separately as their own row */
@@ -282,40 +288,47 @@ const districtsFor = (day) => {
   return found.slice(0, 3);
 };
 
-/* ─── Per-day dedup: drop attractions duplicated as meals ─── */
-const sameLoc = (a, b) => {
-  if (!a || !b) return false;
-  const an = (a.name || "").trim().toLowerCase();
-  const bn = (b.name || "").trim().toLowerCase();
-  if (an && bn && an === bn) return true;
-  if (a.coordinates && b.coordinates) {
-    if (Math.abs(a.coordinates.lng - b.coordinates.lng) < 0.0003 &&
-        Math.abs(a.coordinates.lat - b.coordinates.lat) < 0.0003) return true;
-  }
-  return false;
-};
+/* ─── Chronological stops for a day ───
+   Attractions are now the SINGLE source of truth for a day's
+   chronological order — they're rendered exactly as authored in
+   tripData.js. The legacy lunch/dinner fields are kept for
+   backwards compatibility ONLY:
+     - If their place name matches an attraction, that attraction
+       is tagged kind: "lunch"/"dinner" (used by the food filter).
+     - If their place name does NOT match any attraction, the
+       lunch/dinner is appended at the end as a fallback (rare).
+   No more morning/afternoon split — the storyBuilder preserves
+   the order the user wrote.                                    */
+const FOOD_CATS = ["cafe", "ramen", "sushi", "food"];
 
-/* ─── Chronological stops for a day (UI-level dedup applied) ─── */
 const stopsForDay = (day) => {
-  const attractions = day.attractions || [];
+  const attractions = (day.attractions || []).slice();
   const lunch  = day.lunch  && day.lunch.place  && day.lunch.place  !== "—" ? day.lunch  : null;
   const dinner = day.dinner && day.dinner.place && day.dinner.place !== "—" ? day.dinner : null;
 
-  const filteredAttractions = attractions.filter((a) => {
-    if (lunch  && sameLoc(a, { name: lunch.place,  coordinates: lunch.coordinates }))  return false;
-    if (dinner && sameLoc(a, { name: dinner.place, coordinates: dinner.coordinates })) return false;
-    return true;
+  const lunchName  = lunch  ? lunch.place  : null;
+  const dinnerName = dinner ? dinner.place : null;
+
+  /* Tag each attraction with kind. Food category items inherit
+     a "food" tag automatically so the Food filter still works
+     even when no lunch/dinner slot is set in the data. */
+  const items = attractions.map((a) => {
+    const cat = categoryOf(a);
+    let kind = "attraction";
+    if (lunchName  && a.name === lunchName)  kind = "lunch";
+    else if (dinnerName && a.name === dinnerName) kind = "dinner";
+    else if (FOOD_CATS.includes(cat)) kind = "food";
+    return { ...a, kind, _category: cat };
   });
 
-  const splitIdx = Math.ceil(filteredAttractions.length / 2);
-  const morning   = filteredAttractions.slice(0, splitIdx);
-  const afternoon = filteredAttractions.slice(splitIdx);
-
-  const items = [];
-  morning.forEach((a) => items.push({ ...a, kind: "attraction" }));
-  if (lunch)  items.push({ ...lunch,  name: lunch.place,  kind: "lunch" });
-  afternoon.forEach((a) => items.push({ ...a, kind: "attraction" }));
-  if (dinner) items.push({ ...dinner, name: dinner.place, kind: "dinner" });
+  /* Legacy fallback: lunch/dinner without a matching attraction */
+  const haveByName = new Set(items.map((it) => it.name));
+  if (lunch && !haveByName.has(lunch.place)) {
+    items.push({ ...lunch, name: lunch.place, kind: "lunch", _category: categoryOf({ name: lunch.place, nameHe: lunch.nameHe, desc: lunch.desc }) });
+  }
+  if (dinner && !haveByName.has(dinner.place)) {
+    items.push({ ...dinner, name: dinner.place, kind: "dinner", _category: categoryOf({ name: dinner.place, nameHe: dinner.nameHe, desc: dinner.desc }) });
+  }
   return items;
 };
 
