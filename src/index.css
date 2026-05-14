@@ -31,13 +31,21 @@
   --ochre:      #C05C1A;
 }
 
-/* Story-flow font helpers (parallel to Tailwind's font-* utilities) */
-.he-display { font-family: 'Noto Serif Hebrew', serif; }
-.he-sans    { font-family: 'Noto Sans Hebrew', sans-serif; }
-.he-handy   { font-family: 'Suez One', 'Noto Serif Hebrew', serif; letter-spacing: 0.01em; }
-.handy      { font-family: 'Caveat', cursive; }
-.mono       { font-family: 'DM Mono', monospace; }
-.dm-sans    { font-family: 'DM Sans', system-ui, sans-serif; }
+/* ── Single uniform font across the whole app.
+   Previously each helper used a different family (serif / sans /
+   handy / mono). Per the latest design directive we collapse them
+   all to one stack — Noto Sans Hebrew for Hebrew, Inter as the
+   Latin/numerals companion. The helpers stay defined so existing
+   className references keep working without code churn. */
+.he-display,
+.he-sans,
+.he-handy,
+.handy,
+.mono,
+.dm-sans {
+  font-family: 'Noto Sans Hebrew', 'Inter', 'Noto Sans JP', system-ui, sans-serif;
+  letter-spacing: 0;
+}
 
 /* Base resets */
 *,
@@ -60,7 +68,7 @@ body {
      to system sans for legibility. This font stack is the global
      default — components can override via Tailwind font-* classes
      where a different look is intentional. */
-  font-family: "Noto Serif Hebrew", "Noto Sans JP", "Inter",
+  font-family: "Noto Sans Hebrew", "Inter", "Noto Sans JP",
                -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -70,6 +78,14 @@ body {
      letting content breathe. */
   background-color: #FAF6E8;
   /* RTL is set on <html> in index.html so this just inherits. */
+  direction: rtl;
+  text-align: right;
+}
+
+/* Root containers enforce RTL flow so any future component that
+   forgets to set direction explicitly still reads right-to-left. */
+#root, .app-root {
+  direction: rtl;
   text-align: right;
 }
 

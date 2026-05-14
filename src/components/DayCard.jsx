@@ -627,7 +627,7 @@ const HeroIllustration = ({ city, day, title, cityHe, isExpanded, attractionCoun
               <h3 className={`font-display font-bold ${heroPhoto ? "text-white drop-shadow-sm" : "text-sumi-800"} ${isExpanded ? "text-base" : "text-sm"}`} dir="rtl">
                 {title}
               </h3>
-              <span className={`text-[11px] font-body ${heroPhoto ? "text-cream-200" : "text-sumi-400"}`}>{city} | {cityHe}</span>
+              <span className={`text-[11px] font-body ${heroPhoto ? "text-cream-200" : "text-sumi-400"}`}>{city === cityHe ? city : `${city} | ${cityHe}`}</span>
             </div>
           </div>
           {isExpanded && (

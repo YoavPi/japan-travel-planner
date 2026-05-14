@@ -191,8 +191,15 @@ const pickGlyph = (item) => {
   return "walk";
 };
 
-/* ─── Short Hebrew category tag (for the pill under the title) ─── */
+/* ─── Short Hebrew category tag (for the pill under the title) ───
+   If the item carries an explicit `category` field (synced from the
+   Word doc — "מתקן בדיסנילנד", "ראמן", "בית קפה", ...) we use it
+   verbatim. The regex fallbacks below only run for entries that
+   pre-date the doc sync. */
 const tagHeFor = (item) => {
+  if (item.category && item.category.trim() && item.category !== "—") {
+    return item.category.trim();
+  }
   const text = `${item.name || ""} ${item.nameHe || ""} ${item.desc || ""}`.toLowerCase();
   if (/castle|טירת|טירה/i.test(text)) return "טירה היסטורית";
   if (/market|שוק|kuromon|nishiki|omicho|ameyoko/i.test(text)) return "שוק מקומי";
@@ -342,6 +349,30 @@ const buildStop = (item, dayNum, stopNum) => {
     tagWithRating = `${tagHe} · ${item.rating}`;
   }
 
+  /* Merge the personal note into descHe as one continuous paragraph.
+     The standalone "From Us" marginalia box is gone — per the
+     latest design directive, the personal voice lives inline with
+     the main description.
+
+     De-duplication rules:
+       1. If the note text equals (or is contained in) item.desc,
+          we keep item.desc alone — appending would just double it.
+       2. If item.desc is empty we fall back to the category blurb.
+       3. Otherwise we concatenate desc + note with a single space.
+
+     This fixes the "every entry shows the same sentence twice" bug
+     introduced when personalNote() started returning item.desc
+     verbatim after the Word-doc sync. */
+  const baseDesc = (item.desc || descHeFor(item) || "").trim();
+  const noteText = note && note.textHe ? note.textHe.trim() : "";
+  let mergedDesc = baseDesc;
+  if (noteText && noteText !== baseDesc && !baseDesc.includes(noteText)) {
+    mergedDesc = baseDesc ? `${baseDesc} ${noteText}` : noteText;
+  }
+  /* Final whitespace tidy — collapse double spaces / stray line
+     breaks that may have come in from the .docx round-trip. */
+  mergedDesc = mergedDesc.replace(/\s+/g, " ").trim();
+
   return {
     type: "stop",
     stopId: `d${dayNum}-${stopNum}`,
@@ -352,8 +383,8 @@ const buildStop = (item, dayNum, stopNum) => {
     titleHe: item.nameHe || item.name,
     titleEn: item.name,
     tagHe: tagWithRating,
-    descHe: descHeFor(item),
-    note,
+    descHe: mergedDesc,
+    note: null, /* superseded — merged into descHe */
     coordinates: item.coordinates || null,
     rating: item.rating && item.rating !== "—" ? item.rating : null,
     kind: item.kind,
@@ -372,11 +403,25 @@ const buildTransit = (a, b) => {
   };
 };
 
-/* ─── Hotel anchor (end-of-day card) ─── */
+/* ─── Hotel anchor (end-of-day card) ───
+   Rating/desc are typically authored only on the first night of a
+   hotel-streak in tripData.js. We look up the streak's "primary"
+   day (first occurrence) and inherit hotelRating/hotelDesc from
+   there so every night of the streak renders the same metadata. */
+const findHotelMeta = (hotelName) => {
+  const primary = tripData.find(
+    (d) => d.hotel === hotelName && (d.hotelRating || d.hotelDesc)
+  );
+  return primary
+    ? { rating: primary.hotelRating || null, desc: primary.hotelDesc || "" }
+    : { rating: null, desc: "" };
+};
+
 const buildHotel = (day, dayIdx, sameHotelStreak) => {
   if (!day.hotel || day.hotel === "—") return null;
   const coords = HOTEL_COORDINATES[day.hotel] || day.coordinates;
   const cityIdx = cityIndexByName(day.city);
+  const meta = findHotelMeta(day.hotel);
   return {
     type: "hotel",
     city: cityIdx,
@@ -386,8 +431,8 @@ const buildHotel = (day, dayIdx, sameHotelStreak) => {
     nightsLabel: sameHotelStreak.total > 1
       ? `לילה ${sameHotelStreak.index} מתוך ${sameHotelStreak.total}`
       : "לילה אחד",
-    checkin: "15:00",
-    checkout: "12:00",
+    rating: day.hotelRating || meta.rating,
+    descHe: day.hotelDesc || meta.desc,
     coordinates: coords ? { lng: coords.lng, lat: coords.lat } : null,
   };
 };

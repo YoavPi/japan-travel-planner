@@ -97,7 +97,7 @@ const DayPillRow = ({ activeDay, onSelectDay }) => {
               flexDirection: "column",
               alignItems: "center",
               justifyContent: "center",
-              fontFamily: "DM Sans, system-ui, sans-serif",
+              fontFamily: "inherit",
               lineHeight: 1.05,
             }}
           >
@@ -132,26 +132,12 @@ const DayHeader = ({ item }) => {
         <span className="mono" style={{ fontSize: 10, color: "var(--muted)", letterSpacing: "0.16em" }}>
           {item.date}
         </span>
-        <span
-          style={{
-            fontSize: 10,
-            fontWeight: 700,
-            letterSpacing: "0.18em",
-            textTransform: "uppercase",
-            color: c.color,
-            padding: "2px 8px",
-            border: `1px solid ${c.color}55`,
-            borderRadius: 10,
-          }}
-        >
-          DAY {item.day}
-        </span>
       </div>
       <div
         className="he-display"
-        style={{ fontSize: 24, fontWeight: 700, color: "var(--ink)", lineHeight: 1.15 }}
+        style={{ fontSize: 24, fontWeight: 700, color: c.color, lineHeight: 1.15 }}
       >
-        יום <span style={{ color: c.color }}>{item.day}</span> · {item.cityHe}
+        {item.cityHe}
       </div>
       {item.subtitleHe && (
         <div className="he-sans" style={{ fontSize: 13, color: "var(--ink-2)", marginTop: 4 }}>
@@ -203,7 +189,7 @@ const TransitSegment = ({ item, compact }) => {
           borderRadius: 18,
           fontSize: 11,
           color: "var(--ink-2)",
-          fontFamily: "DM Sans, system-ui, sans-serif",
+          fontFamily: "inherit",
           boxShadow: "0 1px 0 rgba(255,255,255,0.6)",
         }}
       >
@@ -329,47 +315,27 @@ const StopRow = ({ item, isActive, onClick, side, compact }) => {
           }}
         >
           <Glyph name={item.icon} color="#FDFCF7" size={isActive ? 20 : 17} />
-          <span
-            style={{
-              position: "absolute",
-              bottom: -6, left: -6,
-              width: 18, height: 18, borderRadius: "50%",
-              background: "#FDFCF7", color: accent, border: `1.5px solid ${accent}`,
-              fontSize: 10, fontWeight: 700, fontFamily: "DM Sans, system-ui, sans-serif",
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}
-          >
-            {item.stopNum}
-          </span>
         </div>
         <div style={{ textAlign: "right", direction: "rtl", opacity: isActive ? 1 : 0.92 }}>
-          <div
-            style={{
-              fontSize: 10, fontWeight: 700, color: accent,
-              letterSpacing: "0.22em", marginBottom: 6,
-              fontFamily: "DM Sans, system-ui, sans-serif",
-            }}
-          >
-            STOP {String(item.stopNum).padStart(2, "0")}
-          </div>
+          {/* Primary title: English (LTR). Hebrew below as RTL subtitle. */}
           <div
             className="he-display"
             style={{
               fontSize: isActive ? 18 : 16, fontWeight: 700,
-              lineHeight: 1.2, color: "var(--ink)", marginBottom: 3,
+              lineHeight: 1.2, color: "var(--ink)", marginBottom: 2,
+              textAlign: "right", direction: "ltr", unicodeBidi: "plaintext",
             }}
           >
-            {item.titleHe}
+            {item.titleEn || item.titleHe}
           </div>
-          {item.titleEn && item.titleEn !== item.titleHe && (
+          {item.titleHe && item.titleHe !== item.titleEn && (
             <div
               style={{
                 fontSize: 11, fontWeight: 500, color: "var(--ink-2)",
-                fontStyle: "italic", marginBottom: 8,
-                fontFamily: "DM Sans, system-ui, sans-serif",
+                marginBottom: 8, textAlign: "right",
               }}
             >
-              {item.titleEn}
+              {item.titleHe}
             </div>
           )}
           {item.tagHe && (
@@ -386,13 +352,42 @@ const StopRow = ({ item, isActive, onClick, side, compact }) => {
           {item.descHe && (
             <div
               className="he-sans"
-              style={{ fontSize: 12.5, color: "var(--ink-2)", lineHeight: 1.55 }}
+              style={{ fontSize: 12.5, color: "var(--ink-2)", lineHeight: 1.55, textAlign: "right" }}
             >
               {item.descHe}
             </div>
           )}
-          {item.note && <PersonalNote note={item.note} />}
         </div>
+        {/* Subtle "clickable card" affordance — icon only, no text.
+            Sits in the trailing (left) corner so it does not compete
+            with the title on the right. The card itself remains the
+            click target; this is just a visual hint. */}
+        {item.coordinates && (
+          <span
+            aria-hidden
+            style={{
+              position: "absolute",
+              left: 12,
+              bottom: 10,
+              width: 22,
+              height: 22,
+              borderRadius: "50%",
+              background: `${accent}10`,
+              border: `1px solid ${accent}33`,
+              color: accent,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 12,
+              fontWeight: 700,
+              fontStyle: "italic",
+              opacity: 0.7,
+              pointerEvents: "none",
+            }}
+          >
+            i
+          </span>
+        )}
       </div>
     );
   }
@@ -443,18 +438,6 @@ const StopRow = ({ item, isActive, onClick, side, compact }) => {
         }}
       >
         <Glyph name={item.icon} color="#FDFCF7" size={isActive ? 22 : 18} />
-        <span
-          style={{
-            position: "absolute",
-            bottom: -6, right: -6,
-            width: 18, height: 18, borderRadius: "50%",
-            background: "#FDFCF7", color: accent, border: `1.5px solid ${accent}`,
-            fontSize: 10, fontWeight: 700, fontFamily: "DM Sans, system-ui, sans-serif",
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}
-        >
-          {item.stopNum}
-        </span>
       </div>
 
       {/* dashed connector from spine toward the active side */}
@@ -472,40 +455,32 @@ const StopRow = ({ item, isActive, onClick, side, compact }) => {
       {/* content (zigzag) */}
       <div
         style={{
-          gridColumn: sideRight ? "1" : "2",
-          padding: sideRight ? "0 0 0 26%" : "0 26% 0 0",
-          textAlign: sideRight ? "right" : "left",
-          direction: sideRight ? "rtl" : "ltr",
+          gridColumn: "1",
+          padding: "0 26% 0 0",
+          textAlign: "right",
+          direction: "rtl",
           opacity: isActive ? 1 : 0.92,
         }}
       >
-        <div
-          style={{
-            fontSize: 10, fontWeight: 700, color: accent,
-            letterSpacing: "0.22em", marginBottom: 6,
-            fontFamily: "DM Sans, system-ui, sans-serif",
-          }}
-        >
-          STOP {String(item.stopNum).padStart(2, "0")}
-        </div>
+        {/* Primary title: English (LTR). Hebrew below as RTL subtitle. */}
         <div
           className="he-display"
           style={{
             fontSize: isActive ? 19 : 17, fontWeight: 700,
-            lineHeight: 1.2, color: "var(--ink)", marginBottom: 3,
+            lineHeight: 1.2, color: "var(--ink)", marginBottom: 2,
+            direction: "ltr", textAlign: "right", unicodeBidi: "plaintext",
           }}
         >
-          {item.titleHe}
+          {item.titleEn || item.titleHe}
         </div>
-        {item.titleEn && item.titleEn !== item.titleHe && (
+        {item.titleHe && item.titleHe !== item.titleEn && (
           <div
             style={{
               fontSize: 11.5, fontWeight: 500, color: "var(--ink-2)",
-              fontStyle: "italic", marginBottom: 8,
-              fontFamily: "DM Sans, system-ui, sans-serif",
+              marginBottom: 8, textAlign: "right",
             }}
           >
-            {item.titleEn}
+            {item.titleHe}
           </div>
         )}
         {item.tagHe && (
@@ -522,13 +497,39 @@ const StopRow = ({ item, isActive, onClick, side, compact }) => {
         {item.descHe && (
           <div
             className="he-sans"
-            style={{ fontSize: 12.5, color: "var(--ink-2)", lineHeight: 1.55 }}
+            style={{ fontSize: 12.5, color: "var(--ink-2)", lineHeight: 1.55, textAlign: "right" }}
           >
             {item.descHe}
           </div>
         )}
-        {item.note && <PersonalNote note={item.note} />}
       </div>
+      {/* Clickable affordance — icon only */}
+      {item.coordinates && (
+        <span
+          aria-hidden
+          style={{
+            position: "absolute",
+            left: 16,
+            bottom: 12,
+            width: 22,
+            height: 22,
+            borderRadius: "50%",
+            background: `${accent}10`,
+            border: `1px solid ${accent}33`,
+            color: accent,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 12,
+            fontWeight: 700,
+            fontStyle: "italic",
+            opacity: 0.7,
+            pointerEvents: "none",
+          }}
+        >
+          i
+        </span>
+      )}
     </div>
   );
 };
@@ -585,129 +586,129 @@ const HotelAnchor = ({ item, onClick }) => {
           >
             לינה · END OF DAY
           </div>
-          <div className="he-display" style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)" }}>
-            {item.nameHe}
+          <div className="he-display" style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", direction: "ltr", textAlign: "right", unicodeBidi: "plaintext" }}>
+            {item.nameEn || item.nameHe}
           </div>
-          {item.neighborhoodHe && (
-            <div style={{ fontSize: 11, fontStyle: "italic", color: "var(--ink-2)", marginTop: 1 }}>
-              {item.nameEn} · {item.neighborhoodHe}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 10, color: "var(--muted)", letterSpacing: "0.12em" }}>
+              {item.nightsLabel}
+            </span>
+            {item.rating && (
+              <span
+                style={{
+                  fontSize: 11, fontWeight: 700, color: accent,
+                  padding: "1px 7px",
+                  border: `1px solid ${accent}55`,
+                  borderRadius: 10,
+                  background: `${accent}10`,
+                }}
+              >
+                {item.rating}
+              </span>
+            )}
+          </div>
+          {item.descHe && (
+            <div
+              className="he-sans"
+              style={{ fontSize: 12, color: "var(--ink-2)", lineHeight: 1.5, marginTop: 6, textAlign: "right" }}
+            >
+              {item.descHe}
             </div>
           )}
-        </div>
-        <div style={{ textAlign: "left", direction: "ltr", flexShrink: 0 }}>
-          <div style={{ fontSize: 9.5, color: "var(--muted)", letterSpacing: "0.12em" }}>
-            {item.nightsLabel}
-          </div>
-          <div
-            style={{
-              fontSize: 11, color: "var(--ink-2)", marginTop: 2,
-              fontFamily: "DM Mono, monospace",
-            }}
-          >
-            {item.checkin} → {item.checkout}
-          </div>
         </div>
       </div>
     </div>
   );
 };
 
-/* ───────── City transit (inter-city milestone) ───────── */
+/* ───────── City transit (inter-city milestone) ─────────
+   RTL geographical flow: ORIGIN sits on the RIGHT, DESTINATION on
+   the LEFT, with an arrow ← between them. For Hebrew readers the
+   progression matches reading direction (right → left = forward).
+*/
 const CityTransit = ({ item }) => {
   const from = STORY_CITIES[item.fromCity - 1];
   const to   = STORY_CITIES[item.toCity - 1];
   return (
-    <div style={{ position: "relative", padding: "24px 24px 22px" }}>
-      {/* faded spine */}
-      <div
-        aria-hidden
-        style={{
-          position: "absolute", top: 0, bottom: 0,
-          left: "50%", width: 1,
-          background: "repeating-linear-gradient(to bottom, rgba(28,35,51,0.14) 0 4px, transparent 4px 8px)",
-          transform: "translateX(-0.5px)",
-        }}
-      />
-      {/* horizontal hairline */}
-      <div
-        aria-hidden
-        style={{
-          position: "absolute", top: "50%", left: 24, right: 24,
-          height: 1, background: "rgba(28,35,51,0.12)",
-          transform: "translateY(-0.5px)",
-        }}
-      />
-      {/* FROM (above) */}
+    <div style={{ position: "relative", padding: "20px 24px", direction: "rtl" }}>
       <div
         style={{
-          textAlign: "right", marginBottom: 14, paddingRight: 4,
-          display: "flex", alignItems: "baseline", justifyContent: "flex-end", gap: 8,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          background: "var(--paper-2)",
+          border: "1px solid var(--line)",
+          borderRadius: 14,
+          padding: "12px 14px",
+          boxShadow: "0 2px 8px rgba(28,35,51,0.04)",
         }}
       >
-        <span className="mono" style={{ fontSize: 10, color: "var(--muted)", letterSpacing: "0.14em" }}>
-          {item.depart}
-        </span>
-        <span className="he-display" style={{ fontSize: 15, fontWeight: 600, color: from.color }}>
-          {item.fromHe || from.nameHe}
-        </span>
-        <span
-          style={{
-            fontSize: 9, color: "var(--muted)",
-            letterSpacing: "0.2em", textTransform: "uppercase",
-          }}
-        >
-          from
-        </span>
+        {/* FROM — right side in RTL */}
+        <div style={{ display: "flex", flexDirection: "column", textAlign: "right", minWidth: 0, flex: 1 }}>
+          <span
+            style={{
+              fontSize: 9, color: "var(--muted)",
+              letterSpacing: "0.2em", textTransform: "uppercase",
+              marginBottom: 2,
+            }}
+          >
+            מאיפה · from
+          </span>
+          <span
+            className="he-display"
+            style={{ fontSize: 14, fontWeight: 700, color: from.color, lineHeight: 1.2 }}
+          >
+            {item.fromHe || from.nameHe}
+          </span>
+          <span className="mono" style={{ fontSize: 10, color: "var(--muted)", letterSpacing: "0.12em", marginTop: 2 }}>
+            {item.depart}
+          </span>
+        </div>
+
+        {/* Centre: transit-mode glyph + arrow pointing LEFT (the forward direction in RTL) */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, flexShrink: 0 }}>
+          <div
+            style={{
+              width: 36, height: 36, borderRadius: "50%",
+              background: "var(--paper)",
+              border: "1px solid rgba(28,35,51,0.22)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              color: "var(--ink-2)",
+              boxShadow: "0 0 0 3px var(--paper-2)",
+            }}
+          >
+            <Glyph name={item.mode} color="var(--ink-2)" size={18} />
+          </div>
+          {/* arrow LEFT (←) — RTL forward */}
+          <span style={{ fontSize: 14, color: "var(--muted)", lineHeight: 1 }}>←</span>
+        </div>
+
+        {/* TO — left side in RTL */}
+        <div style={{ display: "flex", flexDirection: "column", textAlign: "left", minWidth: 0, flex: 1 }}>
+          <span
+            style={{
+              fontSize: 9, color: "var(--muted)",
+              letterSpacing: "0.2em", textTransform: "uppercase",
+              marginBottom: 2,
+            }}
+          >
+            לאן · to
+          </span>
+          <span
+            className="he-display"
+            style={{ fontSize: 14, fontWeight: 700, color: to.color, lineHeight: 1.2 }}
+          >
+            {item.toHe || to.nameHe}
+          </span>
+          <span className="mono" style={{ fontSize: 10, color: "var(--muted)", letterSpacing: "0.12em", marginTop: 2 }}>
+            {item.arrive}
+          </span>
+        </div>
       </div>
-      {/* central medallion */}
-      <div
-        style={{
-          position: "absolute", top: "50%", left: "50%",
-          transform: "translate(-50%, -50%)",
-          width: 38, height: 38, borderRadius: "50%",
-          background: "var(--paper)",
-          border: "1px solid rgba(28,35,51,0.22)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          color: "var(--ink-2)", zIndex: 2,
-          boxShadow: "0 0 0 4px var(--paper)",
-        }}
-      >
-        <Glyph name={item.mode} color="var(--ink-2)" size={18} />
-      </div>
-      {/* TO (below) */}
-      <div
-        style={{
-          textAlign: "left", marginTop: 14, paddingLeft: 4, direction: "ltr",
-          display: "flex", alignItems: "baseline", justifyContent: "flex-start", gap: 8,
-        }}
-      >
-        <span
-          style={{
-            fontSize: 9, color: "var(--muted)",
-            letterSpacing: "0.2em", textTransform: "uppercase",
-          }}
-        >
-          to
-        </span>
-        <span
-          className="he-display"
-          style={{
-            fontSize: 15, fontWeight: 600, color: to.color, direction: "rtl",
-          }}
-        >
-          {item.toHe || to.nameHe}
-        </span>
-        <span className="mono" style={{ fontSize: 10, color: "var(--muted)", letterSpacing: "0.14em" }}>
-          {item.arrive}
-        </span>
-      </div>
-      {/* caption */}
-      <div
-        style={{
-          position: "absolute", top: "calc(50% + 26px)", left: 0, right: 0,
-          textAlign: "center", pointerEvents: "none",
-        }}
-      >
+
+      {/* caption (line name + duration) */}
+      <div style={{ textAlign: "center", marginTop: 8 }}>
         <span
           className="he-sans"
           style={{ fontSize: 10.5, color: "var(--muted)", letterSpacing: "0.04em" }}
@@ -761,7 +762,7 @@ const InfoBar = ({ activeCityKey, activeCategory, onCityChange, onCategoryChange
               borderRadius: 16,
               border: "1px solid var(--line-2)",
               background: "var(--paper-2)",
-              fontFamily: "DM Sans, system-ui, sans-serif",
+              fontFamily: "inherit",
               fontSize: 11,
               fontWeight: 600,
               color: "var(--ink-2)",
@@ -784,7 +785,7 @@ const InfoBar = ({ activeCityKey, activeCategory, onCityChange, onCategoryChange
                   border: `1px solid ${c.color}55`,
                   background: "var(--paper-2)",
                   color: c.color,
-                  fontFamily: "Noto Serif Hebrew, serif",
+                  fontFamily: "inherit",
                   fontSize: 12,
                   fontWeight: 600,
                   cursor: "pointer",
@@ -798,7 +799,7 @@ const InfoBar = ({ activeCityKey, activeCategory, onCityChange, onCategoryChange
                 <span>{cp.labelHe}</span>
                 <span
                   style={{
-                    fontFamily: "DM Mono, monospace",
+                    fontFamily: "inherit",
                     fontSize: 9,
                     color: "var(--muted)",
                     letterSpacing: "0.08em",
@@ -846,7 +847,7 @@ const InfoBar = ({ activeCityKey, activeCategory, onCityChange, onCategoryChange
             background: "transparent",
             color: "var(--ink-2)",
             cursor: "pointer",
-            fontFamily: "DM Sans, system-ui, sans-serif",
+            fontFamily: "inherit",
             fontSize: 11,
             fontWeight: 600,
           }}
@@ -878,7 +879,7 @@ const InfoBar = ({ activeCityKey, activeCategory, onCityChange, onCategoryChange
               background: "transparent",
               color: "var(--muted)",
               cursor: "pointer",
-              fontFamily: "DM Sans, system-ui, sans-serif",
+              fontFamily: "inherit",
               fontSize: 10,
               fontWeight: 600,
             }}
@@ -909,7 +910,7 @@ const InfoBar = ({ activeCityKey, activeCategory, onCityChange, onCategoryChange
             border: `1px solid ${!activeCategory ? "var(--ink)" : "var(--line-2)"}`,
             background: !activeCategory ? "var(--ink)" : "var(--paper-2)",
             color: !activeCategory ? "var(--paper)" : "var(--ink-2)",
-            fontFamily: "DM Sans, system-ui, sans-serif",
+            fontFamily: "inherit",
             fontSize: 11,
             fontWeight: 600,
             cursor: "pointer",
@@ -931,7 +932,7 @@ const InfoBar = ({ activeCityKey, activeCategory, onCityChange, onCategoryChange
                 border: `1px solid ${isActive ? accent : "var(--line-2)"}`,
                 background: isActive ? accent : "var(--paper-2)",
                 color: isActive ? "#FDFCF7" : "var(--ink-2)",
-                fontFamily: "DM Sans, system-ui, sans-serif",
+                fontFamily: "inherit",
                 fontSize: 11,
                 fontWeight: 600,
                 cursor: "pointer",
