@@ -87,23 +87,20 @@ const ExploreView = () => {
   const handleSelectStop = useCallback((payload) => {
     if (!payload) return;
     setActiveStopId(payload.stopId);
-    /* Detail-First navigation:
-       - When `skipMapFly` is set (a tap inside StoryFlow that opens
-         the DetailModal), we DON'T fly the map. The modal is the
-         primary surface and the map stays put so the user keeps
-         their context.
-       - When the click came from a map marker (no skipMapFly), we
-         set selectedLocation so the map flies + the popup pins. */
-    if (payload.coordinates && !payload.skipMapFly) {
+    /* Synchronised navigation (per latest design directive):
+       The map ALWAYS flies to the selected location, regardless of
+       whether the click came from a map pin or a StoryFlow card.
+       The detail modal opens in front of the map — the user can see
+       the map re-centre behind it. The bottom sheet / sidebar are
+       NOT collapsed; their state is preserved so the user keeps
+       their browsing context. The `skipMapFly` flag is intentionally
+       ignored here. */
+    if (payload.coordinates) {
       setSelectedLocation({
         lng: payload.coordinates.lng,
         lat: payload.coordinates.lat,
         name: payload.name,
       });
-      /* Mobile: drop sheet to peek so map+popup are visible */
-      if (sheetRef.current?.getSnap?.() === "full") {
-        sheetRef.current.snapTo("peek");
-      }
     }
   }, []);
 

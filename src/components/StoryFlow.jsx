@@ -1179,15 +1179,15 @@ const StoryFlow = forwardRef(({ activeStopId, onSelectStop, onOpenDetail, onClos
                         coordinates: item.coordinates || null,
                       });
                     }
-                    /* SECONDARY: still update active state + map pin
-                       so the marker highlights — but no flyTo on
-                       the parent map (modal is foreground). */
+                    /* SECONDARY: update active state + fly the map
+                       to the location. The modal opens in front; the
+                       user can see the map re-centre behind it. The
+                       bottom sheet / sidebar state is preserved. */
                     if (onSelectStop) {
                       onSelectStop({
                         stopId: item.stopId,
                         coordinates: item.coordinates,
                         name: item.titleHe || item.titleEn,
-                        skipMapFly: true, /* hint for parent */
                       });
                     }
                   }}
