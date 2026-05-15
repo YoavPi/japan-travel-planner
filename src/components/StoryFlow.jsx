@@ -3,14 +3,22 @@ import { buildStory, STORY_CITIES, getChronologicalCityPath } from "../data/stor
 import { Glyph, MetaIcon, TRANSIT_LABEL_HE } from "./StoryFlowGlyph";
 import { atmospherePhotoFor } from "../data/tripHelpers";
 import { STOP_PHOTO } from "../data/stopPhotos";
+import { getLocationPhoto } from "../data/photoMap";
 
-/* photoForStop — per-location image lookup with day-level fallback.
-   Each stop has its own curated photo in /public/photos/source/
-   (see scripts that generate src/data/stopPhotos.js). When no
-   per-stop photo exists we fall back to the day's atmosphere
-   photo so we never render a broken card. */
+/* photoForStop — per-location image lookup.
+
+   Priority order (kept in sync with what the MAP popup shows):
+     1. getLocationPhoto(name) — the same source the map uses, so
+        the inline-expand image always matches the map popup image
+        for that location (e.g. AFURI Harajuku → day01_afuri.jpg).
+     2. STOP_PHOTO[`day|name`] — auto-generated per-stop fallback
+        for entries that the map's photoMap doesn't list.
+     3. atmospherePhotoFor(day) — day-level fallback so we never
+        render a broken card. */
 const photoForStop = (day, name) => {
-  if (!day || !name) return atmospherePhotoFor(day);
+  if (!name) return atmospherePhotoFor(day);
+  const fromMap = getLocationPhoto(name);
+  if (fromMap) return fromMap;
   const file = STOP_PHOTO[`${day}|${name}`];
   if (file) return `/photos/source/${file}`;
   return atmospherePhotoFor(day);
@@ -1110,6 +1118,13 @@ const StoryFlow = forwardRef(({ activeStopId, onSelectStop, onOpenDetail, onClos
     return {
       scrollToDay: (dayNum) => deferredScroll(dayRefs.current[dayNum], 12),
       scrollToStop: (stopId) => deferredScroll(stopRefs.current[stopId], 100),
+      /* Open the inline-expand panel for a given stop AND scroll
+         it into view. Used by the map popup's 'עוד פרטים' button
+         so the user lands on a fully-expanded card. */
+      expandStop: (stopId) => {
+        setExpandedStopId(stopId);
+        deferredScroll(stopRefs.current[stopId], 60);
+      },
     };
   }, []);
 

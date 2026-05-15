@@ -129,9 +129,13 @@ const ExploreView = () => {
       );
       if (match) {
         setActiveStopId(match.stopId);
-        /* Defer to next tick so the sheet snap settles. */
+        /* Defer to next tick so the sheet snap settles, then ask
+           the mobile StoryFlow to OPEN the inline expansion on
+           that stop (so the user lands on a fully-expanded card,
+           not just a scrolled-to one). Desktop has no expansion,
+           so it only scrolls. */
         setTimeout(() => {
-          storyMobRef.current?.scrollToStop?.(match.stopId);
+          storyMobRef.current?.expandStop?.(match.stopId);
           storyDeskRef.current?.scrollToStop?.(match.stopId);
         }, 80);
       }
