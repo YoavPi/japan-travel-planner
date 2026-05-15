@@ -2,6 +2,19 @@ import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, use
 import { buildStory, STORY_CITIES, getChronologicalCityPath } from "../data/storyBuilder";
 import { Glyph, MetaIcon, TRANSIT_LABEL_HE } from "./StoryFlowGlyph";
 import { atmospherePhotoFor } from "../data/tripHelpers";
+import { STOP_PHOTO } from "../data/stopPhotos";
+
+/* photoForStop — per-location image lookup with day-level fallback.
+   Each stop has its own curated photo in /public/photos/source/
+   (see scripts that generate src/data/stopPhotos.js). When no
+   per-stop photo exists we fall back to the day's atmosphere
+   photo so we never render a broken card. */
+const photoForStop = (day, name) => {
+  if (!day || !name) return atmospherePhotoFor(day);
+  const file = STOP_PHOTO[`${day}|${name}`];
+  if (file) return `/photos/source/${file}`;
+  return atmospherePhotoFor(day);
+};
 
 /* atmospherePhotoFor IS now imported — it powers the inline
    expansion preview image on mobile (the modal was removed in
@@ -1228,11 +1241,12 @@ const StoryFlow = forwardRef(({ activeStopId, onSelectStop, onOpenDetail, onClos
             /* Atmosphere image for the inline expand panel — taken
                from the day's photo bucket so users see a meaningful
                visual without per-stop image authoring. */
-            /* atmospherePhotoFor(dayNumber) takes a NUMBER, not an
-               object. Earlier we passed { day: item.day } which
-               always returned null → no image rendered. */
+            /* Per-stop photo lookup. item.titleEn is the English
+               name (primary title) which matches the keys in
+               STOP_PHOTO. Falls back to the day's atmosphere
+               photo if no per-stop image is mapped. */
             const atmosphereSrc = inlineExpand && isExpanded && item.day
-              ? atmospherePhotoFor(item.day)
+              ? photoForStop(item.day, item.titleEn)
               : null;
             return (
               <div key={idx} ref={(el) => (stopRefs.current[item.stopId] = el)}>

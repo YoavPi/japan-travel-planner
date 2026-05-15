@@ -104,7 +104,47 @@ const ExploreView = () => {
     }
   }, []);
 
-  const handleOpenDetail = useCallback((data) => setModalData(data), []);
+  /* The map popup "עוד פרטים" button is now a navigation cue, not
+     a modal trigger. It snaps the bottom sheet open (mobile) and
+     scrolls the StoryFlow list to the matching stop on both
+     surfaces. Stop matching is done by name + day inside the
+     buildStory output — we look up the stopId via a name index. */
+  const handleOpenDetail = useCallback((data) => {
+    if (!data) return;
+    const targetName = (data.name || "").trim().toLowerCase();
+    const dayHint   = data.day || null;
+    /* Snap the bottom sheet open (mobile). 'full' gives the user
+       maximum context for reading the expanded card. */
+    sheetRef.current?.snapTo?.("full");
+    /* Walk both story refs and ask them to scroll to the matching
+       stop. The refs expose scrollToStop(stopId); we resolve the
+       stopId here from the buildStory result. */
+    import("../data/storyBuilder").then(({ buildStory }) => {
+      const story = buildStory();
+      const match = story.find((it) =>
+        it.type === "stop" &&
+        (!dayHint || it.day === dayHint) &&
+        ((it.titleEn || "").trim().toLowerCase() === targetName ||
+         (it.titleHe || "").trim().toLowerCase() === targetName)
+      );
+      if (match) {
+        setActiveStopId(match.stopId);
+        /* Defer to next tick so the sheet snap settles. */
+        setTimeout(() => {
+          storyMobRef.current?.scrollToStop?.(match.stopId);
+          storyDeskRef.current?.scrollToStop?.(match.stopId);
+        }, 80);
+      }
+    });
+    /* Always re-centre the map on the location too. */
+    if (data.coordinates) {
+      setSelectedLocation({
+        lng: data.coordinates.lng,
+        lat: data.coordinates.lat,
+        name: data.name,
+      });
+    }
+  }, []);
   const handleCloseDetail = useCallback(() => setModalData(null), []);
 
   const handleMacroView = useCallback(() => {
