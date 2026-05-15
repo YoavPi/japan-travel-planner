@@ -362,60 +362,68 @@ const StopRow = ({ item, isActive, onClick, side, compact, inlineExpand, isExpan
             </div>
           )}
         </div>
-        {/* Inline expansion panel (mobile only): photo + full desc.
-            Rendered when `isExpanded` is true. Clicking the card
-            again collapses it. */}
-        {showExpansion && (
-          <div
-            style={{
-              marginTop: 12,
-              borderRadius: 12,
-              overflow: "hidden",
-              background: "var(--paper-2)",
-              border: `1px solid ${accent}22`,
-              boxShadow: "0 4px 14px rgba(28,35,51,0.06)",
-              animation: "fadeIn 0.25s ease",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {atmosphereSrc && (
-              <div
-                style={{
-                  width: "100%",
-                  aspectRatio: "16 / 10",
-                  backgroundImage: `url(${atmosphereSrc})`,
-                  backgroundSize: "cover",
-                  backgroundPosition: "center",
-                }}
-              />
-            )}
-            <div style={{ padding: "12px 14px", direction: "rtl", textAlign: "right" }}>
-              {item.descHe && (
-                <div
-                  className="he-sans"
-                  style={{ fontSize: 13.5, color: "var(--ink-2)", lineHeight: 1.6 }}
-                >
-                  {item.descHe}
-                </div>
-              )}
-              {item.rating && (
+        {/* Inline expansion panel (MOBILE ONLY).
+            Per the latest spec: VISUAL only — atmosphere image +
+            Google Maps link. The description is intentionally NOT
+            repeated here (it already shows above the card). */}
+        {showExpansion && (() => {
+          const mapsHref = item.link
+            || (item.coordinates
+                  ? `https://www.google.com/maps/search/?api=1&query=${item.coordinates.lat},${item.coordinates.lng}`
+                  : null);
+          return (
+            <div
+              style={{
+                marginTop: 12,
+                borderRadius: 12,
+                overflow: "hidden",
+                background: "var(--paper-2)",
+                border: `1px solid ${accent}22`,
+                boxShadow: "0 4px 14px rgba(28,35,51,0.06)",
+                animation: "fadeIn 0.25s ease",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {atmosphereSrc && (
                 <div
                   style={{
-                    display: "inline-block",
-                    marginTop: 10,
-                    fontSize: 11, fontWeight: 700, color: accent,
-                    padding: "2px 8px",
-                    border: `1px solid ${accent}55`,
-                    borderRadius: 10,
-                    background: `${accent}10`,
+                    width: "100%",
+                    aspectRatio: "16 / 10",
+                    backgroundImage: `url(${atmosphereSrc})`,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
                   }}
-                >
-                  {item.rating}
+                />
+              )}
+              {mapsHref && (
+                <div style={{ padding: "10px 12px", display: "flex", justifyContent: "flex-end" }}>
+                  <a
+                    href={mapsHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      padding: "6px 12px",
+                      borderRadius: 18,
+                      background: accent,
+                      color: "#FDFCF7",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      textDecoration: "none",
+                      letterSpacing: "0.02em",
+                    }}
+                  >
+                    <span style={{ fontSize: 13 }}>📍</span>
+                    Google Maps
+                  </a>
                 </div>
               )}
             </div>
-          </div>
-        )}
+          );
+        })()}
         {/* Subtle "clickable card" affordance — chevron rotates when
             the card is expanded so the user gets a visual confirm. */}
         {item.coordinates && (

@@ -387,6 +387,10 @@ const buildStop = (item, dayNum, stopNum) => {
     note: null, /* superseded — merged into descHe */
     coordinates: item.coordinates || null,
     rating: item.rating && item.rating !== "—" ? item.rating : null,
+    /* Optional explicit map link from tripData (e.g. Day 25
+       Kawaguchiko Area). When absent, the StopRow expansion
+       falls back to a coordinates-based Google Maps URL. */
+    link: item.link || null,
     kind: item.kind,
   };
 };
