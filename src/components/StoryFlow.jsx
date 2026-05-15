@@ -385,13 +385,19 @@ const StopRow = ({ item, isActive, onClick, side, compact, inlineExpand, isExpan
               onClick={(e) => e.stopPropagation()}
             >
               {atmosphereSrc && (
-                <div
+                <img
+                  src={atmosphereSrc}
+                  alt=""
+                  loading="lazy"
                   style={{
+                    display: "block",
                     width: "100%",
-                    aspectRatio: "16 / 10",
-                    backgroundImage: `url(${atmosphereSrc})`,
-                    backgroundSize: "cover",
-                    backgroundPosition: "center",
+                    /* Sweet spot: tall enough to feel substantial,
+                       short enough to keep the card scannable. */
+                    height: 220,
+                    maxHeight: 220,
+                    objectFit: "cover",
+                    objectPosition: "center",
                   }}
                 />
               )}
@@ -1222,8 +1228,11 @@ const StoryFlow = forwardRef(({ activeStopId, onSelectStop, onOpenDetail, onClos
             /* Atmosphere image for the inline expand panel — taken
                from the day's photo bucket so users see a meaningful
                visual without per-stop image authoring. */
+            /* atmospherePhotoFor(dayNumber) takes a NUMBER, not an
+               object. Earlier we passed { day: item.day } which
+               always returned null → no image rendered. */
             const atmosphereSrc = inlineExpand && isExpanded && item.day
-              ? atmospherePhotoFor({ day: item.day })
+              ? atmospherePhotoFor(item.day)
               : null;
             return (
               <div key={idx} ref={(el) => (stopRefs.current[item.stopId] = el)}>
