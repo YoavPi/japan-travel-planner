@@ -1,10 +1,13 @@
-import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from "react";
+import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { buildStory, STORY_CITIES, getChronologicalCityPath } from "../data/storyBuilder";
 import { Glyph, MetaIcon, TRANSIT_LABEL_HE } from "./StoryFlowGlyph";
+import { atmospherePhotoFor } from "../data/tripHelpers";
 
-/* NOTE: atmospherePhotoFor is intentionally NOT imported here.
-   Atmosphere photos are reserved for the Home Page "תמונות מהדרך"
-   gallery only. The Trip Roadmap / map components stay text-only. */
+/* atmospherePhotoFor IS now imported — it powers the inline
+   expansion preview image on mobile (the modal was removed in
+   favour of inline expand). The Home-Page "תמונות מהדרך"
+   gallery still uses the same helper independently and is
+   unaffected. */
 
 /* ─── Categories (Phase B sub-filters) ─── */
 const CATEGORIES = [
@@ -267,10 +270,11 @@ const PersonalNote = ({ note }) => {
 };
 
 /* ───────── Stop row — zigzag layout w/ centre medallion ───────── */
-const StopRow = ({ item, isActive, onClick, side, compact }) => {
+const StopRow = ({ item, isActive, onClick, side, compact, inlineExpand, isExpanded, atmosphereSrc }) => {
   const c = STORY_CITIES[item.city - 1];
   const accent = c ? c.color : "#C0392B";
   const sideRight = side === "right";
+  const showExpansion = inlineExpand && isExpanded && item.coordinates;
 
   /* Compact (mobile) mode: edge spine, no zigzag */
   if (compact) {
@@ -358,10 +362,62 @@ const StopRow = ({ item, isActive, onClick, side, compact }) => {
             </div>
           )}
         </div>
-        {/* Subtle "clickable card" affordance — icon only, no text.
-            Sits in the trailing (left) corner so it does not compete
-            with the title on the right. The card itself remains the
-            click target; this is just a visual hint. */}
+        {/* Inline expansion panel (mobile only): photo + full desc.
+            Rendered when `isExpanded` is true. Clicking the card
+            again collapses it. */}
+        {showExpansion && (
+          <div
+            style={{
+              marginTop: 12,
+              borderRadius: 12,
+              overflow: "hidden",
+              background: "var(--paper-2)",
+              border: `1px solid ${accent}22`,
+              boxShadow: "0 4px 14px rgba(28,35,51,0.06)",
+              animation: "fadeIn 0.25s ease",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {atmosphereSrc && (
+              <div
+                style={{
+                  width: "100%",
+                  aspectRatio: "16 / 10",
+                  backgroundImage: `url(${atmosphereSrc})`,
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                }}
+              />
+            )}
+            <div style={{ padding: "12px 14px", direction: "rtl", textAlign: "right" }}>
+              {item.descHe && (
+                <div
+                  className="he-sans"
+                  style={{ fontSize: 13.5, color: "var(--ink-2)", lineHeight: 1.6 }}
+                >
+                  {item.descHe}
+                </div>
+              )}
+              {item.rating && (
+                <div
+                  style={{
+                    display: "inline-block",
+                    marginTop: 10,
+                    fontSize: 11, fontWeight: 700, color: accent,
+                    padding: "2px 8px",
+                    border: `1px solid ${accent}55`,
+                    borderRadius: 10,
+                    background: `${accent}10`,
+                  }}
+                >
+                  {item.rating}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+        {/* Subtle "clickable card" affordance — chevron rotates when
+            the card is expanded so the user gets a visual confirm. */}
         {item.coordinates && (
           <span
             aria-hidden
@@ -378,14 +434,15 @@ const StopRow = ({ item, isActive, onClick, side, compact }) => {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: 12,
+              fontSize: 11,
               fontWeight: 700,
-              fontStyle: "italic",
-              opacity: 0.7,
+              opacity: 0.75,
               pointerEvents: "none",
+              transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
+              transition: "transform 0.25s ease",
             }}
           >
-            i
+            ⌄
           </span>
         )}
       </div>
@@ -951,10 +1008,13 @@ const InfoBar = ({ activeCityKey, activeCategory, onCityChange, onCategoryChange
 /* ══════════════════════════════════════════════════════════════
    MAIN COMPONENT
    ══════════════════════════════════════════════════════════════ */
-const StoryFlow = forwardRef(({ activeStopId, onSelectStop, onOpenDetail, onClose, activeDay, onSelectDay, activeCityKey = null, activeCategory = null, onCityChange, onCategoryChange, onClearFilters, compact = false }, ref) => {
+const StoryFlow = forwardRef(({ activeStopId, onSelectStop, onOpenDetail, onClose, activeDay, onSelectDay, activeCityKey = null, activeCategory = null, onCityChange, onCategoryChange, onClearFilters, compact = false, inlineExpand = false }, ref) => {
   const scrollerRef = useRef(null);
   const stopRefs = useRef({});
   const dayRefs = useRef({});
+  /* Inline-expand: track which stop is currently expanded (mobile
+     only). Toggled on card click. Null = nothing expanded. */
+  const [expandedStopId, setExpandedStopId] = useState(null);
 
   const story = useMemo(
     () => buildStory({ cityKey: activeCityKey, category: activeCategory }),
@@ -1150,39 +1210,35 @@ const StoryFlow = forwardRef(({ activeStopId, onSelectStop, onOpenDetail, onClos
           if (item.type === "stop") {
             const side = stopSideToggle % 2 === 0 ? "right" : "left";
             stopSideToggle++;
+            const isExpanded = expandedStopId === item.stopId;
+            /* Atmosphere image for the inline expand panel — taken
+               from the day's photo bucket so users see a meaningful
+               visual without per-stop image authoring. */
+            const atmosphereSrc = inlineExpand && isExpanded && item.day
+              ? atmospherePhotoFor({ day: item.day })
+              : null;
             return (
               <div key={idx} ref={(el) => (stopRefs.current[item.stopId] = el)}>
                 <StopRow
                   item={item}
                   side={side}
                   compact={compact}
+                  inlineExpand={inlineExpand}
+                  isExpanded={isExpanded}
+                  atmosphereSrc={atmosphereSrc}
                   isActive={activeStopId === item.stopId}
                   onClick={(e) => {
-                    /* Prevent the click from bubbling into the panel /
-                       day-card / sheet drag listeners. Detail modal is
-                       the primary surface here. */
                     if (e && typeof e.stopPropagation === "function") {
                       e.stopPropagation();
                     }
-                    /* PRIMARY: open the Detail Info modal */
-                    if (onOpenDetail) {
-                      onOpenDetail({
-                        name:        item.titleEn || item.titleHe,
-                        nameHe:      item.titleHe,
-                        nameJa:      "",
-                        desc:        item.note ? item.note.textHe : item.descHe || "",
-                        day:         item.day || null,
-                        city:        "",
-                        cityHe:      "",
-                        category:    item.kind || "attraction",
-                        rating:      item.rating || null,
-                        coordinates: item.coordinates || null,
-                      });
+                    /* Mobile (inlineExpand): toggle inline expansion.
+                       Clicking the same card again collapses it. */
+                    if (inlineExpand) {
+                      setExpandedStopId((prev) => prev === item.stopId ? null : item.stopId);
                     }
-                    /* SECONDARY: update active state + fly the map
-                       to the location. The modal opens in front; the
-                       user can see the map re-centre behind it. The
-                       bottom sheet / sidebar state is preserved. */
+                    /* Map flyTo + popup pin — runs on BOTH desktop
+                       and mobile so the map re-centres behind the
+                       sheet / sidebar. */
                     if (onSelectStop) {
                       onSelectStop({
                         stopId: item.stopId,
@@ -1190,6 +1246,11 @@ const StoryFlow = forwardRef(({ activeStopId, onSelectStop, onOpenDetail, onClos
                         name: item.titleHe || item.titleEn,
                       });
                     }
+                    /* DetailModal is deprecated for stop clicks — we
+                       use inline expand (mobile) or the map popup
+                       (desktop). The onOpenDetail prop is left in
+                       the signature for backward compat but no
+                       longer triggered on stop selection. */
                   }}
                 />
               </div>

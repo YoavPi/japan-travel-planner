@@ -256,6 +256,9 @@ const ExploreView = () => {
             {...storyProps}
             onClose={() => setPanelCollapsed(true)}
             compact={true}
+            /* Desktop: no inline expand, no modal — clicking a stop
+               only flies the map + shows the map popup. */
+            inlineExpand={false}
           />
         </div>
       )}
@@ -292,18 +295,17 @@ const ExploreView = () => {
           ref={storyMobRef}
           {...storyProps}
           compact={true}
+          /* Mobile: inline expansion inside the sheet. The detail
+             modal is no longer shown — tapping a card expands it
+             in place (atmosphere photo + full description). */
+          inlineExpand={true}
         />
       </BottomSheet>
 
-      {/* Detail modal portal */}
-      {modalData && (
-        <DetailModal
-          data={modalData}
-          onClose={handleCloseDetail}
-          onSelectDay={handleSelectDay}
-          onSelectLocation={(loc) => setSelectedLocation(loc)}
-        />
-      )}
+      {/* Detail modal has been REMOVED — stop selection now uses
+          inline expand (mobile) or the map popup (desktop). The
+          modalData state + setter are kept for backward compat
+          but no longer surface a UI. */}
     </div>
   );
 };
