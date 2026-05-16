@@ -489,8 +489,14 @@ const buildCityTransit = (transition) => {
         .replace(/\bmin\b/i, "דקות")
         .trim();
     })(),
-    depart:   `${transition.fromCityHe} ▶`,
-    arrive:   `◀ ${transition.toCityHe}`,
+    /* depart/arrive used to render `${cityHe} ▶` / `◀ ${cityHe}`
+       under each side of the transit card — but the city names
+       are already shown as the big FROM/TO labels above, so the
+       arrow strings produced a visible duplicate ("טוקיו" then
+       "טוקיו ▶" right below). We blank them out so the CityTransit
+       skips rendering them entirely. */
+    depart:   "",
+    arrive:   "",
     note:     transition.modeJa ? `${transition.mode} · ${transition.modeJa}` : "",
   };
 };

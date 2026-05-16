@@ -757,9 +757,11 @@ const CityTransit = ({ item }) => {
           >
             {item.fromHe || from.nameHe}
           </span>
-          <span className="mono" style={{ fontSize: 10, color: "var(--muted)", letterSpacing: "0.12em", marginTop: 2 }}>
-            {item.depart}
-          </span>
+          {item.depart && (
+            <span className="mono" style={{ fontSize: 10, color: "var(--muted)", letterSpacing: "0.12em", marginTop: 2 }}>
+              {item.depart}
+            </span>
+          )}
         </div>
 
         {/* Centre: transit-mode glyph + arrow pointing LEFT (the forward direction in RTL) */}
@@ -797,9 +799,11 @@ const CityTransit = ({ item }) => {
           >
             {item.toHe || to.nameHe}
           </span>
-          <span className="mono" style={{ fontSize: 10, color: "var(--muted)", letterSpacing: "0.12em", marginTop: 2 }}>
-            {item.arrive}
-          </span>
+          {item.arrive && (
+            <span className="mono" style={{ fontSize: 10, color: "var(--muted)", letterSpacing: "0.12em", marginTop: 2 }}>
+              {item.arrive}
+            </span>
+          )}
         </div>
       </div>
 
