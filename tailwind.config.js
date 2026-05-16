@@ -65,11 +65,14 @@ module.exports = {
         },
       },
       fontFamily: {
-        display: ['"Montserrat"', '"Noto Sans JP"', 'sans-serif'],
-        body: ['"Noto Sans JP"', '"Inter"', 'sans-serif'],
-        /* Home-page typography — Hebrew display + body */
-        serif: ['"Noto Serif Hebrew"', 'serif'],
-        sans:  ['"Noto Sans Hebrew"', '"Noto Sans JP"', 'sans-serif'],
+        /* Single unified font stack across the whole app. All four
+           Tailwind utilities (font-display / font-body / font-serif
+           / font-sans) resolve to the same stack as the Explore map
+           UI, so the Home page reads with identical typography. */
+        display: ['"Noto Sans Hebrew"', '"Inter"', '"Noto Sans JP"', 'sans-serif'],
+        body:    ['"Noto Sans Hebrew"', '"Inter"', '"Noto Sans JP"', 'sans-serif'],
+        serif:   ['"Noto Sans Hebrew"', '"Inter"', '"Noto Sans JP"', 'sans-serif'],
+        sans:    ['"Noto Sans Hebrew"', '"Inter"', '"Noto Sans JP"', 'sans-serif'],
       },
       borderWidth: {
         '6': '6px',

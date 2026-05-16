@@ -754,10 +754,9 @@ const HomePage = () => {
       style={{
         backgroundColor: "#F7F5F0",
         color: "#1C2333",
-        /* Force Noto Serif Hebrew as the global page font for a
-           premium, unified look. Sans falls back to Hebrew sans
-           inside specific elements that opt in via class. */
-        fontFamily: "'Noto Serif Hebrew', serif",
+        /* Single unified stack — matches the Explore/Map UI so the
+           Home page reads with identical typography. */
+        fontFamily: "'Noto Sans Hebrew', 'Inter', 'Noto Sans JP', sans-serif",
       }}
     >
       <Hero />
