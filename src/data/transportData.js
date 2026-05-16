@@ -94,16 +94,29 @@ export const cityTransitions = [
     duration: "~2 hours", icon: "car",
   },
   {
+    /* Day 24 evening drive back to Hakone — anchored to land
+       immediately after The Park Pancakes (the last morning stop
+       in Kawaguchiko before heading to Hotel Green Plaza Hakone). */
     fromCity: "Kawaguchiko", fromCityHe: "קוואגוצ׳יקו",
     toCity:   "Hakone",      toCityHe: "האקונה",
-    anchor:   { kind: "afterHeader", day: 24 },
+    anchor:   { kind: "afterStop", day: 24, stopName: "The Park Pancakes" },
+    mode: "Car", modeJa: "レンタカー",
+    duration: "~1.5 hours", icon: "car",
+  },
+  {
+    /* Day 25 second loop: after the Fuji viewpoint cluster
+       (Starbucks Kawaguchiko being the last of the four), they
+       drive back toward Hakone via Gotemba. */
+    fromCity: "Kawaguchiko", fromCityHe: "קוואגוצ׳יקו",
+    toCity:   "Hakone",      toCityHe: "האקונה",
+    anchor:   { kind: "afterStop", day: 25, stopName: "Starbucks Kawaguchiko" },
     mode: "Car", modeJa: "レンタカー",
     duration: "~1.5 hours", icon: "car",
   },
   {
     fromCity: "Hakone", fromCityHe: "האקונה",
     toCity:   "Tokyo",  toCityHe: "טוקיו",
-    anchor:   { kind: "afterHeader", day: 26 },
+    anchor:   { kind: "afterStop", day: 26, stopName: "Hakone Open Air Museum" },
     mode: "Car", modeJa: "レンタカー",
     duration: "~1.5 hours", icon: "car",
   },

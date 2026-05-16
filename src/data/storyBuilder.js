@@ -73,24 +73,38 @@ const normalizedCityName = (city) => {
         firstDay, visits }   // 'firstDay' for sorting, 'visits' for badges */
 export const getChronologicalCityPath = () => {
   const seen = new Map(); /* norm → entry */
-  tripData.forEach((day) => {
-    const norm = normalizedCityName(day.city);
+  const addDayToCity = (norm, dayNum) => {
+    if (!norm) return;
     if (!seen.has(norm)) {
       seen.set(norm, {
         norm,
         cityIdx: STORY_CITIES.findIndex((c) => c.nameEn === norm) + 1 || 1,
-        days: new Set([day.day]),
-        firstDay: day.day,
+        days: new Set([dayNum]),
+        firstDay: dayNum,
         visits: 1,
-        _lastDay: day.day,
+        _lastDay: dayNum,
       });
     } else {
       const e = seen.get(norm);
-      e.days.add(day.day);
-      /* A new visit = non-contiguous day */
-      if (day.day - e._lastDay > 1) e.visits += 1;
-      e._lastDay = day.day;
+      if (!e.days.has(dayNum)) {
+        if (dayNum - e._lastDay > 1) e.visits += 1;
+        e.days.add(dayNum);
+        e._lastDay = dayNum;
+      }
     }
+  };
+  tripData.forEach((day) => {
+    /* Primary: lodging-based city for the day */
+    addDayToCity(normalizedCityName(day.city), day.day);
+    /* Per-stop override: any attraction may declare its own city
+       (e.g. Day 9 stops in Matsumoto while the hotel is in Nagoya).
+       Surface that day under those cities too so the filter picks
+       them up. */
+    (day.attractions || []).forEach((a) => {
+      if (a.city && a.city !== day.city) {
+        addDayToCity(normalizedCityName(a.city), day.day);
+      }
+    });
   });
 
   return Array.from(seen.values())
@@ -457,7 +471,7 @@ const buildHotel = (day, dayIdx, sameHotelStreak) => {
 
 /* ─── City-transit milestone (Shinkansen / bus / car) ─── */
 const TRANSIT_LINE_HE = {
-  shinkansen: "הוקוריקו שינקנסן",
+  shinkansen: "שינקנסן (רכבת מהירה)",
   bus:        "אוטובוס מהיר",
   train:      "JR — רכבת מהירה",
   car:        "רכב שכור",
@@ -575,7 +589,11 @@ export const buildStory = ({ cityKey = null, category = null } = {}) => {
     /* Build raw stops + filter by category */
     const rawStops = stopsForDay(day);
     const visibleStops = rawStops
-      .map((rawStop, i) => buildStop({ ...rawStop, city: day.city }, day.day, i + 1))
+      /* Per-stop city OVERRIDE: if an attraction declares its own
+         `city` field in tripData (e.g. Day 9 has stops physically
+         in Matsumoto even though the day's lodging is in Nagoya),
+         that wins. Falls back to the day's city. */
+      .map((rawStop, i) => buildStop({ city: day.city, ...rawStop }, day.day, i + 1))
       .filter((stop) => stopMatchesCategory(stop, category));
 
     /* For 'hotels' category, skip day if no hotel; otherwise show

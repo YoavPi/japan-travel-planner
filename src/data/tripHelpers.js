@@ -211,7 +211,7 @@ const ATMOSPHERE_FILE = {
    5: "day05_3d-billboard.jpg",
    6: "day06_kenrokuen.jpg",
    7: "day07_shirakawago.jpg",
-   8: "day08_hirayu-ski.jpg",
+   8: "day08_hiryu-ski.jpg",
    9: "day09_matsumoto-castle.jpg",
   10: "day10_osaka-castle.jpg",
   11: "day11_nintendo-world.jpg",

@@ -39,7 +39,7 @@ export const dayHeroImages = {
   19: UNS("1540959733332-eab206aee64d", 900, 400),  // Tokyo street
   20: UNS("1576495199011-eb94736d05d4", 900, 400),  // Ueno sakura
   21: UNS("1558618666-fcd25c85f1aa", 900, 400),     // Akihabara
-  22: UNS("1558618666-fcd25c85f1aa", 900, 400),     // teamLab / Odaiba
+  22: UNS("1558618666-fcd25c85f1aa", 900, 400),     // TeamLab / Odaiba
   // Fuji area
   23: UNS("1490806843957-31f4c9a91c65", 900, 400),  // Mt Fuji & lake
   24: UNS("1492571350019-22de08371fd3", 900, 400),  // Hakone
@@ -110,12 +110,12 @@ export const attractionImages = {
   "Hokanji Pagoda":            UNS("1545569341-9eb8b30979d9", 400, 300),
   "Starbucks Ninenzaka":       UNS("1504198453319-5ce911bafcde", 400, 300),
   "Hokanji Morning Photos":    UNS("1545569341-9eb8b30979d9", 400, 300),
-  "UZU Ramen (teamLab)":       UNS("1557872943-16a5ac26437e", 400, 300),
+  "UZU Ramen (TeamLab)":       UNS("1557872943-16a5ac26437e", 400, 300),
   // More Tokyo
   "Akihabara":                 UNS("1558618666-fcd25c85f1aa", 400, 300),
   "Super Potato":              UNS("1558618666-fcd25c85f1aa", 400, 300),
   "Radio Kaikan":              UNS("1558618666-fcd25c85f1aa", 400, 300),
-  "teamLab Planets":           UNS("1558618666-fcd25c85f1aa", 400, 300),
+  "TeamLab Planets":           UNS("1558618666-fcd25c85f1aa", 400, 300),
   "Katsuobushi Shibuya":       UNS("1557872943-16a5ac26437e", 400, 300),
   "Ueno Park":                 UNS("1576495199011-eb94736d05d4", 400, 300),
   "Kappabashi Street":         UNS("1570521462033-3015e76e7432", 400, 300),
@@ -152,7 +152,7 @@ export const foodImages = {
   "GION DUCK":                 UNS("1553621042-f6e147245754", 400, 250),
   "Gyoza Motoi":               UNS("1553621042-f6e147245754", 400, 250),
   "Kuromon Ichiba Market":     UNS("1553621042-f6e147245754", 400, 250),
-  "UZU Ramen (teamLab)":       UNS("1557872943-16a5ac26437e", 400, 250),
+  "UZU Ramen (TeamLab)":       UNS("1557872943-16a5ac26437e", 400, 250),
   "Ramen HAYASHI":             UNS("1557872943-16a5ac26437e", 400, 250),
   "HIRUKA Roppongi":           UNS("1553621042-f6e147245754", 400, 250),
   "Standing Sushi Shibuya":    UNS("1579871494447-9811cf80d66c", 400, 250),
@@ -241,8 +241,8 @@ export const vibeDescriptions = {
     "פנינה קולינרית המופיעה במדריך מישלן, המגישה גיוזה מוקפדת עם שילובי טעמים מפתיעים כמו ג'ינג'ר וכוסברה.",
   "GION DUCK":
     "מסעדה מיוחדת המתמחה במנות ברווז המוגשות על אורז, עם עיצוב מינימליסטי ודגש על חומרי גלם איכותיים.",
-  "UZU Ramen (teamLab)":
-    "חוויה סוריאליסטית של אכילת ראמן טבעוני בתוך מיצב אמנות דיגיטלי של teamLab, שילוב בין טעם לאסתטיקה מרהיבה.",
+  "UZU Ramen (TeamLab)":
+    "חוויה סוריאליסטית של אכילת ראמן טבעוני בתוך מיצב אמנות דיגיטלי של TeamLab, שילוב בין טעם לאסתטיקה מרהיבה.",
 
   // ── פוג'י והאקונה ──
   "Lake Kawaguchiko":

@@ -193,7 +193,7 @@ export const locationPhotos = {
   // ───── Day 18 — Kyoto ─────
   "Hokanji Morning Photos": "day18_hokanji-morning.jpg",
   "Starbucks Ninenzaka": "day18_starbucks-ninenzaka.jpg",
-  "UZU Ramen (teamLab)": "day18_uzu-teamlab.jpg",
+  "UZU Ramen (TeamLab)": "day18_uzu-teamlab.jpg",
 
   // ───── Day 19 — Tokyo ─────
   "Shinkansen to Tokyo": "day19_shinkansen-tokyo.jpg",
@@ -217,7 +217,7 @@ export const locationPhotos = {
   "LAWSON Minato Roppongi Dori": "day21_dinner_lawson.jpg",
 
   // ───── Day 22 — Tokyo ─────
-  "teamLab Planets": "day22_teamlab-planets.jpg",
+  "TeamLab Planets": "day22_teamlab-planets.jpg",
   "Odaiba — Gundam": "day22_gundam.jpg",
   "Electric Go-Kart Odaiba": "day22_gokart.jpg",
   "Ginza Uniqlo (12 Floors)": "day22_ginza-uniqlo.jpg",

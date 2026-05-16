@@ -242,52 +242,39 @@ const ExploreView = () => {
           macroSignal={macroSignal}
         />
 
-        {/* Desktop map-overlay buttons — top-left cluster
-            (Home, Whole Trip, Expand Map) */}
+        {/* Map-overlay buttons — single cluster shown on both mobile
+            and desktop. Used to render twice (pills on desktop +
+            tiny duplicate icons on mobile) which created the
+            visible orphan-button stack at top-right. */}
         <div
-          className="hidden lg:flex"
           style={{
             position: "absolute",
-            top: 16, left: 64,
+            top: 16, left: 16,
             display: "flex", gap: 8,
             zIndex: 10,
+            flexWrap: "wrap",
           }}
         >
           <Link to="/" title="חזרה לבית" style={overlayBtn}>
-            <MetaIcon name="home" color="#1C2333" />
-            <span style={{ fontSize: 11, fontFamily: "DM Sans, system-ui" }}>בית</span>
+            <MetaIcon name="home" color="#FDFCF7" />
+            <span style={{ fontSize: 11 }}>בית</span>
           </Link>
           <button onClick={handleMacroView} title="כל הטיול" style={overlayBtn}>
-            <MetaIcon name="globe" color="#1C2333" />
-            <span style={{ fontSize: 11, fontFamily: "DM Sans, system-ui" }}>כל הטיול</span>
+            <MetaIcon name="globe" color="#FDFCF7" />
+            <span style={{ fontSize: 11 }}>כל הטיול</span>
           </button>
+          {/* "הרחב מפה" only makes sense on desktop where a sidebar
+              exists to collapse. Hidden on mobile. */}
           <button
             onClick={() => setPanelCollapsed((v) => !v)}
             title={panelCollapsed ? "פתח את הסיפור" : "הרחב מפה"}
             style={overlayBtn}
+            className="hidden lg:inline-flex"
           >
-            <MetaIcon name="expand" color="#1C2333" />
-            <span style={{ fontSize: 11, fontFamily: "DM Sans, system-ui" }}>
+            <MetaIcon name="expand" color="#FDFCF7" />
+            <span style={{ fontSize: 11 }}>
               {panelCollapsed ? "פתח סיפור" : "הרחב מפה"}
             </span>
-          </button>
-        </div>
-
-        {/* Mobile top-right cluster — minimal (Home + Whole Trip) */}
-        <div
-          className="lg:hidden"
-          style={{
-            position: "absolute",
-            top: 12, right: 12,
-            display: "flex", flexDirection: "column", gap: 8,
-            zIndex: 10,
-          }}
-        >
-          <Link to="/" title="בית" style={{ ...miniBtn, padding: 8 }}>
-            <MetaIcon name="home" color="#1C2333" size={14} />
-          </Link>
-          <button onClick={handleMacroView} title="כל הטיול" style={{ ...miniBtn, padding: 8 }}>
-            <MetaIcon name="globe" color="#1C2333" size={14} />
           </button>
         </div>
       </div>
@@ -373,35 +360,32 @@ const ExploreView = () => {
 };
 
 /* ─── Overlay button styles — solid black to mirror the home-page
-   "Interactive Map" CTA. Clean and high-contrast on top of the map. */
+   "Interactive Map" CTA. Clean and high-contrast on top of the
+   map. flex-centered on both axes so the icon + label stay
+   perfectly aligned regardless of label length. */
 const overlayBtn = {
-  height: 32,
-  padding: "0 14px",
+  height: 36,
+  padding: "0 16px",
   border: "1px solid #1C2333",
   background: "#1C2333",
   borderRadius: 18,
   cursor: "pointer",
-  display: "flex",
+  display: "inline-flex",
   alignItems: "center",
+  justifyContent: "center",
+  textAlign: "center",
   gap: 6,
   boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
   color: "#FDFCF7",
   textDecoration: "none",
   fontWeight: 600,
+  whiteSpace: "nowrap",
+  lineHeight: 1,
 };
 
-const miniBtn = {
-  width: 36, height: 36,
-  border: "1px solid #1C2333",
-  background: "#1C2333",
-  borderRadius: 10,
-  cursor: "pointer",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
-  color: "#FDFCF7",
-  textDecoration: "none",
-};
+/* miniBtn removed — the mobile mini-icon cluster was a duplicate
+   of the pill cluster and triggered the visible "orphan buttons"
+   stack at top-right. The single overlayBtn cluster now serves
+   both viewports. */
 
 export default ExploreView;

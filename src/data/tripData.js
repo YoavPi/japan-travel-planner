@@ -520,13 +520,13 @@ const tripData = [
         desc: "סניף סטארבקס מיוחד בבית מסורתי, ישיבה על טאטאמי",
         rating: "8/10",
         coordinates: { lng: 135.7804, lat: 34.9984 } },
-      { name: "UZU Ramen (teamLab)", category: "ראמן", nameJa: "UZU ラーメン（チームラボ）", nameHe: "אוזו ראמן (טים-לאב)",
+      { name: "UZU Ramen (TeamLab)", category: "ראמן", nameJa: "UZU ラーメン（チームラボ）", nameHe: "אוזו ראמן (טים-לאב)",
         desc: "מסעדה של מוזיאון הטיים-לאב, חוויה צמחונית של אוכל ואומנות! להזמין מקום מראש! מומלץ מאוד",
         rating: "10/10",
         coordinates: { lng: 135.7690, lat: 35.0020 } },
     ],
     lunch:  { place: "Starbucks Ninenzaka" },
-    dinner: { place: "UZU Ramen (teamLab)" },
+    dinner: { place: "UZU Ramen (TeamLab)" },
     tips: [],
     hotel: "Hotel Resol Kyoto Shijo Muromachi", expenses: { accommodation: "כלול", highlights: "UZU RAMEN — 10/10" }, images: [],
   },
@@ -617,12 +617,12 @@ const tripData = [
     hotel: "Act Hotel Roppongi", expenses: { accommodation: "כלול", highlights: "קצובושי, אקיהבארה" }, images: [],
   },
 
-  /* ════════════════ DAY 22 — Tokyo (teamLab Planets + Odaiba) ════════════════ */
+  /* ════════════════ DAY 22 — Tokyo (TeamLab Planets + Odaiba) ════════════════ */
   {
     day: 22, title: "יום 22 - טוקיו", city: "Tokyo", cityHe: "טוקיו",
     coordinates: { lng: 139.7745, lat: 35.6268 },
     attractions: [
-      { name: "teamLab Planets", category: "מוזיאון", nameJa: "チームラボプラネッツ", nameHe: "טים-לאב פלנטס",
+      { name: "TeamLab Planets", category: "מוזיאון", nameJa: "チームラボプラネッツ", nameHe: "טים-לאב פלנטס",
         desc: "מוזיאון מיוחד ומהמם! להזמין את השעה הכי מוקדמת שאפשר (לפני שהמוזיאון מתמלא). יש מספר סניפים ברחבי יפן, כל אחד שונה",
         coordinates: { lng: 139.7843, lat: 35.6525 } },
       { name: "Vegan Ramen UZU Tokyo", category: "ראמן", nameJa: "UZU Tokyo", nameHe: "אוזו טוקיו — ראמן טבעוני",
@@ -677,10 +677,10 @@ const tripData = [
 
   /* ════════════════ DAY 24 — Hakone (Kawaguchi morning → Hakone) ════════════════ */
   {
-    day: 24, title: "יום 24 - האקונה", city: "Hakone", cityHe: "האקונה",
+    day: 24, title: "יום 24 - קוואגוצ'י", city: "Hakone", cityHe: "קוואגוצ'י",
     coordinates: { lng: 139.0261, lat: 35.2326 },
     attractions: [
-      { name: "Hakone Viewpoints", category: "תצפית", nameJa: "箱根展望台", nameHe: "נקודות תצפית האקונה",
+      { name: "Kawaguchiko Viewpoints", category: "תצפית", nameJa: "河口湖展望台", nameHe: "נקודות תצפית קוואגוצ'יקו",
         desc: "זריחה מעוננת, יצאנו להסתובב באזור",
         coordinates: { lng: 139.0200, lat: 35.2350 }, city: "Kawaguchiko", cityHe: "קוואגוצ'יקו" },
       { name: "The Park Pancakes", category: "מסעדה", nameJa: "ザ・パーク パンケーキ", nameHe: "פנקייקים — דה פארק",
@@ -721,14 +721,14 @@ const tripData = [
       { name: "Gotemba Premium Outlets", category: "קניות", nameJa: "御殿場プレミアム・アウトレット", nameHe: "גוטמבה אאוטלט",
         desc: "שווה ממש! יש לולולמון ועוד מגוון מותגים",
         coordinates: { lng: 138.9348, lat: 35.2895 } },
-      { name: "Kawaguchiko Area", category: "טבע", nameJa: "河口湖エリア", nameHe: "אזור קוואגוצ'י",
+      { name: "ShakeShack", category: "מסעדה", nameJa: "シェイクシャック", nameHe: "שייק שאק",
         desc: "אכלנו Shake Shack במתחם האוכל של ה-Outlet", link: "https://maps.app.goo.gl/qXGegftY5SQWaXc28?g_st=iw",
         coordinates: { lng: 138.7529, lat: 35.5117 }, city: "Kawaguchiko", cityHe: "קוואגוצ'יקו" },
       { name: "Onsen & Sunset", category: "אונסן", nameJa: "温泉と夕日", nameHe: "אונסן ושקיעה",
         desc: "סיימנו עייפים ומרוצים",
         coordinates: { lng: 139.0261, lat: 35.2326 } },
     ],
-    lunch:  { place: "Kawaguchiko Area" },
+    lunch:  { place: "ShakeShack" },
     dinner: { place: "—" },
     tips: [],
     hotel: "Hotel Green Plaza Hakone", expenses: { accommodation: "כלול", highlights: "אאוטלט, אונסן" }, images: [],
