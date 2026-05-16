@@ -1094,7 +1094,7 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
               style={{
                 fontSize: "7px",
                 fontWeight: 900,
-                fontFamily: "Montserrat, sans-serif",
+                fontFamily: "inherit",
                 color: "#1C1917",
                 lineHeight: 1,
                 textAlign: "center",
@@ -1109,7 +1109,7 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
               style={{
                 fontSize: "13px",
                 fontWeight: 800,
-                fontFamily: "Montserrat, Noto Sans JP, sans-serif",
+                fontFamily: "inherit",
                 color: "#1C1917",
                 margin: 0,
                 letterSpacing: "-0.3px",
@@ -1122,7 +1122,7 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
                 fontSize: "9px",
                 color: "#78716C",
                 margin: "1px 0 0",
-                fontFamily: "Noto Sans JP, sans-serif",
+                fontFamily: "inherit",
               }}
             >
               31 Days • 9 Cities • 日本旅行
@@ -1137,19 +1137,19 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <div style={{ width: "20px", height: "3px", backgroundColor: "#D94025", borderRadius: "2px" }} />
-            <span style={{ fontSize: "9px", color: "#57534E", fontFamily: "Montserrat, sans-serif", fontWeight: 600 }}>
+            <span style={{ fontSize: "9px", color: "#57534E", fontFamily: "inherit", fontWeight: 600 }}>
               Travel Route
             </span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <div style={{ width: "20px", height: "0", borderTop: "2px dashed #DED4BA" }} />
-            <span style={{ fontSize: "9px", color: "#57534E", fontFamily: "Montserrat, sans-serif", fontWeight: 600 }}>
+            <span style={{ fontSize: "9px", color: "#57534E", fontFamily: "inherit", fontWeight: 600 }}>
               Daily Path
             </span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <div style={{ width: "20px", height: "0", borderTop: "2px dashed #D94025", opacity: 0.5 }} />
-            <span style={{ fontSize: "9px", color: "#57534E", fontFamily: "Montserrat, sans-serif", fontWeight: 600 }}>
+            <span style={{ fontSize: "9px", color: "#57534E", fontFamily: "inherit", fontWeight: 600 }}>
               In-Day Route
             </span>
           </div>
@@ -1158,7 +1158,7 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
               <circle cx="10" cy="10" r="6" fill="#D94025" stroke="#FDFBF5" strokeWidth="2" />
               <circle cx="10" cy="10" r="2.5" fill="#FDFBF5" />
             </svg>
-            <span style={{ fontSize: "9px", color: "#57534E", fontFamily: "Montserrat, sans-serif", fontWeight: 600 }}>
+            <span style={{ fontSize: "9px", color: "#57534E", fontFamily: "inherit", fontWeight: 600 }}>
               Location
             </span>
           </div>
@@ -1167,7 +1167,7 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
 
       {/* ═══ City color legend (bottom-left) ═══ */}
       <div className="absolute bottom-6 left-12 bg-cream-50/95 backdrop-blur-sm rounded-lg px-3 py-2.5 shadow-lg border border-cream-300 hidden lg:block">
-        <p style={{ fontSize: "8px", fontWeight: 700, color: "#78716C", fontFamily: "Montserrat", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "4px" }}>
+        <p style={{ fontSize: "8px", fontWeight: 700, color: "#78716C", fontFamily: "inherit", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "4px" }}>
           Cities
         </p>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "3px", maxWidth: "180px" }}>
@@ -1187,7 +1187,7 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
                 }}
               >
                 <div style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: c.bg }} />
-                <span style={{ fontSize: "8px", color: "#57534E", fontFamily: "Montserrat", fontWeight: 600 }}>
+                <span style={{ fontSize: "8px", color: "#57534E", fontFamily: "inherit", fontWeight: 600 }}>
                   {city}
                 </span>
               </div>
@@ -1242,7 +1242,7 @@ const DayInfoCard = ({ data, onSelectBullet }) => {
   );
 
   return (
-    <div style={{ fontFamily: "Noto Sans JP, sans-serif", overflow: "hidden", borderRadius: "10px", maxWidth: "280px" }}>
+    <div style={{ fontFamily: "inherit", overflow: "hidden", borderRadius: "10px", maxWidth: "280px" }}>
       {/* Line-art hero header */}
       <div style={{ width: "100%", height: "70px", overflow: "hidden", position: "relative", backgroundColor: "#FAF8F3" }}>
         <div style={{ position: "absolute", right: "4px", top: "50%", transform: "translateY(-50%)", opacity: 0.3 }}>
@@ -1252,13 +1252,13 @@ const DayInfoCard = ({ data, onSelectBullet }) => {
           <div style={{
             width: "24px", height: "24px", borderRadius: "4px", backgroundColor: colors.bg,
             display: "flex", alignItems: "center", justifyContent: "center",
-            color: colors.text, fontSize: "10px", fontWeight: 800, fontFamily: "Montserrat",
+            color: colors.text, fontSize: "10px", fontWeight: 800, fontFamily: "inherit",
             border: "1.5px solid " + colors.border,
           }}>
             {data.day}
           </div>
           <div>
-            <p style={{ fontWeight: 700, fontSize: "12px", color: "#1C1917", margin: 0, fontFamily: "Montserrat" }}>
+            <p style={{ fontWeight: 700, fontSize: "12px", color: "#1C1917", margin: 0, fontFamily: "inherit" }}>
               {data.city}
             </p>
             <p style={{ fontSize: "9px", color: "#78716C", margin: 0 }} dir="rtl">
@@ -1320,7 +1320,7 @@ const DayInfoCard = ({ data, onSelectBullet }) => {
               <ActivityIcons.food size={13} color="#C4A048" />
             </div>
             <div style={{ minWidth: 0, flex: 1 }}>
-              <span style={{ fontSize: "8px", fontWeight: 800, color: "#C4A048", textTransform: "uppercase", letterSpacing: "0.5px", fontFamily: "Montserrat" }}>Lunch 昼食</span>
+              <span style={{ fontSize: "8px", fontWeight: 800, color: "#C4A048", textTransform: "uppercase", letterSpacing: "0.5px", fontFamily: "inherit" }}>Lunch 昼食</span>
               <span style={{ fontSize: "11px", fontWeight: 600, color: "#292524", display: "block", lineHeight: 1.25 }}>{data.lunch.place}</span>
             </div>
             {data.lunch.coordinates && onSelectBullet && (
@@ -1346,7 +1346,7 @@ const DayInfoCard = ({ data, onSelectBullet }) => {
               <ActivityIcons.food size={13} color="#D94025" />
             </div>
             <div style={{ minWidth: 0, flex: 1 }}>
-              <span style={{ fontSize: "8px", fontWeight: 800, color: "#D94025", textTransform: "uppercase", letterSpacing: "0.5px", fontFamily: "Montserrat" }}>Dinner 夕食</span>
+              <span style={{ fontSize: "8px", fontWeight: 800, color: "#D94025", textTransform: "uppercase", letterSpacing: "0.5px", fontFamily: "inherit" }}>Dinner 夕食</span>
               <span style={{ fontSize: "11px", fontWeight: 600, color: "#292524", display: "block", lineHeight: 1.25 }}>{data.dinner.place}</span>
             </div>
             {data.dinner.coordinates && onSelectBullet && (
@@ -1380,7 +1380,7 @@ const DayInfoCard = ({ data, onSelectBullet }) => {
               🏨
             </div>
             <div style={{ minWidth: 0, flex: 1 }}>
-              <span style={{ fontSize: "8px", fontWeight: 800, color: "#5C7A2E", textTransform: "uppercase", letterSpacing: "0.5px", fontFamily: "Montserrat" }}>Hotel ホテル</span>
+              <span style={{ fontSize: "8px", fontWeight: 800, color: "#5C7A2E", textTransform: "uppercase", letterSpacing: "0.5px", fontFamily: "inherit" }}>Hotel ホテル</span>
               <span style={{ fontSize: "11px", fontWeight: 600, color: "#292524", display: "block", lineHeight: 1.25 }}>{data.hotel}</span>
             </div>
             {onSelectBullet && (
@@ -1431,7 +1431,7 @@ const SubLocationInfoCard = ({ loc, onOpenFullDetail }) => {
     <div
       dir="rtl"
       style={{
-        fontFamily: "'Noto Serif Hebrew', 'Noto Sans JP', sans-serif",
+        fontFamily: "inherit",
         overflow: "hidden",
         borderRadius: "12px",
         width: "280px",

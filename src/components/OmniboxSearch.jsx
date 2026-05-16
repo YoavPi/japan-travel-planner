@@ -203,7 +203,10 @@ const OmniboxSearch = ({ onSelect, variant = "desktop" }) => {
                 placeholder="חפש לוקיישן, יום או קטגוריה…"
                 style={{
                   flex: 1, border: "none", outline: "none",
-                  background: "transparent", fontSize: 14,
+                  background: "transparent",
+                  /* iOS Safari auto-zooms when an input has font-size < 16px.
+                     16px here suppresses the focus-zoom on mobile. */
+                  fontSize: 16,
                   fontFamily: "inherit", direction: "rtl",
                   textAlign: "right", color: "var(--ink)",
                 }}
