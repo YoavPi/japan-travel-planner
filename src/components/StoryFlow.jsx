@@ -218,12 +218,29 @@ const TransitSegment = ({ item, compact }) => {
         direction: "rtl",
       }}
     >
+      {/* Interrupted timeline — render two short dashed segments
+          that explicitly STOP above the transit badge and RESUME
+          below it, instead of one continuous line masked by the
+          pill's background. Gap = pill height (~34px) + 6px
+          breathing room above and below. */}
       <div
         aria-hidden
         style={{
           position: "absolute",
           top: 0,
+          height: "calc(50% - 22px)",
+          left: lineLeft,
+          width: 1,
+          background: "repeating-linear-gradient(to bottom, rgba(28,35,51,0.18) 0 4px, transparent 4px 8px)",
+          transform: "translateX(-0.5px)",
+        }}
+      />
+      <div
+        aria-hidden
+        style={{
+          position: "absolute",
           bottom: 0,
+          height: "calc(50% - 22px)",
           left: lineLeft,
           width: 1,
           background: "repeating-linear-gradient(to bottom, rgba(28,35,51,0.18) 0 4px, transparent 4px 8px)",

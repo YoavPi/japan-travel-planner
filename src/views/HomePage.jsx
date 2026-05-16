@@ -484,9 +484,13 @@ const Timeline = () => {
 const GalleryCard = ({ card, index }) => {
   const [ref, visible] = useVisible(0.06);
   return (
-    <div
+    /* Deep-link the gallery card to the interactive map filtered
+       on the day it represents. ExploreView reads `?day=N` on
+       mount and triggers flyTo + scroll-to-day. */
+    <Link
       ref={ref}
-      className="gallery-card group cursor-pointer overflow-hidden"
+      to={`/map?day=${card.day}`}
+      className="gallery-card group cursor-pointer overflow-hidden no-underline block"
       style={{
         opacity: visible ? 1 : 0,
         transform: visible ? "none" : "scale(0.96)",
@@ -565,7 +569,7 @@ const GalleryCard = ({ card, index }) => {
           {card.captionHe}
         </div>
       </div>
-    </div>
+    </Link>
   );
 };
 

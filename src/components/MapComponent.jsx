@@ -1420,8 +1420,11 @@ const SubLocationInfoCard = ({ loc, onOpenFullDetail }) => {
                   : loc.type === "hotel"  ? "#5C7A2E"
                   : "#8F2818";
   const Icon = loc.type === "lunch" || loc.type === "dinner" ? ActivityIcons.food : getPopupIcon(loc.name);
-  /* Curated `desc` from tripData wins; `vibeDescriptions` is fallback only. */
-  const vibe = loc.desc || vibeDescriptions[loc.name];
+  /* Description text is ALWAYS sourced from tripData.desc — the
+     exact same field the list views render. vibeDescriptions[]
+     is no longer used as a fallback so the map popup and the
+     list panel show identical, de-duplicated text everywhere. */
+  const vibe = loc.desc || "";
   const photo = getLocationPhoto(loc.name);
 
   return (
