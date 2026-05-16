@@ -54,8 +54,23 @@ const CATEGORIES = [
      compact           boolean       — true on mobile (no zigzag)
    ══════════════════════════════════════════════════════════════ */
 
-/* ───────── Day pill row (top of panel) ───────── */
+/* ───────── Day pill row (top of panel) ─────────
+   Auto-centres the active pill in the row whenever activeDay
+   changes — driven by both explicit clicks and by the scrollspy
+   in the parent. block:'nearest' constrains the scroll to the
+   row's horizontal axis only. */
 const DayPillRow = ({ activeDay, onSelectDay }) => {
+  const rowRef = useRef(null);
+  const pillRefs = useRef({});
+
+  useEffect(() => {
+    if (!activeDay) return;
+    const btn = pillRefs.current[activeDay];
+    if (btn && typeof btn.scrollIntoView === "function") {
+      btn.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" });
+    }
+  }, [activeDay]);
+
   /* Build the day list from STORY (one entry per day-header) */
   const days = useMemo(() => {
     const story = buildStory();
@@ -77,6 +92,7 @@ const DayPillRow = ({ activeDay, onSelectDay }) => {
 
   return (
     <div
+      ref={rowRef}
       className="pill-row"
       style={{
         display: "flex",
@@ -110,6 +126,7 @@ const DayPillRow = ({ activeDay, onSelectDay }) => {
         return (
           <button
             key={d.day}
+            ref={(el) => { pillRefs.current[d.day] = el; }}
             onClick={() => onSelectDay && onSelectDay(d.day)}
             style={{
               flexShrink: 0,
@@ -1030,13 +1047,21 @@ const InfoBar = ({ activeCityKey, activeCategory, onCityChange, onCategoryChange
 /* ══════════════════════════════════════════════════════════════
    MAIN COMPONENT
    ══════════════════════════════════════════════════════════════ */
-const StoryFlow = forwardRef(({ activeStopId, onSelectStop, onOpenDetail, onClose, activeDay, onSelectDay, activeCityKey = null, activeCategory = null, onCityChange, onCategoryChange, onClearFilters, compact = false, inlineExpand = false }, ref) => {
+const StoryFlow = forwardRef(({ activeStopId, onSelectStop, onOpenDetail, onClose, activeDay, onSelectDay, activeCityKey = null, activeCategory = null, onCityChange, onCategoryChange, onClearFilters, compact = false, inlineExpand = false, onSheetStepUp, onSheetStepDown }, ref) => {
   const scrollerRef = useRef(null);
   const stopRefs = useRef({});
   const dayRefs = useRef({});
   /* Inline-expand: track which stop is currently expanded (mobile
      only). Toggled on card click. Null = nothing expanded. */
   const [expandedStopId, setExpandedStopId] = useState(null);
+  /* Scrollspy state: which day-header is currently topmost in the
+     viewport. Distinct from activeDay (which is the click-driven
+     scroll TARGET) so the two don't form a feedback loop. */
+  const [visibleDay, setVisibleDay] = useState(null);
+  /* Suppress scrollspy briefly while a programmatic click-driven
+     scroll is in flight — otherwise the intermediate days the
+     animation passes through would steal the pill highlight. */
+  const scrollspyLockRef = useRef(0);
 
   const story = useMemo(
     () => buildStory({ cityKey: activeCityKey, category: activeCategory }),
@@ -1085,6 +1110,96 @@ const StoryFlow = forwardRef(({ activeStopId, onSelectStop, onOpenDetail, onClos
       cancelAnimationFrame(raf2);
     };
   }, [activeStopId, activeDay, story]);
+
+  /* When the parent triggers a click-driven scroll (activeDay /
+     activeStopId change), suppress the scrollspy briefly so it
+     doesn't steal the pill highlight while the smooth-scroll
+     animation passes over intermediate days. */
+  useEffect(() => {
+    scrollspyLockRef.current = Date.now() + 700;
+  }, [activeDay, activeStopId]);
+
+  /* ─── Reverse scrollspy (IntersectionObserver on day headers) ───
+     Watches the top 25% of the scroller viewport. When a day
+     header enters that band it becomes the "visible day", which
+     drives the pill-row highlight. We deliberately do NOT push
+     this back into activeDay (the click-driven prop) to avoid a
+     feedback loop with the auto-scroll effect above. */
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (Date.now() < scrollspyLockRef.current) return;
+        const hits = entries
+          .filter((e) => e.isIntersecting)
+          .map((e) => ({
+            day: Number(e.target.getAttribute("data-day")),
+            top: e.boundingClientRect.top,
+          }))
+          .filter((x) => Number.isFinite(x.day))
+          .sort((a, b) => a.top - b.top);
+        if (hits.length > 0) setVisibleDay(hits[0].day);
+      },
+      {
+        root: scroller,
+        /* Trigger the "active day" change only when the header
+           reaches the top 25% of the scroller — feels natural,
+           matches the visual focus area. */
+        rootMargin: "0px 0px -75% 0px",
+        threshold: 0,
+      }
+    );
+    Object.entries(dayRefs.current).forEach(([day, el]) => {
+      if (el) {
+        el.setAttribute("data-day", String(day));
+        observer.observe(el);
+      }
+    });
+    return () => observer.disconnect();
+  }, [story]);
+
+  /* ─── Sheet-gesture coupling (mobile only) ───
+     • At sheet="half", any non-trivial scroll DOWN inside the list
+       promotes the sheet to "full" (Google-Maps style).
+     • At scrollTop≈0, a downward DRAG (touchmove past ~40px below
+       start) collapses the sheet one step (full→half→peek).
+     These run only when the parent wired the step callbacks. */
+  useEffect(() => {
+    if (!compact) return;
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    let touchStartY = null;
+    let triggered = false;
+
+    const onTouchStart = (e) => {
+      touchStartY = e.touches[0].clientY;
+      triggered = false;
+    };
+    const onTouchMove = (e) => {
+      if (touchStartY == null || triggered) return;
+      const dy = e.touches[0].clientY - touchStartY;
+      if (scroller.scrollTop <= 1 && dy > 40 && onSheetStepDown) {
+        triggered = true;
+        onSheetStepDown();
+      }
+    };
+    const onScroll = () => {
+      if (scroller.scrollTop > 6 && onSheetStepUp) {
+        /* idempotent — parent decides if it's already at full */
+        onSheetStepUp();
+      }
+    };
+
+    scroller.addEventListener("touchstart", onTouchStart, { passive: true });
+    scroller.addEventListener("touchmove",  onTouchMove,  { passive: true });
+    scroller.addEventListener("scroll",     onScroll,     { passive: true });
+    return () => {
+      scroller.removeEventListener("touchstart", onTouchStart);
+      scroller.removeEventListener("touchmove",  onTouchMove);
+      scroller.removeEventListener("scroll",     onScroll);
+    };
+  }, [compact, onSheetStepUp, onSheetStepDown]);
 
   /* Imperative API — same robust deferral so external callers
      (the map's pin click in ExploreView) hit the post-commit DOM. */
@@ -1188,7 +1303,11 @@ const StoryFlow = forwardRef(({ activeStopId, onSelectStop, onOpenDetail, onClos
 
       {/* Day pill row — primary navigation, sits directly under
           the title so the day grid is the first thing users scan. */}
-      <DayPillRow activeDay={activeDay} onSelectDay={onSelectDay} />
+      {/* Pill highlight prefers the scrollspy-driven visibleDay
+          when present so the active dot mirrors where the user is
+          actually reading. Falls back to activeDay (the click-
+          driven scroll target) on initial render. */}
+      <DayPillRow activeDay={visibleDay ?? activeDay} onSelectDay={onSelectDay} />
 
       {/* InfoBar — secondary filter (Phase A city → Phase B
           category). Lives BELOW the day grid so the hierarchy reads

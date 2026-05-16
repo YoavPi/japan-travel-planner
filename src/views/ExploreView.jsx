@@ -185,6 +185,20 @@ const ExploreView = () => {
     setActiveStopId(null);
   }, []);
 
+  /* Sheet-gesture callbacks for the mobile StoryFlow scrollspy:
+     stepping UP grows the sheet (peek → half → full); stepping
+     DOWN shrinks it. Idempotent at the endpoints. */
+  const handleSheetStepUp = useCallback(() => {
+    const cur = sheetRef.current?.getSnap?.();
+    if (cur === "peek") sheetRef.current?.snapTo?.("half");
+    else if (cur === "half") sheetRef.current?.snapTo?.("full");
+  }, []);
+  const handleSheetStepDown = useCallback(() => {
+    const cur = sheetRef.current?.getSnap?.();
+    if (cur === "full") sheetRef.current?.snapTo?.("half");
+    else if (cur === "half") sheetRef.current?.snapTo?.("peek");
+  }, []);
+
   const storyProps = useMemo(() => ({
     activeStopId,
     onSelectStop:    handleSelectStop,
@@ -343,6 +357,10 @@ const ExploreView = () => {
              modal is no longer shown — tapping a card expands it
              in place (atmosphere photo + full description). */
           inlineExpand={true}
+          /* Sheet-gesture coupling — scrolling inside the list grows
+             the sheet; overscrolling at the top shrinks it. */
+          onSheetStepUp={handleSheetStepUp}
+          onSheetStepDown={handleSheetStepDown}
         />
       </BottomSheet>
 
