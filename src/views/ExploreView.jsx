@@ -4,6 +4,7 @@ import MapComponent from "../components/MapComponent";
 import DetailModal from "../components/DetailModal";
 import BottomSheet from "../components/BottomSheet";
 import StoryFlow from "../components/StoryFlow";
+import OmniboxSearch from "../components/OmniboxSearch";
 import { MetaIcon } from "../components/StoryFlowGlyph";
 
 /* ══════════════════════════════════════════════════════════════
@@ -185,6 +186,39 @@ const ExploreView = () => {
     setActiveStopId(null);
   }, []);
 
+  /* Omnibox search → location selection.
+     Sync trio (matches the "עוד פרטים" handler):
+       1. Map flyTo via setSelectedLocation
+       2. Resolve stopId via buildStory and scroll the sheet /
+          sidebar to that stop
+       3. Mobile: expand the card inline (image + Maps button)
+       4. Snap the sheet to 'half' on mobile so the user sees both
+          map and list. */
+  const handleSearchSelect = useCallback((item) => {
+    if (!item) return;
+    setSelectedLocation({
+      lng: item.coordinates.lng,
+      lat: item.coordinates.lat,
+      name: item.name,
+    });
+    sheetRef.current?.snapTo?.("half");
+    import("../data/storyBuilder").then(({ buildStory }) => {
+      const story = buildStory();
+      const match = story.find((it) =>
+        it.type === "stop" &&
+        it.day === item.day &&
+        ((it.titleEn || "").trim() === item.name.trim())
+      );
+      if (match) {
+        setActiveStopId(match.stopId);
+        setTimeout(() => {
+          storyMobRef.current?.expandStop?.(match.stopId);
+          storyDeskRef.current?.scrollToStop?.(match.stopId);
+        }, 80);
+      }
+    });
+  }, []);
+
   /* Sheet-gesture callbacks for the mobile StoryFlow scrollspy:
      stepping UP grows the sheet (peek → half → full); stepping
      DOWN shrinks it. Idempotent at the endpoints. */
@@ -276,6 +310,15 @@ const ExploreView = () => {
               {panelCollapsed ? "פתח סיפור" : "הרחב מפה"}
             </span>
           </button>
+        </div>
+
+        {/* Omnibox search — circular icon on mobile (top-right),
+            permanent pill bar on desktop (top-right). */}
+        <div className="lg:hidden">
+          <OmniboxSearch variant="mobile" onSelect={handleSearchSelect} />
+        </div>
+        <div className="hidden lg:block">
+          <OmniboxSearch variant="desktop" onSelect={handleSearchSelect} />
         </div>
       </div>
 

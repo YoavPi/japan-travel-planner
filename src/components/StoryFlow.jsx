@@ -201,19 +201,16 @@ const DayHeader = ({ item }) => {
    its RIGHT side, with explicit padding so the pill never overlaps
    the spine or its neighbouring text. */
 const TransitSegment = ({ item, compact }) => {
-  const lineLeft = compact ? "calc(100% - 28px)" : "50%";
+  /* Spine sits 28px from the right edge (compact) or at 50%
+     (desktop). The transit pill is now ABSOLUTELY positioned
+     centered on the spine so it sits "between the broken
+     dashed segments" — the spine line stops cleanly above the
+     pill and resumes below it. */
+  const lineLeft = compact ? "calc(100% - 60px)" : "50%";
   return (
     <div
       style={{
         position: "relative",
-        display: "flex",
-        alignItems: "center",
-        /* In RTL, `flex-start` places items on the RIGHT — same side
-           as the spine. That's the design goal. */
-        justifyContent: compact ? "flex-start" : "center",
-        /* Extra right padding (52px) reserves a clean gutter to the
-           spine; the pill begins just left of it. */
-        padding: compact ? "4px 52px 4px 16px" : "4px 24px",
         height: 56,
         direction: "rtl",
       }}
@@ -249,37 +246,45 @@ const TransitSegment = ({ item, compact }) => {
       />
       <div
         style={{
-          position: "relative",
+          position: "absolute",
+          top: "50%",
+          left: lineLeft,
+          transform: "translate(-50%, -50%)",
           display: "inline-flex",
           alignItems: "center",
-          gap: 8,
-          padding: "6px 12px",
+          gap: 6,
+          padding: "5px 10px",
           background: "var(--paper)",
           border: "1px solid var(--line)",
-          borderRadius: 18,
-          fontSize: 11,
+          borderRadius: 16,
+          fontSize: 10.5,
           color: "var(--ink-2)",
           fontFamily: "inherit",
           boxShadow: "0 1px 0 rgba(255,255,255,0.6)",
+          whiteSpace: "nowrap",
+          /* Force the pill to read RTL but tag its internal order
+             so the walker icon sits on the right side. */
+          direction: "rtl",
+          zIndex: 2,
         }}
       >
         <span
           style={{
-            width: 22,
-            height: 22,
+            width: 20,
+            height: 20,
             borderRadius: "50%",
             background: "var(--ink)",
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
             color: "#FDFCF7",
+            flexShrink: 0,
           }}
         >
-          <Glyph name={item.mode} color="#FDFCF7" size={13} />
+          <Glyph name={item.mode} color="#FDFCF7" size={12} />
         </span>
-        <span style={{ fontWeight: 600, color: "var(--ink)" }}>{item.min} דק׳</span>
-        <span style={{ color: "var(--muted)" }}>·</span>
-        <span style={{ color: "var(--muted)" }}>{TRANSIT_LABEL_HE[item.mode]}</span>
+        <span style={{ fontWeight: 700, color: "var(--ink)" }}>{item.min}</span>
+        <span style={{ color: "var(--muted)" }}>דק׳</span>
         <span style={{ color: "var(--muted)" }}>·</span>
         <span style={{ color: "var(--muted)" }}>{item.dist}</span>
       </div>
@@ -350,7 +355,7 @@ const StopRow = ({ item, isActive, onClick, side, compact, inlineExpand, isExpan
         onClick={onClick}
         style={{
           position: "relative",
-          padding: "14px 56px 14px 16px",
+          padding: "14px 88px 14px 16px",
           cursor: item.coordinates ? "pointer" : "default",
           minHeight: 110,
         }}
@@ -361,7 +366,7 @@ const StopRow = ({ item, isActive, onClick, side, compact, inlineExpand, isExpan
           style={{
             position: "absolute",
             top: 0, bottom: 0,
-            left: "calc(100% - 28px)", width: 1,
+            left: "calc(100% - 60px)", width: 1,
             background: `repeating-linear-gradient(to bottom, ${accent}55 0 4px, transparent 4px 8px)`,
             transform: "translateX(-0.5px)",
           }}
@@ -372,7 +377,7 @@ const StopRow = ({ item, isActive, onClick, side, compact, inlineExpand, isExpan
           style={{
             position: "absolute",
             top: 16,
-            left: "calc(100% - 28px)",
+            left: "calc(100% - 60px)",
             transform: "translateX(-50%)",
             width: isActive ? 44 : 38,
             height: isActive ? 44 : 38,

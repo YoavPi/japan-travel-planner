@@ -723,7 +723,7 @@ const tripData = [
         coordinates: { lng: 138.9348, lat: 35.2895 } },
       { name: "ShakeShack", category: "מסעדה", nameJa: "シェイクシャック", nameHe: "שייק שאק",
         desc: "אכלנו Shake Shack במתחם האוכל של ה-Outlet", link: "https://maps.app.goo.gl/qXGegftY5SQWaXc28?g_st=iw",
-        coordinates: { lng: 138.7529, lat: 35.5117 }, city: "Kawaguchiko", cityHe: "קוואגוצ'יקו" },
+        coordinates: { lng: 138.7529, lat: 35.5117 }, city: "Hakone", cityHe: "האקונה" },
       { name: "Onsen & Sunset", category: "אונסן", nameJa: "温泉と夕日", nameHe: "אונסן ושקיעה",
         desc: "סיימנו עייפים ומרוצים",
         coordinates: { lng: 139.0261, lat: 35.2326 } },
