@@ -532,8 +532,6 @@ const buildHotelStreaks = () => {
    ══════════════════════════════════════════════════════════════ */
 export const buildStory = ({ cityKey = null, category = null } = {}) => {
   const items = [];
-  const transitionsAfterDay = new Map();
-  cityTransitions.forEach((t) => transitionsAfterDay.set(t.afterDay, t));
 
   const streaks = buildHotelStreaks();
   const streakInfo = (hotelName, dayNum) => {
@@ -544,6 +542,19 @@ export const buildStory = ({ cityKey = null, category = null } = {}) => {
 
   const citySet = daysInCity(cityKey);
   const isFiltered = !!(cityKey || category);
+
+  /* Index city-transitions by anchor.day for quick per-day lookup.
+     Each bucket separates the three positioning kinds. */
+  const ctByDay = new Map();
+  cityTransitions.forEach((t) => {
+    const a = t.anchor || {};
+    if (!a.day) return;
+    const bucket = ctByDay.get(a.day) || { afterHeader: [], afterStop: [], afterDayEnd: [] };
+    if (a.kind === "afterStop") bucket.afterStop.push(t);
+    else if (a.kind === "afterDayEnd") bucket.afterDayEnd.push(t);
+    else bucket.afterHeader.push(t); /* default */
+    ctByDay.set(a.day, bucket);
+  });
 
   tripData.forEach((day, dayIdx) => {
     /* City filter — drop days that aren't tagged to the selected
@@ -583,12 +594,35 @@ export const buildStory = ({ cityKey = null, category = null } = {}) => {
       date: dateLabelHe(day.day),
     });
 
+    const ctBucket = ctByDay.get(day.day) || { afterHeader: [], afterStop: [], afterDayEnd: [] };
+
+    /* afterHeader transits: emit immediately after the day-header
+       so the inter-city leg reads as the day's opening move
+       (e.g. "Day 6 → Kanazawa: Shinkansen from Tokyo"). */
+    if (!isFiltered) {
+      ctBucket.afterHeader.forEach((t) => {
+        const ct = buildCityTransit(t);
+        if (ct) items.push(ct);
+      });
+    }
+
     if (!showHotelOnly) {
       visibleStops.forEach((stop, i) => {
         /* Re-stamp stopNum so it reads sequentially after filtering */
         items.push({ ...stop, stopNum: i + 1 });
-        /* Transit chips only when no category filter is active —
-           otherwise the chain has gaps and the times mislead. */
+
+        /* afterStop transits: insert a city-transit immediately
+           after the matching named stop on this day. */
+        if (!isFiltered) {
+          ctBucket.afterStop.forEach((t) => {
+            if (t.anchor.stopName && t.anchor.stopName === stop.titleEn) {
+              const ct = buildCityTransit(t);
+              if (ct) items.push(ct);
+            }
+          });
+        }
+
+        /* Walking transit chips only when no category filter is active. */
         if (!category) {
           const next = visibleStops[i + 1];
           if (next && stop.coordinates && next.coordinates) {
@@ -609,15 +643,13 @@ export const buildStory = ({ cityKey = null, category = null } = {}) => {
       if (hotel) items.push(hotel);
     }
 
-    /* Inter-city transit AFTER this day — suppressed when filters
-       are active (the next day after the transit might be filtered
-       out, leaving an orphan transit card). */
+    /* afterDayEnd transits: pushed last so they trail every other
+       element on this day (used for the final-day Narita leg). */
     if (!isFiltered) {
-      const transition = transitionsAfterDay.get(day.day);
-      if (transition) {
-        const ct = buildCityTransit(transition);
+      ctBucket.afterDayEnd.forEach((t) => {
+        const ct = buildCityTransit(t);
         if (ct) items.push(ct);
-      }
+      });
     }
   });
 
