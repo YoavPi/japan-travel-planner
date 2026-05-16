@@ -354,33 +354,35 @@ const ExploreView = () => {
   );
 };
 
-/* ─── Overlay button styles (paper-toned to match StoryFlow) ─── */
+/* ─── Overlay button styles — solid black to mirror the home-page
+   "Interactive Map" CTA. Clean and high-contrast on top of the map. */
 const overlayBtn = {
   height: 32,
-  padding: "0 12px",
-  border: "1px solid rgba(28,35,51,0.12)",
-  background: "#FDFCF7",
+  padding: "0 14px",
+  border: "1px solid #1C2333",
+  background: "#1C2333",
   borderRadius: 18,
   cursor: "pointer",
   display: "flex",
   alignItems: "center",
   gap: 6,
-  boxShadow: "0 2px 8px rgba(28,35,51,0.06)",
-  color: "#1C2333",
+  boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
+  color: "#FDFCF7",
   textDecoration: "none",
+  fontWeight: 600,
 };
 
 const miniBtn = {
   width: 36, height: 36,
-  border: "1px solid rgba(28,35,51,0.12)",
-  background: "#FDFCF7",
+  border: "1px solid #1C2333",
+  background: "#1C2333",
   borderRadius: 10,
   cursor: "pointer",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  boxShadow: "0 2px 8px rgba(28,35,51,0.06)",
-  color: "#1C2333",
+  boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
+  color: "#FDFCF7",
   textDecoration: "none",
 };
 

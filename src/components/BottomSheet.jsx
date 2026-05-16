@@ -43,19 +43,20 @@ const peekPx = 110;          // exposed when in 'peek'
 const FLING_THRESHOLD = 0.4; // px / ms — fling triggers snap toward direction
 
 const computeOffset = (snap, vh) => {
-  // Returns the top-edge translateY (px from top of viewport) for a
-  // sheet that is `SHEET_HEIGHT_VH%` tall pinned at top:0 conceptually.
+  // Returns the top-edge translateY (px from top of viewport).
   // Larger value = sheet pushed down (more hidden).
-  // 'half' is mapped to 'full' for backwards compatibility.
-  if (snap === "full" || snap === "half") {
+  if (snap === "full") {
     return vh - vh * (SHEET_HEIGHT_VH / 100);  // sheet top near top
   }
-  return vh - peekPx;                          // peek: sheet top near bottom
+  if (snap === "half") {
+    return vh * 0.5;                            // sheet top at 50% — Google-Maps style
+  }
+  return vh - peekPx;                           // peek: sheet top near bottom
 };
 
-const ALL_SNAPS = ["full", "peek"]; // ordered top → bottom
+const ALL_SNAPS = ["full", "half", "peek"]; // ordered top → bottom
 
-const BottomSheet = forwardRef(({ children, header, defaultSnap = "peek", onSnapChange }, ref) => {
+const BottomSheet = forwardRef(({ children, header, defaultSnap = "half", onSnapChange }, ref) => {
   const [snap, setSnapState] = useState(defaultSnap);
   const [translateY, setTranslateY] = useState(null);
   const [dragging, setDragging] = useState(false);
@@ -139,23 +140,29 @@ const BottomSheet = forwardRef(({ children, header, defaultSnap = "peek", onSnap
       velocity = (b.y - a.y) / dt;
     }
 
-    /* Binary snap decision:
-       1. If the user flung clearly in a direction → go that way.
-       2. Otherwise compare the current translateY to the midpoint
-          between 'full' and 'peek' offsets and snap to whichever
-          half the sheet is closer to. */
+    /* Three-state snap decision (Google-Maps style):
+         peek (110px)  →  half (50%)  →  full (92vh)
+       Flings step one stop in the fling direction; gentle releases
+       snap to the nearest of the three. */
     const vh = lastVHRef.current;
     const fullY = computeOffset("full", vh);
+    const halfY = computeOffset("half", vh);
     const peekY = computeOffset("peek", vh);
 
     let target;
     if (velocity > FLING_THRESHOLD) {
-      target = "peek";   // flung downward
+      /* flung DOWN → step toward peek */
+      target = snap === "full" ? "half" : "peek";
     } else if (velocity < -FLING_THRESHOLD) {
-      target = "full";   // flung upward
+      /* flung UP → step toward full */
+      target = snap === "peek" ? "half" : "full";
     } else {
-      const midpoint = (fullY + peekY) / 2;
-      target = translateY < midpoint ? "full" : "peek";
+      /* nearest of the three */
+      const dFull = Math.abs(translateY - fullY);
+      const dHalf = Math.abs(translateY - halfY);
+      const dPeek = Math.abs(translateY - peekY);
+      const min = Math.min(dFull, dHalf, dPeek);
+      target = min === dFull ? "full" : min === dHalf ? "half" : "peek";
     }
     setSnap(target);
   };

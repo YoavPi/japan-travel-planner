@@ -98,11 +98,14 @@ const DayPillRow = ({ activeDay, onSelectDay }) => {
         width: "100%",
         boxSizing: "border-box",
         borderBottom: "1px solid var(--line)",
-        direction: "ltr",
+        /* RTL so Day 1 sits at the visible RIGHT end of the row
+           (the natural start in Hebrew reading), and the user
+           scrolls left to reach Day 31. */
+        direction: "rtl",
         background: "var(--paper)",
       }}
     >
-      {days.slice().reverse().map((d) => {
+      {days.map((d) => {
         const isActive = d.day === activeDay;
         return (
           <button
@@ -175,7 +178,11 @@ const DayHeader = ({ item }) => {
   );
 };
 
-/* ───────── Transit segment (sits ON the spine) ───────── */
+/* ───────── Transit segment (sits ON the spine) ─────────
+   In compact mode the spine hugs the right edge of the panel; the
+   walking-time pill now sits IMMEDIATELY adjacent to the spine on
+   its RIGHT side, with explicit padding so the pill never overlaps
+   the spine or its neighbouring text. */
 const TransitSegment = ({ item, compact }) => {
   const lineLeft = compact ? "calc(100% - 28px)" : "50%";
   return (
@@ -184,9 +191,14 @@ const TransitSegment = ({ item, compact }) => {
         position: "relative",
         display: "flex",
         alignItems: "center",
-        justifyContent: compact ? "flex-end" : "center",
-        padding: compact ? "4px 56px 4px 24px" : "4px 24px",
+        /* In RTL, `flex-start` places items on the RIGHT — same side
+           as the spine. That's the design goal. */
+        justifyContent: compact ? "flex-start" : "center",
+        /* Extra right padding (52px) reserves a clean gutter to the
+           spine; the pill begins just left of it. */
+        padding: compact ? "4px 52px 4px 16px" : "4px 24px",
         height: 56,
+        direction: "rtl",
       }}
     >
       <div
@@ -415,8 +427,8 @@ const StopRow = ({ item, isActive, onClick, side, compact, inlineExpand, isExpan
                     width: "100%",
                     /* Sweet spot: tall enough to feel substantial,
                        short enough to keep the card scannable. */
-                    height: 220,
-                    maxHeight: 220,
+                    height: 250,
+                    maxHeight: 250,
                     objectFit: "cover",
                     objectPosition: "center",
                   }}
@@ -595,33 +607,8 @@ const StopRow = ({ item, isActive, onClick, side, compact, inlineExpand, isExpan
           </div>
         )}
       </div>
-      {/* Clickable affordance — icon only */}
-      {item.coordinates && (
-        <span
-          aria-hidden
-          style={{
-            position: "absolute",
-            left: 16,
-            bottom: 12,
-            width: 22,
-            height: 22,
-            borderRadius: "50%",
-            background: `${accent}10`,
-            border: `1px solid ${accent}33`,
-            color: accent,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 12,
-            fontWeight: 700,
-            fontStyle: "italic",
-            opacity: 0.7,
-            pointerEvents: "none",
-          }}
-        >
-          i
-        </span>
-      )}
+      {/* No 'i' affordance on desktop — desktop relies purely on
+          the map popup, so the inline hint is mobile-only. */}
     </div>
   );
 };

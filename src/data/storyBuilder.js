@@ -392,11 +392,25 @@ const buildStop = (item, dayNum, stopNum) => {
        falls back to a coordinates-based Google Maps URL. */
     link: item.link || null,
     kind: item.kind,
+    /* Pass the literal Hebrew category through so downstream
+       transit-building can apply the Disney exception. */
+    category: item.category || null,
   };
 };
 
-/* ─── Transit item between two consecutive stops ─── */
+/* ─── Transit item between two consecutive stops ───
+   Disney exception: when both endpoints are theme-park rides
+   (categorised as "מתקן בדיסנילנד" or "מתקן בדיסני סי"), we skip
+   the walking-time chip entirely — successive rides inside the
+   same park don't benefit from a "X min walk" annotation, and
+   the chip clutters the list. */
+const isDisneyRide = (item) => {
+  const cat = (item && item.category) || "";
+  return cat === "מתקן בדיסנילנד" || cat === "מתקן בדיסני סי";
+};
+
 const buildTransit = (a, b) => {
+  if (isDisneyRide(a) && isDisneyRide(b)) return null;
   const t = transitBetween(a.coordinates, b.coordinates);
   if (!t) return null;
   return {
@@ -457,9 +471,24 @@ const buildCityTransit = (transition) => {
     fromHe:   transition.fromCityHe || transition.fromCity,
     toHe:     transition.toCityHe   || transition.toCity,
     mode:     transition.icon,
-    lineHe:   `${TRANSIT_LINE_HE[transition.icon] || transition.mode} · ${transition.fromCityHe} → ${transition.toCityHe}`,
-    lineEn:   `${transition.mode} · ${transition.fromCity} → ${transition.toCity}`,
-    duration: transition.duration.replace(/^~\s*/, ""),
+    /* lineHe is the centered caption below the cards. We
+       deliberately OMIT the cities here because the card itself
+       already shows them as the big FROM/TO blocks — repeating
+       them in the caption produced the visible "קנזאווה · קנזאווה"
+       duplication. */
+    lineHe:   TRANSIT_LINE_HE[transition.icon] || transition.mode,
+    lineEn:   transition.mode,
+    /* Hebrew-friendly duration string: "~2.5 hours" → "כ-2.5 שעות",
+       "~30 min" → "כ-30 דקות". */
+    duration: (() => {
+      const d = transition.duration || "";
+      return d
+        .replace(/^~\s*/, "כ-")
+        .replace(/\bhours?\b/i, "שעות")
+        .replace(/\bmins?\b/i, "דקות")
+        .replace(/\bmin\b/i, "דקות")
+        .trim();
+    })(),
     depart:   `${transition.fromCityHe} ▶`,
     arrive:   `◀ ${transition.toCityHe}`,
     note:     transition.modeJa ? `${transition.mode} · ${transition.modeJa}` : "",
@@ -564,8 +593,8 @@ export const buildStory = ({ cityKey = null, category = null } = {}) => {
           const next = visibleStops[i + 1];
           if (next && stop.coordinates && next.coordinates) {
             const transit = buildTransit(
-              { coordinates: stop.coordinates },
-              { coordinates: next.coordinates }
+              { coordinates: stop.coordinates, category: stop.category },
+              { coordinates: next.coordinates, category: next.category }
             );
             if (transit) items.push(transit);
           }
