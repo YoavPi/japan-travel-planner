@@ -449,11 +449,23 @@ const findHotelMeta = (hotelName) => {
     : { rating: null, desc: "" };
 };
 
+/* Inherit hotelLink + hotelImage across the streak too — values
+   are authored on whichever day has them. */
+const findHotelExtras = (hotelName) => {
+  const primaryLink = tripData.find((d) => d.hotel === hotelName && d.hotelLink);
+  const primaryImg  = tripData.find((d) => d.hotel === hotelName && d.hotelImage);
+  return {
+    link:  primaryLink ? primaryLink.hotelLink  : null,
+    image: primaryImg  ? primaryImg.hotelImage : null,
+  };
+};
+
 const buildHotel = (day, dayIdx, sameHotelStreak) => {
   if (!day.hotel || day.hotel === "—") return null;
   const coords = HOTEL_COORDINATES[day.hotel] || day.coordinates;
   const cityIdx = cityIndexByName(day.city);
   const meta = findHotelMeta(day.hotel);
+  const extras = findHotelExtras(day.hotel);
   return {
     type: "hotel",
     city: cityIdx,
@@ -465,6 +477,8 @@ const buildHotel = (day, dayIdx, sameHotelStreak) => {
       : "לילה אחד",
     rating: day.hotelRating || meta.rating,
     descHe: day.hotelDesc || meta.desc,
+    link:   day.hotelLink  || extras.link,
+    image:  day.hotelImage || extras.image,
     coordinates: coords ? { lng: coords.lng, lat: coords.lat } : null,
   };
 };

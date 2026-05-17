@@ -675,64 +675,113 @@ const HotelAnchor = ({ item, onClick }) => {
           background: "var(--paper-2)",
           border: `1px solid ${accent}33`,
           borderRadius: 14,
-          padding: "14px 16px",
-          display: "flex",
-          alignItems: "center",
-          gap: 14,
+          overflow: "hidden",
           boxShadow: "0 4px 14px rgba(28,35,51,0.05)",
           cursor: interactive ? "pointer" : "default",
         }}
       >
+        {/* Optional banner image for hotels where we have a curated
+            asset in /photos/source/. Falls back to the glyph tile
+            below when no image is mapped. */}
+        {item.image && (
+          <img
+            src={item.image}
+            alt=""
+            loading="lazy"
+            style={{
+              display: "block",
+              width: "100%",
+              height: 140,
+              objectFit: "cover",
+              objectPosition: "center",
+            }}
+          />
+        )}
         <div
           style={{
-            width: 48, height: 48, borderRadius: 10,
-            background: `${accent}15`,
-            border: `1px dashed ${accent}55`,
-            color: accent,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            flexShrink: 0,
+            padding: "14px 16px",
+            display: "flex",
+            alignItems: "center",
+            gap: 14,
           }}
         >
-          <Glyph name="hotel" color={accent} size={22} />
-        </div>
-        <div style={{ flex: 1, textAlign: "right" }}>
-          <div
-            style={{
-              fontSize: 9.5, fontWeight: 700, color: accent,
-              letterSpacing: "0.22em", marginBottom: 3,
-            }}
-          >
-            לינה · END OF DAY
-          </div>
-          <div className="he-display" style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", direction: "ltr", textAlign: "right", unicodeBidi: "plaintext" }}>
-            {item.nameEn || item.nameHe}
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 10, color: "var(--muted)", letterSpacing: "0.12em" }}>
-              {item.nightsLabel}
-            </span>
-            {item.rating && (
-              <span
-                style={{
-                  fontSize: 11, fontWeight: 700, color: accent,
-                  padding: "1px 7px",
-                  border: `1px solid ${accent}55`,
-                  borderRadius: 10,
-                  background: `${accent}10`,
-                }}
-              >
-                {item.rating}
-              </span>
-            )}
-          </div>
-          {item.descHe && (
+          {!item.image && (
             <div
-              className="he-sans"
-              style={{ fontSize: 12, color: "var(--ink-2)", lineHeight: 1.5, marginTop: 6, textAlign: "right" }}
+              style={{
+                width: 48, height: 48, borderRadius: 10,
+                background: `${accent}15`,
+                border: `1px dashed ${accent}55`,
+                color: accent,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                flexShrink: 0,
+              }}
             >
-              {item.descHe}
+              <Glyph name="hotel" color={accent} size={22} />
             </div>
           )}
+          <div style={{ flex: 1, textAlign: "right" }}>
+            <div
+              style={{
+                fontSize: 9.5, fontWeight: 700, color: accent,
+                letterSpacing: "0.22em", marginBottom: 3,
+              }}
+            >
+              לינה · END OF DAY
+            </div>
+            <div className="he-display" style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", direction: "ltr", textAlign: "right", unicodeBidi: "plaintext" }}>
+              {item.nameEn || item.nameHe}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 10, color: "var(--muted)", letterSpacing: "0.12em" }}>
+                {item.nightsLabel}
+              </span>
+              {item.rating && (
+                <span
+                  style={{
+                    fontSize: 11, fontWeight: 700, color: accent,
+                    padding: "1px 7px",
+                    border: `1px solid ${accent}55`,
+                    borderRadius: 10,
+                    background: `${accent}10`,
+                  }}
+                >
+                  {item.rating}
+                </span>
+              )}
+            </div>
+            {item.descHe && (
+              <div
+                className="he-sans"
+                style={{ fontSize: 12, color: "var(--ink-2)", lineHeight: 1.5, marginTop: 6, textAlign: "right" }}
+              >
+                {item.descHe}
+              </div>
+            )}
+            {item.link && (
+              <a
+                href={item.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  marginTop: 8,
+                  padding: "5px 11px",
+                  borderRadius: 16,
+                  background: accent,
+                  color: "#FDFCF7",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  textDecoration: "none",
+                }}
+              >
+                <span style={{ fontSize: 12 }}>📍</span>
+                Google Maps
+              </a>
+            )}
+          </div>
         </div>
       </div>
     </div>
