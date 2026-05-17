@@ -653,10 +653,14 @@ const StopRow = ({ item, isActive, onClick, side, compact, inlineExpand, isExpan
 };
 
 /* ───────── Hotel anchor (end-of-day card) ───────── */
-const HotelAnchor = ({ item, onClick }) => {
+const HotelAnchor = ({ item, onClick, isExpanded, inlineExpand }) => {
   const c = STORY_CITIES[item.city - 1];
   const accent = c ? c.color : "#C0392B";
   const interactive = !!item.coordinates;
+  /* The hotel image only renders when the user has tapped the
+     hotel card and inline expansion is enabled (mobile). Default
+     state stays compact — glyph tile + metadata only. */
+  const showImage = !!item.image && inlineExpand && isExpanded;
   return (
     <div style={{ position: "relative", padding: "10px 24px 24px" }}>
       <div
@@ -680,10 +684,10 @@ const HotelAnchor = ({ item, onClick }) => {
           cursor: interactive ? "pointer" : "default",
         }}
       >
-        {/* Optional banner image for hotels where we have a curated
-            asset in /photos/source/. Falls back to the glyph tile
-            below when no image is mapped. */}
-        {item.image && (
+        {/* Banner image only renders after the user taps the card
+            and the inline expansion is enabled (mobile). The
+            default collapsed state always shows the glyph tile. */}
+        {showImage && (
           <img
             src={item.image}
             alt=""
@@ -691,7 +695,8 @@ const HotelAnchor = ({ item, onClick }) => {
             style={{
               display: "block",
               width: "100%",
-              height: 140,
+              height: 200,
+              maxHeight: 200,
               objectFit: "cover",
               objectPosition: "center",
             }}
@@ -705,20 +710,18 @@ const HotelAnchor = ({ item, onClick }) => {
             gap: 14,
           }}
         >
-          {!item.image && (
-            <div
-              style={{
-                width: 48, height: 48, borderRadius: 10,
-                background: `${accent}15`,
-                border: `1px dashed ${accent}55`,
-                color: accent,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                flexShrink: 0,
-              }}
-            >
-              <Glyph name="hotel" color={accent} size={22} />
-            </div>
-          )}
+          <div
+            style={{
+              width: 48, height: 48, borderRadius: 10,
+              background: `${accent}15`,
+              border: `1px dashed ${accent}55`,
+              color: accent,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <Glyph name="hotel" color={accent} size={22} />
+          </div>
           <div style={{ flex: 1, textAlign: "right" }}>
             <div
               style={{
@@ -1415,15 +1418,30 @@ const StoryFlow = forwardRef(({ activeStopId, onSelectStop, onOpenDetail, onClos
             return <TransitSegment key={idx} item={item} compact={compact} />;
           }
           if (item.type === "hotel") {
+            const hotelStopId = `hotel-${lastDayHeaderSeen}`;
+            const hotelExpanded = expandedStopId === hotelStopId;
             return (
               <HotelAnchor
                 key={idx}
                 item={item}
-                onClick={() => onSelectStop && item.coordinates && onSelectStop({
-                  stopId: `hotel-${lastDayHeaderSeen}`,
-                  coordinates: item.coordinates,
-                  name: item.nameHe,
-                })}
+                inlineExpand={inlineExpand}
+                isExpanded={hotelExpanded}
+                onClick={() => {
+                  /* Mobile: toggle the inline-expand image. Tapping
+                     a second time collapses it. Also fly the map to
+                     the hotel coordinates. */
+                  if (inlineExpand) {
+                    setExpandedStopId(hotelExpanded ? null : hotelStopId);
+                  }
+                  if (onSelectStop && item.coordinates) {
+                    onSelectStop({
+                      stopId: hotelStopId,
+                      coordinates: item.coordinates,
+                      name: item.nameHe,
+                      skipMapFly: false,
+                    });
+                  }
+                }}
               />
             );
           }
