@@ -1421,28 +1421,32 @@ const StoryFlow = forwardRef(({ activeStopId, onSelectStop, onOpenDetail, onClos
             const hotelStopId = `hotel-${lastDayHeaderSeen}`;
             const hotelExpanded = expandedStopId === hotelStopId;
             return (
-              <HotelAnchor
-                key={idx}
-                item={item}
-                inlineExpand={inlineExpand}
-                isExpanded={hotelExpanded}
-                onClick={() => {
-                  /* Mobile: toggle the inline-expand image. Tapping
-                     a second time collapses it. Also fly the map to
-                     the hotel coordinates. */
-                  if (inlineExpand) {
-                    setExpandedStopId(hotelExpanded ? null : hotelStopId);
-                  }
-                  if (onSelectStop && item.coordinates) {
-                    onSelectStop({
-                      stopId: hotelStopId,
-                      coordinates: item.coordinates,
-                      name: item.nameHe,
-                      skipMapFly: false,
-                    });
-                  }
-                }}
-              />
+              /* Register the hotel anchor under the same stopRefs
+                 map the auto-scroll effect consults. Without this,
+                 setting activeStopId to 'hotel-N' fell through to
+                 the day-header ref and the scroller jumped up to
+                 the top of the day instead of holding the hotel
+                 in view after expansion. */
+              <div key={idx} ref={(el) => (stopRefs.current[hotelStopId] = el)}>
+                <HotelAnchor
+                  item={item}
+                  inlineExpand={inlineExpand}
+                  isExpanded={hotelExpanded}
+                  onClick={() => {
+                    if (inlineExpand) {
+                      setExpandedStopId(hotelExpanded ? null : hotelStopId);
+                    }
+                    if (onSelectStop && item.coordinates) {
+                      onSelectStop({
+                        stopId: hotelStopId,
+                        coordinates: item.coordinates,
+                        name: item.nameHe,
+                        skipMapFly: false,
+                      });
+                    }
+                  }}
+                />
+              </div>
             );
           }
           if (item.type === "city-transit") {
