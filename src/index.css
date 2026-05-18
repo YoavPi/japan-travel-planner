@@ -115,14 +115,29 @@ body {
   scrollbar-width: none;
 }
 
-/* Mapbox / MapLibre popup overrides */
+/* Mapbox / MapLibre popup overrides
+   The library ships a default `font: 12px/20px 'Helvetica Neue' …`
+   on .mapboxgl-popup / .maplibregl-popup. `inherit` on the inner
+   .popup-content then resolves to Helvetica Neue, NOT the app's
+   global stack. Force the explicit stack on BOTH the outer popup
+   container AND the inner content so every text node inside the
+   popup uses the same family as the Trip Roadmap. */
+.mapboxgl-popup,
+.maplibregl-popup,
+.mapboxgl-popup-content,
+.maplibregl-popup-content {
+  font-family: "Noto Sans Hebrew", "Inter", "Noto Sans JP",
+               -apple-system, BlinkMacSystemFont, system-ui, sans-serif !important;
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+}
+
 .mapboxgl-popup-content,
 .maplibregl-popup-content {
   border-radius: 10px !important;
   padding: 0 !important;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12) !important;
   border: 2px solid #D94025 !important;
-  font-family: inherit !important;
   background: #FDFBF5 !important;
 }
 
