@@ -1484,44 +1484,53 @@ const SubLocationInfoCard = ({ loc, onOpenFullDetail }) => {
           minHeight: 0,
         }}
       >
-        {/* Category tag — small, single line, no shouty caps */}
+        {/* Title hierarchy now mirrors the Trip Roadmap card exactly:
+            ENGLISH primary (LTR, 16px bold 700) + HEBREW small subtitle
+            (11.5px, weight 500). Same colours and line-heights as
+            StoryFlow's StopRow so the visual jump between list and
+            popup is invisible. */}
+
+        {/* Category tag — pill style matching StoryFlow tagHe */}
         <div style={{
           display: "inline-flex", alignItems: "center", gap: "5px",
-          padding: "2px 7px", borderRadius: "4px",
+          padding: "3px 10px", borderRadius: "14px",
           backgroundColor: `${typeColor}12`, border: `1px solid ${typeColor}30`,
           marginBottom: "8px",
         }}>
           <Icon size={11} color={typeColor} />
           <span style={{
-            fontSize: "10px", fontWeight: 700, color: typeColor,
+            fontSize: "10px", fontWeight: 600, color: typeColor,
           }}>
             {typeLabel}
           </span>
         </div>
 
-        {/* Hebrew name (PRIMARY) */}
-        {loc.nameHe && (
+        {/* English name (PRIMARY) — matches StoryFlow's titleEn */}
+        <p style={{
+          fontSize: "16px", fontWeight: 700, color: "var(--ink)",
+          margin: 0, lineHeight: 1.2,
+          direction: "ltr", textAlign: "right", unicodeBidi: "plaintext",
+        }}>
+          {loc.name}
+        </p>
+        {/* Hebrew name (SECONDARY) — matches StoryFlow's titleHe */}
+        {loc.nameHe && loc.nameHe !== loc.name && (
           <p style={{
-            fontSize: "16px", fontWeight: 800, color: "#1C1917",
-            margin: 0, lineHeight: 1.25,
+            fontSize: "11.5px", color: "var(--ink-2)", margin: "2px 0 0",
+            fontWeight: 500,
           }}>
             {loc.nameHe}
           </p>
         )}
-        {/* English name (SECONDARY) */}
-        <p style={{
-          fontSize: "11px", color: "#A39E96", margin: "2px 0 0",
-          fontWeight: 500, letterSpacing: "0.02em",
-        }}>
-          {loc.name}
-        </p>
 
-        {/* Rating row — dedicated UI element when present */}
+        {/* Rating row — kept as a distinct pill since StoryFlow's
+            inline rating sits inside the category tag, but the popup
+            has space for a richer chip. Weights/sizes aligned. */}
         {loc.rating && loc.rating !== "—" && (
           <div style={{
             marginTop: "10px",
             display: "inline-flex", alignItems: "center", gap: "6px",
-            padding: "5px 9px", borderRadius: "999px",
+            padding: "3px 10px", borderRadius: "14px",
             backgroundColor: "#FBF8EE", border: "1px solid #F5EDCE",
           }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="#C4A048" stroke="#C4A048" strokeWidth="1.5">
@@ -1533,26 +1542,21 @@ const SubLocationInfoCard = ({ loc, onOpenFullDetail }) => {
           </div>
         )}
 
-        {/* Hebrew description — no Japanese */}
+        {/* Description — plain text on transparent background, same
+            12.5px / 1.55 lineHeight / var(--ink-2) the Roadmap uses.
+            The earlier tinted-box style created a visual divergence. */}
         {vibe && (
-          <div style={{
-            marginTop: "10px",
-            padding: "10px 11px",
-            borderRadius: "10px",
-            backgroundColor: "#FAF6E8",
-            border: "1px solid #F1E9CE",
-          }}>
-            <p
-              style={{
-                fontSize: "12.5px",
-                color: "#44403C",
-                margin: 0,
-                lineHeight: 1.6,
-              }}
-            >
-              {vibe}
-            </p>
-          </div>
+          <p
+            style={{
+              fontSize: "12.5px",
+              color: "var(--ink-2)",
+              margin: "10px 0 0",
+              lineHeight: 1.55,
+              textAlign: "right",
+            }}
+          >
+            {vibe}
+          </p>
         )}
 
         {/* Actions row */}
