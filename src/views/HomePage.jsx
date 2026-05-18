@@ -197,12 +197,12 @@ const CtaArrow = ({ size = 18 }) => (
    ══════════════════════════════════════════════════════════════ */
 const Hero = () => {
   return (
-    /* Hero is sized just-tall-enough for content + a small scroll
-       affordance underneath. Earlier values (88-90vh) left a
-       large empty gap between the CTA and the THE JOURNEY header
-       on long screens; we tightened to ~68/72vh so the Timeline
-       header appears just below the fold without wasting space. */
-    <section className="relative min-h-[68vh] lg:min-h-[72vh] flex flex-col lg:flex-row items-center overflow-hidden px-6 md:px-16 lg:px-0">
+    /* Hero is intentionally shorter than the fold so the THE
+       JOURNEY header peeks into view on every device (~12-15%
+       of the Timeline section visible at the initial scroll
+       position). That visual "more below" cue is more
+       discoverable than the static chevron alone. */
+    <section className="relative min-h-[55vh] lg:min-h-[62vh] flex flex-col lg:flex-row items-center overflow-hidden px-6 md:px-16 lg:px-0">
       {/* Decorative kanji (very subtle) */}
       <span className="jp-deco" style={{ top: "8%", left: "2%", fontSize: "10rem" }}>日</span>
       <span className="jp-deco" style={{ bottom: "10%", left: "4%", fontSize: "6rem" }}>本</span>
@@ -315,8 +315,8 @@ const Hero = () => {
 
       {/* Scroll affordance — wordless: a faint vertical line and a
           bouncing crimson chevron. No copy, the motion is enough. */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 anim-fade-in delay-5 flex flex-col items-center gap-1.5 pointer-events-none">
-        <div className="w-px h-6 bg-gradient-to-b from-slate-pale/70 to-transparent" />
+      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 anim-fade-in delay-5 flex flex-col items-center gap-1 pointer-events-none">
+        <div className="w-px h-4 bg-gradient-to-b from-slate-pale/70 to-transparent" />
         <svg
           width="22"
           height="22"
@@ -434,7 +434,7 @@ const ChapterCard = ({ chapter, index, isLast }) => {
 const Timeline = () => {
   const [ref, visible] = useVisible(0.1);
   return (
-    <section className="px-6 md:px-16 lg:px-24 pt-10 pb-24 relative">
+    <section className="px-6 md:px-16 lg:px-24 pt-4 pb-24 relative">
       <div className="max-w-3xl mx-auto md:mx-0">
         {/* Section header */}
         <div
