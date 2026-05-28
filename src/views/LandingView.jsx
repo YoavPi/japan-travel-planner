@@ -85,7 +85,7 @@ const LandingView = () => {
           {/* Primary CTAs */}
           <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 18 }}>
             <button
-              onClick={() => navigate("/dashboard")}
+              onClick={() => navigate("/create")}
               style={{ height: 54, borderRadius: 999, border: "none", background: T.ink, color: "#fff", fontSize: 15.5, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, fontFamily: "inherit" }}
             >
               <span>בנו מפה משלכם</span>
@@ -136,7 +136,7 @@ const LandingView = () => {
         {/* CTA banner */}
         <section style={{ padding: "28px 22px 40px" }}>
           <button
-            onClick={() => navigate("/dashboard")}
+            onClick={() => navigate("/create")}
             style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, padding: "18px 20px", borderRadius: 22, border: "none", background: T.ink, color: "#fff", cursor: "pointer", fontFamily: "inherit", textAlign: "right" }}
           >
             <div>

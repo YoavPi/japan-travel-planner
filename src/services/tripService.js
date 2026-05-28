@@ -169,24 +169,36 @@ export const tripService = {
     return trips[idx];
   },
 
-  /* Create a blank itinerary from wizard settings. */
+  /* Create a blank itinerary from wizard settings. When
+     `settings.days` is given we scaffold that many empty day
+     objects (each with an empty attractions[] keyed to the
+     destination city) so the editor's day-strip is ready to fill. */
   async createNewTrip(tripSettings = {}) {
     await delay(LAG);
     const trips = readStore();
     const id = uid();
+    const dayCount = Number(tripSettings.days) || 0;
+    const city = tripSettings.destination || "";
+    const cityHe = tripSettings.destinationHe || tripSettings.title || "";
+    const scaffold = Array.from({ length: dayCount }, (_, i) => ({
+      day: i + 1,
+      city,
+      cityHe,
+      attractions: [],
+    }));
     const trip = {
       id,
       title: tripSettings.title || tripSettings.destinationHe || "מסלול חדש",
       cover: tripSettings.cover || null,
-      days: tripSettings.days || 0,
-      meta: tripSettings.meta || "",
+      days: dayCount,
+      meta: tripSettings.meta || (dayCount ? `${dayCount} ימים · ${cityHe}` : ""),
       role: "owner",
       readOnly: false,
       owner: { id: "u_michali", name: "מיכלי דמרי פינטל" },
       collaborators: [],
       lastEdited: nowISO(),
       settings: tripSettings,
-      data: { tripData: [], cityTransitions: [], lodgingOverrides: {} },
+      data: { tripData: scaffold, cityTransitions: [], lodgingOverrides: {} },
     };
     trips.unshift(trip);
     writeStore(trips);

@@ -8,6 +8,7 @@ import HomePage from "./views/HomePage";
 import ExploreView from "./views/ExploreView";
 import AuthView from "./views/AuthView";
 import DashboardView from "./views/DashboardView";
+import WizardView from "./views/WizardView";
 import EditorView from "./views/EditorView";
 
 /* ══════════════════════════════════════════════════════════════
@@ -37,6 +38,14 @@ const App = () => (
           element={
             <ProtectedRoute>
               <DashboardView />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/create"
+          element={
+            <ProtectedRoute>
+              <WizardView />
             </ProtectedRoute>
           }
         />

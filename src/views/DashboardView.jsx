@@ -14,7 +14,6 @@ const DashboardView = () => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [trips, setTrips] = useState(null); // null = loading
-  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -31,12 +30,10 @@ const DashboardView = () => {
     else navigate(`/map/edit/${t.id}`);
   };
 
-  const handleCreate = async () => {
-    setCreating(true);
-    const t = await tripService.createNewTrip({ title: "מסלול חדש", destinationHe: "יעד חדש" });
-    setCreating(false);
-    navigate(`/map/edit/${t.id}`);
-  };
+  /* Route through the 4-step wizard rather than creating a blank
+     trip immediately, so the new trip gets a destination, duration
+     and scaffolded days. */
+  const handleCreate = () => navigate("/create");
 
   return (
     <div dir="rtl" style={{ minHeight: "100vh", background: "#EDEDEC", fontFamily: "'Noto Sans Hebrew','Inter',sans-serif" }}>
@@ -53,11 +50,11 @@ const DashboardView = () => {
       </header>
 
       <main style={{ maxWidth: 900, margin: "0 auto", padding: 22 }}>
-        <button onClick={handleCreate} disabled={creating}
+        <button onClick={handleCreate}
           style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, padding: 16, marginBottom: 18, borderRadius: 20, border: "2px dashed rgba(20,20,20,0.18)", background: "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "right" }}>
           <span style={{ width: 44, height: 44, borderRadius: 12, background: "#0D0F11", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>+</span>
           <span>
-            <span style={{ display: "block", fontSize: 15.5, fontWeight: 800, color: "#0D0F11" }}>{creating ? "יוצר…" : "מסלול חדש"}</span>
+            <span style={{ display: "block", fontSize: 15.5, fontWeight: 800, color: "#0D0F11" }}>מסלול חדש</span>
             <span style={{ display: "block", fontSize: 12, color: "#6B7178" }}>התחילו לבנות מפה משלכם</span>
           </span>
         </button>
