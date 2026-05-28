@@ -289,7 +289,10 @@ const ExploreView = () => {
             flexWrap: "wrap",
           }}
         >
-          <Link to="/" title="חזרה לבית" style={overlayBtn}>
+          {/* The map is part of the Japan example, so "בית" returns
+              to the Japan landing (/japan). From there the page's
+              own "מעבר לעמוד הבית" reaches the platform home (/). */}
+          <Link to="/japan" title="חזרה לעמוד יפן" style={overlayBtn}>
             <MetaIcon name="home" color="#FDFCF7" />
             <span style={{ fontSize: 11 }}>בית</span>
           </Link>
