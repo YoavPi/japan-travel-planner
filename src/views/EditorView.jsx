@@ -2,7 +2,11 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useParams, useNavigate } from "react-router-dom";
 import tripService from "../services/tripService";
 import EditorBottomSheet from "../components/EditorBottomSheet";
+import EditorMap from "../components/EditorMap";
+import AddStopSheet from "../components/AddStopSheet";
+import StopActionsSheet from "../components/StopActionsSheet";
 import { computeTransit } from "../utils/transit";
+import { dedupeDayStops } from "../utils/classify";
 
 /* ──────────────────────────────────────────────────────────────
    EditorView — mobile-first trip workspace.
@@ -32,6 +36,19 @@ const CITY_COLOR = {
 };
 const cityColor = (c) => CITY_COLOR[(c || "").replace(/ \d+$/, "")] || T.ink;
 const cityAbbr = (c) => (c || "").slice(0, 3).toUpperCase();
+
+/* Coarse bucket from the Hebrew category text (spec §8 filters). */
+const categoryBucket = (he = "") => {
+  if (/מלון|לינה/.test(he)) return "hotels";
+  if (/ראמן|סושי|אודון|סובה|גיוזה|מסעד|בית קפה|קפה|בר|אוכל|המבורגר|פיצה|פנקייק|קינוח|קונביני|מאפייה/.test(he)) return "food";
+  return "attractions";
+};
+const FILTERS = [
+  { id: "all", label: "הכל" },
+  { id: "attractions", label: "אטרקציות" },
+  { id: "food", label: "אוכל" },
+  { id: "hotels", label: "מלונות" },
+];
 
 /* ── Transit rail (sits ON the connecting axis between two stops) ──
    Renders the auto-computed mode + minutes + distance. Tapping it
@@ -69,7 +86,7 @@ const TransitRail = ({ a, b, override, onCycle }) => {
    the transit rails in real time. */
 const OVERRIDE_CYCLE = [null, "walk", "transit", "car"];
 
-const DayStopList = ({ stops, color, onReorder }) => {
+const DayStopList = ({ stops, color, onReorder, onOpenActions }) => {
   const [items, setItems] = useState(stops);
   const [dragIdx, setDragIdx] = useState(-1);
   const [overrides, setOverrides] = useState({}); // segIndex → mode
@@ -151,14 +168,23 @@ const DayStopList = ({ stops, color, onReorder }) => {
                 </div>
               )}
             </div>
-            {/* Drag handle */}
-            <button
-              onPointerDown={onHandleDown(i)}
-              title="גררו לסידור מחדש"
-              style={{ alignSelf: "center", width: 32, height: 32, border: "none", background: "transparent", color: T.ink4, cursor: "grab", touchAction: "none", fontSize: 16, fontFamily: "inherit" }}
-            >
-              ≡
-            </button>
+            {/* Drag handle + 3-dot actions */}
+            <div style={{ alignSelf: "center", display: "flex", alignItems: "center" }}>
+              <button
+                onClick={(e) => { e.stopPropagation(); onOpenActions && onOpenActions(i); }}
+                title="פעולות"
+                style={{ width: 30, height: 32, border: "none", background: "transparent", color: T.ink4, cursor: "pointer", fontSize: 18, fontFamily: "inherit", lineHeight: 1 }}
+              >
+                ⋯
+              </button>
+              <button
+                onPointerDown={onHandleDown(i)}
+                title="גררו לסידור מחדש"
+                style={{ width: 30, height: 32, border: "none", background: "transparent", color: T.ink4, cursor: "grab", touchAction: "none", fontSize: 16, fontFamily: "inherit" }}
+              >
+                ≡
+              </button>
+            </div>
           </div>
           {/* Transit rail to the next stop */}
           {i < items.length - 1 && (
@@ -182,27 +208,90 @@ const EditorView = () => {
   const [error, setError] = useState(null);
   const [activeDay, setActiveDay] = useState(1);
   const [saving, setSaving] = useState(false);
+  const [filter, setFilter] = useState("all");
+  const [isPinning, setIsPinning] = useState(false);
+  const [pendingCoord, setPendingCoord] = useState(null);
+  const [showAddStop, setShowAddStop] = useState(false);
+  const [actionsIdx, setActionsIdx] = useState(-1);
   const sheetRef = useRef(null);
   const dayStripRef = useRef(null);
 
-  /* Commit a reordered stop list for the active day → local state +
-     persist via the service (skipped for read-only trips). */
-  const handleReorder = useCallback((newStops) => {
+  /* Generic day-array mutator → updates local state + persists.
+     `mutate(daysCopy)` returns the new days array. */
+  const commitDays = useCallback((mutate) => {
     setTrip((prev) => {
       if (!prev) return prev;
-      const nextDays = (prev.data.tripData || []).map((d) =>
-        d.day === activeDay ? { ...d, attractions: newStops } : d
-      );
+      const nextDays = mutate((prev.data.tripData || []).map((d) => ({ ...d, attractions: [...(d.attractions || [])] })));
       const nextTrip = { ...prev, data: { ...prev.data, tripData: nextDays } };
       if (!prev.readOnly) {
         setSaving(true);
-        tripService.saveTrip(prev.id, { data: nextTrip.data })
-          .catch(() => {})
-          .finally(() => setSaving(false));
+        tripService.saveTrip(prev.id, { data: nextTrip.data }).catch(() => {}).finally(() => setSaving(false));
       }
       return nextTrip;
     });
-  }, [activeDay]);
+  }, []);
+
+  const handleReorder = useCallback((newStops) => {
+    commitDays((days) => days.map((d) => d.day === activeDay ? { ...d, attractions: newStops } : d));
+  }, [activeDay, commitDays]);
+
+  /* Add a stop to the active day (dedup enforced). */
+  const handleAddStop = useCallback((stop) => {
+    commitDays((days) => days.map((d) =>
+      d.day === activeDay ? { ...d, attractions: dedupeDayStops([...d.attractions, stop]) } : d
+    ));
+    setShowAddStop(false);
+    setPendingCoord(null);
+    setIsPinning(false);
+  }, [activeDay, commitDays]);
+
+  /* Quick-actions on the active day's stop at index `actionsIdx`. */
+  const moveStopToDay = useCallback((toDay) => {
+    commitDays((days) => {
+      const from = days.find((d) => d.day === activeDay);
+      if (!from) return days;
+      const [moved] = from.attractions.splice(actionsIdx, 1);
+      const to = days.find((d) => d.day === toDay);
+      if (to && moved) to.attractions = dedupeDayStops([...to.attractions, moved]);
+      return days;
+    });
+    setActionsIdx(-1);
+  }, [activeDay, actionsIdx, commitDays]);
+
+  const copyStopToDay = useCallback((toDay) => {
+    commitDays((days) => {
+      const from = days.find((d) => d.day === activeDay);
+      const stop = from?.attractions[actionsIdx];
+      const to = days.find((d) => d.day === toDay);
+      if (to && stop) to.attractions = dedupeDayStops([...to.attractions, { ...stop }]);
+      return days;
+    });
+    setActionsIdx(-1);
+  }, [activeDay, actionsIdx, commitDays]);
+
+  const setStopAsLodging = useCallback(() => {
+    commitDays((days) => days.map((d) => {
+      if (d.day !== activeDay) return d;
+      const list = [...d.attractions];
+      const [stop] = list.splice(actionsIdx, 1);
+      if (stop) { stop.category = "מלון"; list.push(stop); } /* move to bottom */
+      return { ...d, attractions: list };
+    }));
+    setActionsIdx(-1);
+  }, [activeDay, actionsIdx, commitDays]);
+
+  const deleteStop = useCallback(() => {
+    commitDays((days) => days.map((d) =>
+      d.day === activeDay ? { ...d, attractions: d.attractions.filter((_, i) => i !== actionsIdx) } : d
+    ));
+    setActionsIdx(-1);
+  }, [activeDay, actionsIdx, commitDays]);
+
+  /* Category filter → snap sheet to full + regroup by city (§8). */
+  const applyFilter = useCallback((id) => {
+    setFilter(id);
+    if (id !== "all") sheetRef.current?.snapTo?.("full");
+  }, []);
 
   useEffect(() => {
     let live = true;
@@ -213,7 +302,7 @@ const EditorView = () => {
     return () => { live = false; };
   }, [tripId]);
 
-  const days = trip?.data?.tripData ?? [];
+  const days = useMemo(() => trip?.data?.tripData ?? [], [trip]);
   const activeDayData = useMemo(
     () => days.find((d) => d.day === activeDay) || null,
     [days, activeDay]
@@ -224,16 +313,51 @@ const EditorView = () => {
     sheetRef.current?.snapTo?.("half");
   };
 
+  /* Filtered, city-grouped projection used when a category filter
+     is active (spec §8): groups matching stops by city across all
+     days instead of chronologically. */
+  const groupedByCity = useMemo(() => {
+    if (filter === "all") return null;
+    const groups = new Map();
+    days.forEach((d) => {
+      (d.attractions || []).forEach((a) => {
+        if (categoryBucket(a.category) !== filter) return;
+        const city = a.cityHe || d.cityHe || d.city || "";
+        if (!groups.has(city)) groups.set(city, { city, color: cityColor(a.city || d.city), items: [] });
+        groups.get(city).items.push({ ...a, _day: d.day });
+      });
+    });
+    return Array.from(groups.values());
+  }, [filter, days]);
+
+  /* Markers shown on the map: active day's stops, or — when
+     filtering — every matching stop (map viewport is NOT recentred
+     on filter, per spec). */
+  const mapStops = useMemo(() => {
+    if (filter !== "all" && groupedByCity) {
+      return groupedByCity.flatMap((g) => g.items);
+    }
+    return activeDayData?.attractions ?? [];
+  }, [filter, groupedByCity, activeDayData]);
+
   return (
     <div dir="rtl" style={{ height: "100vh", overflow: "hidden", position: "relative", fontFamily: T.font, background: "#E9EBEC" }}>
-      {/* Map placeholder (real MapLibre canvas wired in the geocoding phase) */}
-      <div style={{
-        position: "absolute", inset: 0,
-        background: "repeating-linear-gradient(45deg,#E9EBEC 0 18px,#E4E6E8 18px 36px)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-      }}>
-        <span style={{ color: T.ink4, fontSize: 13 }}>אזור המפה</span>
+      {/* Real keyless MapLibre canvas */}
+      <div style={{ position: "absolute", inset: 0 }}>
+        <EditorMap
+          stops={mapStops}
+          color={cityColor(activeDayData?.city)}
+          isPinning={isPinning}
+          onMapPick={(coord) => { setPendingCoord(coord); setIsPinning(false); setShowAddStop(true); }}
+        />
       </div>
+
+      {/* Pinning-mode banner */}
+      {isPinning && (
+        <div style={{ position: "absolute", top: 64, insetInlineStart: 16, insetInlineEnd: 16, zIndex: 45, background: T.ink, color: "#fff", borderRadius: 12, padding: "10px 14px", fontSize: 13, textAlign: "center" }}>
+          לחצו על המפה כדי לנעוץ סיכה · <button onClick={() => setIsPinning(false)} style={{ background: "none", border: "none", color: "#fff", textDecoration: "underline", cursor: "pointer", fontFamily: "inherit", fontSize: 13 }}>ביטול</button>
+        </div>
+      )}
 
       {/* Top bar — exit + trip title */}
       <header style={{
@@ -289,47 +413,112 @@ const EditorView = () => {
               ) : (
                 <div style={{ fontSize: 13, color: T.ink3, padding: "4px 0" }}>מסלול חדש — עדיין אין ימים</div>
               )}
+
+              {/* Category filter pills (§8) */}
+              <div style={{ display: "flex", gap: 6, marginTop: 10, overflowX: "auto" }} className="scrollbar-hide">
+                {FILTERS.map((f) => {
+                  const on = filter === f.id;
+                  return (
+                    <button key={f.id} onClick={() => applyFilter(f.id)}
+                      style={{
+                        flexShrink: 0, padding: "5px 12px", borderRadius: 999, cursor: "pointer", fontFamily: "inherit",
+                        border: `1px solid ${on ? T.ink : T.line}`, background: on ? T.ink : "#fff",
+                        color: on ? "#fff" : T.ink2, fontSize: 12, fontWeight: 600,
+                      }}>
+                      {f.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           }
         >
           <div style={{ padding: "4px 16px 120px" }}>
-            {/* Active day header */}
-            {activeDayData && (
-              <div style={{ display: "flex", alignItems: "baseline", gap: 8, margin: "8px 0 14px" }}>
-                <span style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em", color: cityColor(activeDayData.city) }}>
-                  {activeDayData.cityHe || activeDayData.city}
-                </span>
-                <span style={{ fontSize: 13, color: T.ink3 }}>יום {activeDayData.day}</span>
-              </div>
-            )}
-
-            {/* Stop list — drag-reorder + auto transit rails */}
-            {activeDayData?.attractions?.length ? (
-              <DayStopList
-                stops={activeDayData.attractions}
-                color={cityColor(activeDayData.city)}
-                onReorder={handleReorder}
-              />
+            {filter !== "all" ? (
+              /* City-grouped filtered view */
+              groupedByCity && groupedByCity.length ? (
+                groupedByCity.map((g) => (
+                  <div key={g.city} style={{ marginBottom: 20 }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: g.color, margin: "8px 0 8px" }}>{g.city}</div>
+                    {g.items.map((a, i) => (
+                      <div key={`${a.name}-${i}`} style={{ display: "flex", gap: 12, padding: "9px 0", borderBottom: `1px solid ${T.line}` }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 14.5, fontWeight: 700, color: T.ink, direction: "ltr", textAlign: "right" }}>{a.name}</div>
+                          {a.nameHe && a.nameHe !== a.name && <div style={{ fontSize: 12, color: T.ink3 }}>{a.nameHe}</div>}
+                          <div style={{ fontSize: 11, color: T.ink4, marginTop: 2 }}>יום {a._day}{a.category ? ` · ${a.category}` : ""}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ))
+              ) : (
+                <div style={{ textAlign: "center", color: T.ink3, padding: "32px 0", fontSize: 13.5 }}>אין תוצאות בקטגוריה זו</div>
+              )
             ) : (
-              <div style={{ textAlign: "center", color: T.ink3, padding: "32px 0", fontSize: 13.5 }}>
-                {days.length === 0 ? "התחילו להוסיף תחנות למסלול" : "אין תחנות ביום זה עדיין"}
-              </div>
-            )}
+              <>
+                {/* Active day header */}
+                {activeDayData && (
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 8, margin: "8px 0 14px" }}>
+                    <span style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em", color: cityColor(activeDayData.city) }}>
+                      {activeDayData.cityHe || activeDayData.city}
+                    </span>
+                    <span style={{ fontSize: 13, color: T.ink3 }}>יום {activeDayData.day}</span>
+                  </div>
+                )}
 
-            {/* Add stop (stub — Google Places / manual pin next phase) */}
-            <button
-              onClick={() => alert("הוספת תחנה — חיפוש Google Places / נעיצה ידנית ייבנו בשלב הבא")}
-              style={{
-                width: "100%", marginTop: 16, padding: 14, borderRadius: 16,
-                border: `2px dashed ${T.line}`, background: "transparent",
-                color: T.ink2, fontSize: 14, fontWeight: 700, cursor: "pointer",
-                fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-              }}
-            >
-              <span style={{ fontSize: 18 }}>＋</span> הוספת תחנה
-            </button>
+                {/* Stop list — drag-reorder + auto transit rails */}
+                {activeDayData?.attractions?.length ? (
+                  <DayStopList
+                    stops={activeDayData.attractions}
+                    color={cityColor(activeDayData.city)}
+                    onReorder={handleReorder}
+                    onOpenActions={(i) => setActionsIdx(i)}
+                  />
+                ) : (
+                  <div style={{ textAlign: "center", color: T.ink3, padding: "32px 0", fontSize: 13.5 }}>
+                    {days.length === 0 ? "התחילו להוסיף תחנות למסלול" : "אין תחנות ביום זה עדיין"}
+                  </div>
+                )}
+
+                {/* Add stop */}
+                <button
+                  onClick={() => { setPendingCoord(null); setShowAddStop(true); }}
+                  style={{
+                    width: "100%", marginTop: 16, padding: 14, borderRadius: 16,
+                    border: `2px dashed ${T.line}`, background: "transparent",
+                    color: T.ink2, fontSize: 14, fontWeight: 700, cursor: "pointer",
+                    fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                  }}
+                >
+                  <span style={{ fontSize: 18 }}>＋</span> הוספת תחנה
+                </button>
+              </>
+            )}
           </div>
         </EditorBottomSheet>
+      )}
+
+      {/* Add-stop sheet */}
+      {showAddStop && (
+        <AddStopSheet
+          pendingCoord={pendingCoord}
+          onStartPin={() => { setShowAddStop(false); setIsPinning(true); }}
+          onAdd={handleAddStop}
+          onClose={() => { setShowAddStop(false); setPendingCoord(null); }}
+        />
+      )}
+
+      {/* Quick-actions sheet */}
+      {actionsIdx >= 0 && activeDayData?.attractions?.[actionsIdx] && (
+        <StopActionsSheet
+          stop={activeDayData.attractions[actionsIdx]}
+          days={days.map((d) => ({ day: d.day, cityHe: d.cityHe || d.city }))}
+          onMove={moveStopToDay}
+          onCopy={copyStopToDay}
+          onSetLodging={setStopAsLodging}
+          onDelete={deleteStop}
+          onClose={() => setActionsIdx(-1)}
+        />
       )}
 
       {!trip && !error && (
