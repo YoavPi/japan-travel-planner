@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import tripService from "../services/tripService";
+import ShareSheet from "../components/ShareSheet";
 
 /* ──────────────────────────────────────────────────────────────
    DashboardView — "המפות שלי" trip grid.
@@ -11,9 +12,10 @@ import tripService from "../services/tripService";
    MyMapsScreen) lands in the layout phase.
    ────────────────────────────────────────────────────────────── */
 const DashboardView = () => {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [trips, setTrips] = useState(null); // null = loading
+  const [shareTrip, setShareTrip] = useState(null);
 
   useEffect(() => {
     let live = true;
@@ -38,15 +40,16 @@ const DashboardView = () => {
   return (
     <div dir="rtl" style={{ minHeight: "100vh", background: "#EDEDEC", fontFamily: "'Noto Sans Hebrew','Inter',sans-serif" }}>
       {/* Top bar */}
-      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 22px", background: "#fff", borderBottom: "1px solid rgba(20,20,20,0.08)" }}>
-        <div style={{ fontSize: 17, fontWeight: 800, color: "#0D0F11" }}>המפות שלי</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <span style={{ fontSize: 12.5, color: "#6B7178" }}>{user?.name}</span>
-          <button onClick={() => { signOut(); navigate("/"); }}
-            style={{ border: "1px solid rgba(20,20,20,0.12)", background: "#F6F6F4", borderRadius: 999, padding: "6px 12px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
-            התנתקות
-          </button>
+      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "#fff", borderBottom: "1px solid rgba(20,20,20,0.08)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={() => navigate("/")} title="חזרה לעמוד הבית"
+            style={{ width: 38, height: 38, borderRadius: "50%", border: "none", background: "#F6F6F4", cursor: "pointer", fontSize: 16, fontFamily: "inherit" }}>←</button>
+          <div style={{ fontSize: 17, fontWeight: 800, color: "#0D0F11" }}>המפות שלי</div>
         </div>
+        <button onClick={() => navigate("/profile")} title="הפרופיל שלי"
+          style={{ width: 38, height: 38, borderRadius: "50%", border: "none", background: "#F6F6F4", cursor: "pointer", fontSize: 15, fontWeight: 800, color: "#2A3036", fontFamily: "inherit" }}>
+          {(user?.name || "?").trim().slice(0, 1)}
+        </button>
       </header>
 
       <main style={{ maxWidth: 900, margin: "0 auto", padding: 22 }}>
@@ -70,7 +73,7 @@ const DashboardView = () => {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px,1fr))", gap: 14 }}>
             {trips.map((t) => (
               <button key={t.id} onClick={() => openTrip(t)}
-                style={{ display: "flex", gap: 14, padding: 12, borderRadius: 20, border: "1px solid rgba(20,20,20,0.08)", background: "#fff", boxShadow: "0 1px 2px rgba(0,0,0,.04), 0 8px 28px rgba(0,0,0,.05)", cursor: "pointer", textAlign: "right", fontFamily: "inherit" }}>
+                style={{ position: "relative", display: "flex", gap: 14, padding: 12, borderRadius: 20, border: "1px solid rgba(20,20,20,0.08)", background: "#fff", boxShadow: "0 1px 2px rgba(0,0,0,.04), 0 8px 28px rgba(0,0,0,.05)", cursor: "pointer", textAlign: "right", fontFamily: "inherit" }}>
                 <div style={{ width: 84, height: 84, borderRadius: 14, background: t.cover ? `center/cover url(${t.cover})` : "#EFEFEC", flexShrink: 0, position: "relative" }}>
                   <span style={{ position: "absolute", bottom: 6, insetInlineStart: 6, background: "rgba(13,15,17,0.82)", color: "#fff", fontSize: 10.5, padding: "2px 7px", borderRadius: 999 }}>{t.days} ימים</span>
                 </div>
@@ -82,11 +85,22 @@ const DashboardView = () => {
                     {t.readOnly ? " · דוגמה" : ""}
                   </div>
                 </div>
+                {/* Share action (owned/edit) — read-only example has none */}
+                {!t.readOnly && (
+                  <span
+                    onClick={(e) => { e.stopPropagation(); setShareTrip(t); }}
+                    title="שיתוף"
+                    style={{ position: "absolute", top: 10, insetInlineStart: 10, width: 30, height: 30, borderRadius: "50%", background: "#F6F6F4", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, cursor: "pointer" }}
+                  >
+                    ↗
+                  </span>
+                )}
               </button>
             ))}
           </div>
         )}
       </main>
+      {shareTrip && <ShareSheet trip={shareTrip} onClose={() => setShareTrip(null)} />}
       <style>{`@keyframes tpSkeleton{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
     </div>
   );

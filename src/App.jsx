@@ -9,6 +9,7 @@ import ExploreView from "./views/ExploreView";
 import AuthView from "./views/AuthView";
 import DashboardView from "./views/DashboardView";
 import WizardView from "./views/WizardView";
+import ProfileView from "./views/ProfileView";
 import EditorView from "./views/EditorView";
 
 /* ══════════════════════════════════════════════════════════════
@@ -46,6 +47,14 @@ const App = () => (
           element={
             <ProtectedRoute>
               <WizardView />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <ProfileView />
             </ProtectedRoute>
           }
         />
