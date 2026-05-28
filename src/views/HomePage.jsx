@@ -220,6 +220,28 @@ const Hero = () => {
         </div>
       </div>
 
+      {/* Go to the SaaS platform main page (trip-builder dashboard).
+          /dashboard is protected → bounces to /auth when not signed
+          in, so this single link works for both states. */}
+      <div className="absolute top-6 left-6 md:left-16 lg:left-24 z-20 anim-fade-in delay-5">
+        <Link
+          to="/dashboard"
+          className="inline-flex items-center gap-2 bg-slate-deep text-offwhite font-sans"
+          style={{
+            padding: "9px 16px",
+            borderRadius: 999,
+            fontSize: 12.5,
+            fontWeight: 600,
+            textDecoration: "none",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
+          }}
+          title="מעבר לעמוד הראשי — בניית מפות"
+        >
+          <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>←</span>
+          <span>מעבר לעמוד הראשי</span>
+        </Link>
+      </div>
+
       {/* Hero photo (left, 42% — desktop only) */}
       <div
         className="hidden lg:block flex-shrink-0 anim-fade-in delay-4"
