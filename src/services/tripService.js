@@ -28,7 +28,7 @@
 import { tripData, routePath, HOTEL_COORDINATES } from "../data/tripData";
 import { cityTransitions, lodgingOverrides } from "../data/transportData";
 
-const STORAGE_KEY = "tp_trips_v1";
+const STORAGE_KEY = "tp_trips_v2"; // bump to re-seed (Dubai now has sample stops)
 const LAG = 450; // ms — simulated network latency
 
 const delay = (ms) => new Promise((res) => setTimeout(res, ms));
@@ -73,7 +73,33 @@ const SAMPLE_TRIPS = [
     collaborators: [],
     lastEdited: "2026-03-12T08:30:00.000Z",
     settings: { destination: "Dubai", destinationHe: "דובאי" },
-    data: { tripData: [], cityTransitions: [], lodgingOverrides: {} },
+    /* Seeded with a couple of real days so the editor's day-strip,
+       stop rows, drag-reorder, and auto-transit rails have live
+       content to demonstrate without the Places flow. */
+    data: {
+      tripData: [
+        {
+          day: 1, city: "Dubai", cityHe: "דובאי",
+          coordinates: { lng: 55.2744, lat: 25.1972 },
+          attractions: [
+            { name: "Burj Khalifa", nameHe: "בורג' ח'ליפה", category: "אטרקציה", rating: "9.4/10", coordinates: { lng: 55.2744, lat: 25.1972 } },
+            { name: "Dubai Mall", nameHe: "דובאי מול", category: "קניות", coordinates: { lng: 55.2796, lat: 25.1985 } },
+            { name: "Dubai Fountain", nameHe: "מזרקת דובאי", category: "אטרקציה", coordinates: { lng: 55.2754, lat: 25.1956 } },
+            { name: "At.mosphere", nameHe: "מסעדת אטמוספיר", category: "מסעדה", rating: "9/10", coordinates: { lng: 55.2742, lat: 25.1971 } },
+          ],
+        },
+        {
+          day: 2, city: "Dubai", cityHe: "דובאי",
+          coordinates: { lng: 55.1853, lat: 25.1412 },
+          attractions: [
+            { name: "Palm Jumeirah", nameHe: "פאלם ג'ומיירה", category: "אטרקציה", coordinates: { lng: 55.1390, lat: 25.1124 } },
+            { name: "Atlantis The Palm", nameHe: "אטלנטיס", category: "מלון", rating: "9/10", coordinates: { lng: 55.1175, lat: 25.1304 } },
+          ],
+        },
+      ],
+      cityTransitions: [],
+      lodgingOverrides: {},
+    },
   },
   {
     id: "paris-weekend",

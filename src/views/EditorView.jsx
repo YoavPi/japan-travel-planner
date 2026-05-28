@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import tripService from "../services/tripService";
 import EditorBottomSheet from "../components/EditorBottomSheet";
+import { computeTransit } from "../utils/transit";
 
 /* ──────────────────────────────────────────────────────────────
    EditorView — mobile-first trip workspace.
@@ -32,14 +33,176 @@ const CITY_COLOR = {
 const cityColor = (c) => CITY_COLOR[(c || "").replace(/ \d+$/, "")] || T.ink;
 const cityAbbr = (c) => (c || "").slice(0, 3).toUpperCase();
 
+/* ── Transit rail (sits ON the connecting axis between two stops) ──
+   Renders the auto-computed mode + minutes + distance. Tapping it
+   cycles the manual override walk → transit → car → auto (spec §7). */
+const TransitRail = ({ a, b, override, onCycle }) => {
+  const seg = computeTransit(a?.coordinates, b?.coordinates, override);
+  if (!seg) return null;
+  return (
+    <div style={{ display: "flex", justifyContent: "center", padding: "2px 0" }}>
+      <button
+        onClick={onCycle}
+        title="לחצו לשינוי אופן התחבורה"
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 6,
+          padding: "4px 10px", borderRadius: 999,
+          border: `1px solid ${T.line}`, background: "#fff",
+          fontSize: 11, color: T.ink3, cursor: "pointer", fontFamily: "inherit",
+        }}
+      >
+        <span aria-hidden>{seg.emoji}</span>
+        <b style={{ color: T.ink2, fontWeight: 700 }}>{seg.minutesLabel}</b>
+        <span style={{ color: T.ink4 }}>·</span>
+        <span>{seg.he}</span>
+        <span style={{ color: T.ink4 }}>·</span>
+        <span>{seg.distLabel}</span>
+        {seg.overridden && <span style={{ color: T.accent, fontSize: 9 }}>•</span>}
+      </button>
+    </div>
+  );
+};
+
+/* ── Day stop list with pointer-based drag-reorder (spec §6) ──
+   Long-/click-drag the ≡ handle to re-sort. On release the new
+   order is committed via onReorder, which persists + re-renders
+   the transit rails in real time. */
+const OVERRIDE_CYCLE = [null, "walk", "transit", "car"];
+
+const DayStopList = ({ stops, color, onReorder }) => {
+  const [items, setItems] = useState(stops);
+  const [dragIdx, setDragIdx] = useState(-1);
+  const [overrides, setOverrides] = useState({}); // segIndex → mode
+  const rowRefs = useRef([]);
+  const dragRef = useRef({ active: false });
+
+  useEffect(() => { setItems(stops); }, [stops]);
+
+  const onHandleDown = (i) => (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragRef.current = { active: true };
+    setDragIdx(i);
+    try { e.target.setPointerCapture?.(e.pointerId); } catch { /* noop */ }
+  };
+  const onMove = (e) => {
+    if (!dragRef.current.active || dragIdx < 0) return;
+    const y = e.clientY;
+    let target = dragIdx;
+    rowRefs.current.forEach((el, idx) => {
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const mid = r.top + r.height / 2;
+      if (idx < dragIdx && y < mid) target = Math.min(target, idx);
+      if (idx > dragIdx && y > mid) target = Math.max(target, idx);
+    });
+    if (target !== dragIdx) {
+      setItems((prev) => {
+        const next = prev.slice();
+        const [moved] = next.splice(dragIdx, 1);
+        next.splice(target, 0, moved);
+        return next;
+      });
+      setDragIdx(target);
+    }
+  };
+  const onUp = () => {
+    if (!dragRef.current.active) return;
+    dragRef.current.active = false;
+    setDragIdx(-1);
+    onReorder && onReorder(items);
+  };
+
+  const cycleOverride = (segIdx) => {
+    setOverrides((prev) => {
+      const cur = prev[segIdx] ?? null;
+      const next = OVERRIDE_CYCLE[(OVERRIDE_CYCLE.indexOf(cur) + 1) % OVERRIDE_CYCLE.length];
+      return { ...prev, [segIdx]: next };
+    });
+  };
+
+  return (
+    <div onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+      {items.map((a, i) => (
+        <React.Fragment key={`${a.name}-${i}`}>
+          <div
+            ref={(el) => (rowRefs.current[i] = el)}
+            style={{
+              display: "flex", gap: 12, padding: "10px 0",
+              borderBottom: `1px solid ${T.line}`,
+              background: dragIdx === i ? "rgba(224,83,63,0.06)" : "transparent",
+              borderRadius: dragIdx === i ? 12 : 0,
+              transition: "background 0.15s",
+            }}
+          >
+            <div style={{
+              width: 30, height: 30, borderRadius: "50%", flexShrink: 0,
+              background: color, color: "#fff", display: "flex", alignItems: "center",
+              justifyContent: "center", fontSize: 13, fontWeight: 800,
+            }}>{i + 1}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: T.ink, direction: "ltr", textAlign: "right" }}>{a.name}</div>
+              {a.nameHe && a.nameHe !== a.name && (
+                <div style={{ fontSize: 12, color: T.ink3, marginTop: 1 }}>{a.nameHe}</div>
+              )}
+              {a.category && (
+                <div style={{ display: "inline-block", marginTop: 6, fontSize: 11, fontWeight: 600, color, background: `${color}14`, border: `1px solid ${color}30`, borderRadius: 999, padding: "2px 9px" }}>
+                  {a.category}{a.rating ? ` · ${a.rating}` : ""}
+                </div>
+              )}
+            </div>
+            {/* Drag handle */}
+            <button
+              onPointerDown={onHandleDown(i)}
+              title="גררו לסידור מחדש"
+              style={{ alignSelf: "center", width: 32, height: 32, border: "none", background: "transparent", color: T.ink4, cursor: "grab", touchAction: "none", fontSize: 16, fontFamily: "inherit" }}
+            >
+              ≡
+            </button>
+          </div>
+          {/* Transit rail to the next stop */}
+          {i < items.length - 1 && (
+            <TransitRail
+              a={a}
+              b={items[i + 1]}
+              override={overrides[i] ?? null}
+              onCycle={() => cycleOverride(i)}
+            />
+          )}
+        </React.Fragment>
+      ))}
+    </div>
+  );
+};
+
 const EditorView = () => {
   const { tripId } = useParams();
   const navigate = useNavigate();
   const [trip, setTrip] = useState(null);
   const [error, setError] = useState(null);
   const [activeDay, setActiveDay] = useState(1);
+  const [saving, setSaving] = useState(false);
   const sheetRef = useRef(null);
   const dayStripRef = useRef(null);
+
+  /* Commit a reordered stop list for the active day → local state +
+     persist via the service (skipped for read-only trips). */
+  const handleReorder = useCallback((newStops) => {
+    setTrip((prev) => {
+      if (!prev) return prev;
+      const nextDays = (prev.data.tripData || []).map((d) =>
+        d.day === activeDay ? { ...d, attractions: newStops } : d
+      );
+      const nextTrip = { ...prev, data: { ...prev.data, tripData: nextDays } };
+      if (!prev.readOnly) {
+        setSaving(true);
+        tripService.saveTrip(prev.id, { data: nextTrip.data })
+          .catch(() => {})
+          .finally(() => setSaving(false));
+      }
+      return nextTrip;
+    });
+  }, [activeDay]);
 
   useEffect(() => {
     let live = true;
@@ -82,8 +245,9 @@ const EditorView = () => {
           ←
         </button>
         {trip && (
-          <div style={{ background: "#fff", borderRadius: 999, padding: "8px 16px", boxShadow: "0 2px 8px rgba(0,0,0,0.08)", fontSize: 14, fontWeight: 800, color: T.ink }}>
-            {trip.title}{trip.days ? ` · ${trip.days} ימים` : ""}
+          <div style={{ background: "#fff", borderRadius: 999, padding: "8px 16px", boxShadow: "0 2px 8px rgba(0,0,0,0.08)", fontSize: 14, fontWeight: 800, color: T.ink, display: "flex", alignItems: "center", gap: 8 }}>
+            <span>{trip.title}{trip.days ? ` · ${trip.days} ימים` : ""}</span>
+            {saving && <span style={{ fontSize: 11, fontWeight: 600, color: T.ink3 }}>נשמר…</span>}
           </div>
         )}
       </header>
@@ -139,31 +303,13 @@ const EditorView = () => {
               </div>
             )}
 
-            {/* Stop list */}
+            {/* Stop list — drag-reorder + auto transit rails */}
             {activeDayData?.attractions?.length ? (
-              activeDayData.attractions.map((a, i) => {
-                const col = cityColor(a.city || activeDayData.city);
-                return (
-                  <div key={i} style={{ display: "flex", gap: 12, padding: "10px 0", borderBottom: `1px solid ${T.line}` }}>
-                    <div style={{
-                      width: 30, height: 30, borderRadius: "50%", flexShrink: 0,
-                      background: col, color: "#fff", display: "flex", alignItems: "center",
-                      justifyContent: "center", fontSize: 13, fontWeight: 800,
-                    }}>{i + 1}</div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 15, fontWeight: 700, color: T.ink, direction: "ltr", textAlign: "right" }}>{a.name}</div>
-                      {a.nameHe && a.nameHe !== a.name && (
-                        <div style={{ fontSize: 12, color: T.ink3, marginTop: 1 }}>{a.nameHe}</div>
-                      )}
-                      {a.category && (
-                        <div style={{ display: "inline-block", marginTop: 6, fontSize: 11, fontWeight: 600, color: col, background: `${col}14`, border: `1px solid ${col}30`, borderRadius: 999, padding: "2px 9px" }}>
-                          {a.category}{a.rating ? ` · ${a.rating}` : ""}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })
+              <DayStopList
+                stops={activeDayData.attractions}
+                color={cityColor(activeDayData.city)}
+                onReorder={handleReorder}
+              />
             ) : (
               <div style={{ textAlign: "center", color: T.ink3, padding: "32px 0", fontSize: 13.5 }}>
                 {days.length === 0 ? "התחילו להוסיף תחנות למסלול" : "אין תחנות ביום זה עדיין"}
