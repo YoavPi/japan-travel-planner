@@ -47,8 +47,11 @@ const DashboardView = () => {
           <div style={{ fontSize: 17, fontWeight: 800, color: "#0D0F11" }}>המפות שלי</div>
         </div>
         <button onClick={() => navigate("/profile")} title="הפרופיל שלי"
-          style={{ width: 38, height: 38, borderRadius: "50%", border: "none", background: "#F6F6F4", cursor: "pointer", fontSize: 15, fontWeight: 800, color: "#2A3036", fontFamily: "inherit" }}>
-          {(user?.name || "?").trim().slice(0, 1)}
+          style={{ display: "inline-flex", alignItems: "center", gap: 8, border: "1px solid rgba(20,20,20,0.12)", background: "#F6F6F4", borderRadius: 999, padding: "5px 6px 5px 12px", cursor: "pointer", fontFamily: "inherit" }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#2A3036" }}>הפרופיל שלי</span>
+          <span style={{ width: 30, height: 30, borderRadius: "50%", background: "#0D0F11", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800 }}>
+            {(user?.name || "?").trim().slice(0, 1)}
+          </span>
         </button>
       </header>
 
