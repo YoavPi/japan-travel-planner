@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import tripService from "../services/tripService";
 
@@ -33,6 +33,21 @@ const DESTINATIONS = [
   { id: "us", flag: "🇺🇸", name: "ארה״ב", en: "USA", sub: "צפון אמריקה · 10–21 ימים", center: { lng: -98.5, lat: 39.8, zoom: 3.6 } },
 ];
 
+/* Suggested cities per destination — shown as quick-add chips in
+   the city-routing step so users don't start from a blank field. */
+const SUGGESTED_CITIES = {
+  jp: ["טוקיו", "קיוטו", "אוסקה", "האקונה", "נארה", "קנזאווה"],
+  it: ["רומא", "פירנצה", "ונציה", "מילאנו", "אמלפי", "נאפולי"],
+  pt: ["ליסבון", "פורטו", "סינטרה", "לאגוס"],
+  gr: ["אתונה", "סנטוריני", "מיקונוס", "כרתים"],
+  th: ["בנגקוק", "צ׳אנג מאי", "פוקט", "קו סמוי"],
+  vn: ["האנוי", "הוי אן", "הו צ׳י מין", "חאלונג"],
+  ae: ["דובאי", "אבו דאבי"],
+  fr: ["פריז", "ניס", "ליון", "בורדו"],
+  es: ["מדריד", "ברצלונה", "סביליה", "גרנדה"],
+  us: ["ניו יורק", "לוס אנג׳לס", "סן פרנסיסקו", "לאס וגאס"],
+};
+
 const Pip = ({ state }) => (
   <span style={{ width: state === "active" ? 22 : 7, height: 7, borderRadius: 999, background: state === "done" ? T.ink : state === "active" ? T.accent : "rgba(20,20,20,0.14)", transition: "all 0.2s" }} />
 );
@@ -54,7 +69,6 @@ const WizardView = () => {
   const [dur, setDur] = useState(9);
   const [cities, setCities] = useState([]);      // [{ name, fromDay, toDay }]
   const [creating, setCreating] = useState(false);
-  const dayBarRef = useRef(null);
 
   const dest = useMemo(() => DESTINATIONS.find((d) => d.id === destId), [destId]);
   const filtered = useMemo(() => {
@@ -66,10 +80,10 @@ const WizardView = () => {
   const back = () => (step === 0 ? navigate("/dashboard") : setStep((s) => s - 1));
 
   /* City-routing helpers */
-  const addCity = () => {
+  const addCity = (name = "") => {
     const used = cities.reduce((m, c) => Math.max(m, c.toDay), 0);
     const from = Math.min(used + 1, dur);
-    setCities([...cities, { name: "", fromDay: from, toDay: Math.min(from + 1, dur) }]);
+    setCities([...cities, { name: typeof name === "string" ? name : "", fromDay: from, toDay: Math.min(from + 1, dur) }]);
   };
   const updateCity = (i, patch) => setCities(cities.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
   const removeCity = (i) => setCities(cities.filter((_, idx) => idx !== i));
@@ -152,37 +166,36 @@ const WizardView = () => {
             </>
           )}
 
-          {/* STEP 2 — Duration (tactile day bar) */}
+          {/* STEP 2 — Duration (single tactile slider bar) */}
           {step === 1 && (
             <>
               <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.022em", color: T.ink, margin: "6px 0 6px" }}>
                 כמה <span style={{ color: T.accent }}>זמן</span> תטוסו?
               </h1>
-              <p style={{ fontSize: 14, color: T.ink3, lineHeight: 1.55, marginBottom: 18 }}>החליקו לבחירת מספר הימים — בין 1 ל־45.</p>
-              <div style={{ textAlign: "center", marginBottom: 18 }}>
-                <span style={{ fontSize: 56, fontWeight: 800, color: T.ink, letterSpacing: "-0.03em", fontVariantNumeric: "tabular-nums" }}>{dur}</span>
+              <p style={{ fontSize: 14, color: T.ink3, lineHeight: 1.55, marginBottom: 28 }}>גררו את הבר לבחירת מספר הימים — בין 1 ל־45.</p>
+
+              {/* Big readout */}
+              <div style={{ textAlign: "center", marginBottom: 22 }}>
+                <span style={{ fontSize: 64, fontWeight: 800, color: T.ink, letterSpacing: "-0.03em", fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>{dur}</span>
                 <span style={{ fontSize: 18, fontWeight: 700, color: T.ink3, marginInlineStart: 8 }}>ימים</span>
               </div>
-              {/* Horizontal day bar */}
-              <div ref={dayBarRef} style={{ display: "flex", gap: 6, overflowX: "auto", padding: "8px 2px 14px" }} className="scrollbar-hide">
-                {Array.from({ length: 45 }, (_, i) => i + 1).map((n) => {
-                  const on = n === dur;
-                  const inRange = n <= dur;
-                  return (
-                    <button key={n} onClick={() => setDur(n)}
-                      style={{ flexShrink: 0, width: 44, height: 56, borderRadius: 14, cursor: "pointer", fontFamily: "inherit", fontSize: 15, fontWeight: 800, fontVariantNumeric: "tabular-nums",
-                        border: `1.5px solid ${on ? T.ink : (inRange ? T.accent + "44" : T.line)}`,
-                        background: on ? T.ink : (inRange ? T.accent + "12" : "#fff"),
-                        color: on ? "#fff" : (inRange ? T.accent : T.ink3) }}>
-                      {n}
-                    </button>
-                  );
-                })}
-              </div>
-              <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-                {[5, 7, 10, 14, 21, 30].map((d) => (
-                  <button key={d} onClick={() => setDur(d)} style={{ padding: "8px 14px", borderRadius: 999, cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 600, border: `1px solid ${dur === d ? T.ink : T.line}`, background: dur === d ? T.ink : "#fff", color: dur === d ? "#fff" : T.ink2 }}>{d}</button>
-                ))}
+
+              {/* Slider bar (range input, RTL-flipped so 1 is on the
+                  right and 45 on the left). Filled track shows progress. */}
+              <div style={{ padding: "0 4px" }}>
+                <input
+                  className="wiz-day-slider"
+                  type="range" min={1} max={45} step={1} value={dur}
+                  onChange={(e) => setDur(Number(e.target.value))}
+                  style={{
+                    width: "100%",
+                    background: `linear-gradient(to left, ${T.accent} 0%, ${T.accent} ${((dur - 1) / 44) * 100}%, ${T.surface2} ${((dur - 1) / 44) * 100}%, ${T.surface2} 100%)`,
+                  }}
+                />
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10, fontSize: 12, fontWeight: 700, color: T.ink4 }}>
+                  <span>יום 1</span>
+                  <span>45 ימים</span>
+                </div>
               </div>
             </>
           )}
@@ -193,7 +206,29 @@ const WizardView = () => {
               <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.022em", color: T.ink, margin: "6px 0 6px" }}>
                 חלוקת <span style={{ color: T.accent }}>ערים</span> לפי ימים
               </h1>
-              <p style={{ fontSize: 14, color: T.ink3, lineHeight: 1.55, marginBottom: 18 }}>אופציונלי — מפו ערים לטווחי ימים, ונמלא את כותרות הימים מראש.</p>
+              <p style={{ fontSize: 14, color: T.ink3, lineHeight: 1.55, marginBottom: 14 }}>אופציונלי — מפו ערים לטווחי ימים, ונמלא את כותרות הימים מראש.</p>
+
+              {/* Suggested cities for the selected country */}
+              {(SUGGESTED_CITIES[destId] || []).length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: T.ink3, marginBottom: 8 }}>
+                    ערים מומלצות ב{dest.name}
+                  </div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {SUGGESTED_CITIES[destId].map((cityName) => {
+                      const already = cities.some((c) => c.name.trim() === cityName);
+                      return (
+                        <button key={cityName} onClick={() => !already && addCity(cityName)} disabled={already}
+                          style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 999, cursor: already ? "default" : "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 600,
+                            border: `1px solid ${already ? T.line : T.accent + "55"}`, background: already ? T.surface : T.accent + "0F", color: already ? T.ink4 : T.accent, opacity: already ? 0.6 : 1 }}>
+                          {already ? "✓" : "＋"} {cityName}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {cities.map((c, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 16, border: `1px solid ${T.line}`, background: "#fff" }}>

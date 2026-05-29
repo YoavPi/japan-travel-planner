@@ -89,6 +89,41 @@ body {
   text-align: right;
 }
 
+/* Wizard duration slider — tactile bar with a large round thumb.
+   The inline `background` (set in WizardView) paints the filled
+   portion; here we size the track + style the draggable thumb.
+   direction:rtl makes value 1 sit on the right, 45 on the left. */
+.wiz-day-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  direction: rtl;
+  height: 10px;
+  border-radius: 999px;
+  outline: none;
+  cursor: pointer;
+}
+.wiz-day-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #0D0F11;
+  border: 3px solid #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+  cursor: grab;
+}
+.wiz-day-slider::-webkit-slider-thumb:active { cursor: grabbing; }
+.wiz-day-slider::-moz-range-thumb {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #0D0F11;
+  border: 3px solid #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+  cursor: grab;
+}
+
 /* Custom scrollbar — warm tones */
 .scrollbar-thin::-webkit-scrollbar {
   width: 5px;
