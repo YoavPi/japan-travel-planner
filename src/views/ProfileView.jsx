@@ -166,14 +166,14 @@ const ProfileView = () => {
         <section style={{ padding: "0 22px 40px" }}>
           <div style={{ borderRadius: 18, border: `1px solid ${T.line}`, overflow: "hidden" }}>
             {[
-              { icon: "⚙", label: "הגדרות וניהול" },
-              { icon: "⬇", label: "מפות לא־מקוונות" },
+              { icon: "⚙", label: "הגדרות וניהול", onClick: () => navigate("/settings") },
+              { icon: "⬇", label: "מפות לא־מקוונות", onClick: () => navigate("/settings") },
             ].map((r, i) => (
-              <div key={r.label} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderTop: i ? `1px solid ${T.line}` : "none" }}>
+              <button key={r.label} onClick={r.onClick} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderTop: i ? `1px solid ${T.line}` : "none", width: "100%", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit", textAlign: "right" }}>
                 <span style={{ width: 34, height: 34, borderRadius: 10, background: T.surface, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>{r.icon}</span>
                 <span style={{ flex: 1, fontSize: 14.5, fontWeight: 600, color: T.ink }}>{r.label}</span>
                 <span style={{ color: T.ink4 }}>‹</span>
-              </div>
+              </button>
             ))}
             <button onClick={() => { signOut(); navigate("/"); }} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderTop: `1px solid ${T.line}`, width: "100%", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit", textAlign: "right" }}>
               <span style={{ width: 34, height: 34, borderRadius: 10, background: "rgba(192,57,43,0.08)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>⎋</span>
