@@ -5,6 +5,7 @@ import EditorBottomSheet from "../components/EditorBottomSheet";
 import EditorMap from "../components/EditorMap";
 import AddStopSheet from "../components/AddStopSheet";
 import StopActionsSheet from "../components/StopActionsSheet";
+import EditorSearchBar from "../components/EditorSearchBar";
 import { computeTransit } from "../utils/transit";
 import { dedupeDayStops } from "../utils/classify";
 import { readPrefs } from "../services/prefsService";
@@ -355,11 +356,13 @@ const EditorView = () => {
         />
       </div>
 
-      {/* Pinning-mode banner */}
-      {isPinning && (
+      {/* Pinning-mode banner (replaces the search bar while pinning) */}
+      {isPinning ? (
         <div style={{ position: "absolute", top: 64, insetInlineStart: 16, insetInlineEnd: 16, zIndex: 45, background: T.ink, color: "#fff", borderRadius: 12, padding: "10px 14px", fontSize: 13, textAlign: "center" }}>
           לחצו על המפה כדי לנעוץ סיכה · <button onClick={() => setIsPinning(false)} style={{ background: "none", border: "none", color: "#fff", textDecoration: "underline", cursor: "pointer", fontFamily: "inherit", fontSize: 13 }}>ביטול</button>
         </div>
+      ) : (
+        trip && <EditorSearchBar onAddStop={handleAddStop} activeDay={activeDay} />
       )}
 
       {/* Top bar — exit + trip title */}
