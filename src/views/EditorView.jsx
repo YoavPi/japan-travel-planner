@@ -7,6 +7,7 @@ import AddStopSheet from "../components/AddStopSheet";
 import StopActionsSheet from "../components/StopActionsSheet";
 import { computeTransit } from "../utils/transit";
 import { dedupeDayStops } from "../utils/classify";
+import { readPrefs } from "../services/prefsService";
 
 /* ──────────────────────────────────────────────────────────────
    EditorView — mobile-first trip workspace.
@@ -53,8 +54,8 @@ const FILTERS = [
 /* ── Transit rail (sits ON the connecting axis between two stops) ──
    Renders the auto-computed mode + minutes + distance. Tapping it
    cycles the manual override walk → transit → car → auto (spec §7). */
-const TransitRail = ({ a, b, override, onCycle }) => {
-  const seg = computeTransit(a?.coordinates, b?.coordinates, override);
+const TransitRail = ({ a, b, override, onCycle, units }) => {
+  const seg = computeTransit(a?.coordinates, b?.coordinates, override, units);
   if (!seg) return null;
   return (
     <div style={{ display: "flex", justifyContent: "center", padding: "2px 0" }}>
@@ -92,6 +93,7 @@ const DayStopList = ({ stops, color, onReorder, onOpenActions }) => {
   const [overrides, setOverrides] = useState({}); // segIndex → mode
   const rowRefs = useRef([]);
   const dragRef = useRef({ active: false });
+  const units = readPrefs().units; // km | mi distance labels on rails
 
   useEffect(() => { setItems(stops); }, [stops]);
 
@@ -193,6 +195,7 @@ const DayStopList = ({ stops, color, onReorder, onOpenActions }) => {
               b={items[i + 1]}
               override={overrides[i] ?? null}
               onCycle={() => cycleOverride(i)}
+              units={units}
             />
           )}
         </React.Fragment>
@@ -330,15 +333,14 @@ const EditorView = () => {
     return Array.from(groups.values());
   }, [filter, days]);
 
-  /* Markers shown on the map: active day's stops, or — when
-     filtering — every matching stop (map viewport is NOT recentred
-     on filter, per spec). */
-  const mapStops = useMemo(() => {
-    if (filter !== "all" && groupedByCity) {
-      return groupedByCity.flatMap((g) => g.items);
-    }
-    return activeDayData?.attractions ?? [];
-  }, [filter, groupedByCity, activeDayData]);
+  /* Map markers stay tied to the ACTIVE DAY regardless of the
+     category filter. Per spec §8 the filter must never recenter or
+     refit the map — keeping mapStops day-scoped means EditorMap's
+     fitBounds only fires on a day change, never on filtering. */
+  const mapStops = useMemo(
+    () => activeDayData?.attractions ?? [],
+    [activeDayData]
+  );
 
   return (
     <div dir="rtl" style={{ height: "100vh", overflow: "hidden", position: "relative", fontFamily: T.font, background: "#E9EBEC" }}>

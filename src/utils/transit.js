@@ -26,13 +26,21 @@ export const TRANSIT_MODES = {
   car:     { he: "מונית / רכב",      emoji: "🚕", speed: CAR_SPEED_KMH },
 };
 
-const fmtDist = (km) =>
-  km < 1 ? `${Math.round(km * 1000)} מ׳` : `${km.toFixed(1)} ק״מ`;
+const KM_PER_MILE = 1.60934;
+
+const fmtDist = (km, units = "km") => {
+  if (units === "mi") {
+    const mi = km / KM_PER_MILE;
+    return mi < 1 ? `${Math.round(mi * 5280)} ft` : `${mi.toFixed(1)} mi`;
+  }
+  return km < 1 ? `${Math.round(km * 1000)} מ׳` : `${km.toFixed(1)} ק״מ`;
+};
 
 const minutesFor = (km, speedKmh) => Math.max(1, Math.round((km / speedKmh) * 60));
 
-/* override: optional mode key ('walk' | 'transit' | 'car') to force. */
-export const computeTransit = (a, b, override = null) => {
+/* override: optional mode key ('walk' | 'transit' | 'car') to force.
+   units: 'km' (default) | 'mi' — controls the distance label only. */
+export const computeTransit = (a, b, override = null, units = "km") => {
   const km = haversineKm(a, b);
   if (km == null) return null;
 
@@ -47,7 +55,7 @@ export const computeTransit = (a, b, override = null) => {
     he: meta.he,
     emoji: meta.emoji,
     km,
-    distLabel: fmtDist(km),
+    distLabel: fmtDist(km, units),
     minutes,
     minutesLabel: `${minutes} דק׳`,
     overridden: !!override,
