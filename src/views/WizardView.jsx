@@ -48,6 +48,21 @@ const SUGGESTED_CITIES = {
   us: ["ניו יורק", "לוס אנג׳לס", "סן פרנסיסקו", "לאס וגאס"],
 };
 
+/* Larger searchable city pool per country (superset of the
+   suggested chips) — powers the autocomplete search field. */
+const CITY_POOL = {
+  jp: ["טוקיו", "קיוטו", "אוסקה", "האקונה", "נארה", "קנזאווה", "יוקוהמה", "נגויה", "סאפורו", "הירושימה", "ניקו", "קמאקורה", "טקיאמה", "מטסומוטו", "קוואגוצ׳יקו", "אוקינאווה"],
+  it: ["רומא", "פירנצה", "ונציה", "מילאנו", "אמלפי", "נאפולי", "פיזה", "סיינה", "בולוניה", "ורונה", "טורינו", "פלרמו", "סורנטו", "צ׳ינקווה טרה"],
+  pt: ["ליסבון", "פורטו", "סינטרה", "לאגוס", "פארו", "קוימברה", "מדיירה", "אבורה"],
+  gr: ["אתונה", "סנטוריני", "מיקונוס", "כרתים", "רודוס", "קורפו", "נאפליו", "מטאורה"],
+  th: ["בנגקוק", "צ׳אנג מאי", "פוקט", "קו סמוי", "קראבי", "איוטאיה", "פאי", "קו פנגן"],
+  vn: ["האנוי", "הוי אן", "הו צ׳י מין", "חאלונג", "דה נאנג", "סאפא", "ניה טראנג", "הואה"],
+  ae: ["דובאי", "אבו דאבי", "שארג׳ה", "ראס אל ח׳יימה"],
+  fr: ["פריז", "ניס", "ליון", "בורדו", "מרסיי", "סטרסבורג", "קאן", "אנסי", "ביאריץ"],
+  es: ["מדריד", "ברצלונה", "סביליה", "גרנדה", "ולנסיה", "מלגה", "סן סבסטיאן", "בילבאו", "טולדו"],
+  us: ["ניו יורק", "לוס אנג׳לס", "סן פרנסיסקו", "לאס וגאס", "מיאמי", "שיקגו", "בוסטון", "וושינגטון", "סיאטל", "ניו אורלינס"],
+};
+
 const Pip = ({ state }) => (
   <span style={{ width: state === "active" ? 22 : 7, height: 7, borderRadius: 999, background: state === "done" ? T.ink : state === "active" ? T.accent : "rgba(20,20,20,0.14)", transition: "all 0.2s" }} />
 );
@@ -68,6 +83,7 @@ const WizardView = () => {
   const [destId, setDestId] = useState("jp");
   const [dur, setDur] = useState(9);
   const [cities, setCities] = useState([]);      // [{ name, fromDay, toDay }]
+  const [citySearch, setCitySearch] = useState("");
   const [creating, setCreating] = useState(false);
 
   const dest = useMemo(() => DESTINATIONS.find((d) => d.id === destId), [destId]);
@@ -207,6 +223,41 @@ const WizardView = () => {
                 חלוקת <span style={{ color: T.accent }}>ערים</span> לפי ימים
               </h1>
               <p style={{ fontSize: 14, color: T.ink3, lineHeight: 1.55, marginBottom: 14 }}>אופציונלי — מפו ערים לטווחי ימים, ונמלא את כותרות הימים מראש.</p>
+
+              {/* City search with autocomplete (pool filtered by country) */}
+              {(() => {
+                const q = citySearch.trim();
+                const pool = CITY_POOL[destId] || SUGGESTED_CITIES[destId] || [];
+                const matches = q
+                  ? pool.filter((c) => c.includes(q) && !cities.some((x) => x.name.trim() === c)).slice(0, 6)
+                  : [];
+                const exactExists = pool.some((c) => c === q) || cities.some((x) => x.name.trim() === q);
+                return (
+                  <div style={{ position: "relative", marginBottom: 16 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "11px 14px", borderRadius: 16, background: T.surface, border: `1px solid ${T.line}` }}>
+                      <span aria-hidden>🔍</span>
+                      <input value={citySearch} onChange={(e) => setCitySearch(e.target.value)} placeholder={`חיפוש עיר ב${dest.name}`}
+                        style={{ flex: 1, border: "none", background: "transparent", fontSize: 16, fontFamily: "inherit", direction: "rtl", textAlign: "right" }} />
+                    </div>
+                    {q && (matches.length > 0 || !exactExists) && (
+                      <ul style={{ listStyle: "none", margin: "6px 0 0", padding: 0, background: "#fff", border: `1px solid ${T.line}`, borderRadius: 14, boxShadow: "0 12px 32px rgba(0,0,0,0.12)", maxHeight: 220, overflowY: "auto", position: "absolute", left: 0, right: 0, zIndex: 5 }}>
+                        {matches.map((c) => (
+                          <li key={c} onClick={() => { addCity(c); setCitySearch(""); }}
+                            style={{ padding: "10px 14px", cursor: "pointer", borderBottom: `1px solid ${T.line}`, fontSize: 14, fontWeight: 600, color: T.ink }}>
+                            {c}
+                          </li>
+                        ))}
+                        {!exactExists && (
+                          <li onClick={() => { addCity(q); setCitySearch(""); }}
+                            style={{ padding: "10px 14px", cursor: "pointer", fontSize: 13.5, fontWeight: 700, color: T.accent }}>
+                            ＋ הוסיפו "{q}"
+                          </li>
+                        )}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Suggested cities for the selected country */}
               {(SUGGESTED_CITIES[destId] || []).length > 0 && (
