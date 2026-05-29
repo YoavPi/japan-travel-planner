@@ -2,27 +2,38 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import tripService from "../services/tripService";
-import ShareSheet from "../components/ShareSheet";
+import { readPrefs, writePrefs } from "../services/prefsService";
 import MapCard from "../components/MapCard";
 
 /* ──────────────────────────────────────────────────────────────
-   DashboardView — "המפות שלי" (home-profile blueprint, screen 2).
-   Top bar (back / title / profile) · filter pills with counts ·
-   dashed "new map" CTA · MapCard list · storage footer.
+   DashboardView — premium "My Maps" profile dashboard.
+   Header action row (name · theme · share) · identity (avatar +
+   camera + PRO + email + edit) · 3-up stats · filter pills ·
+   illustrated MapCard grid (overlay copy + ellipsis delete with
+   confirm modal) · floating bottom dock.
    ────────────────────────────────────────────────────────────── */
 
-const T = {
-  ink: "#0D0F11", ink2: "#2A3036", ink3: "#6B7178", ink4: "#A4AAB1",
-  line: "rgba(20,20,20,0.08)", surface: "#F6F6F4", surface2: "#EFEFEC",
-  font: "'Noto Sans Hebrew','Inter','Noto Sans JP',system-ui,sans-serif",
-};
+const LIGHT = { page: "#EDEDEC", panel: "#fff", ink: "#0D0F11", ink2: "#2A3036", ink3: "#6B7178", ink4: "#A4AAB1", line: "rgba(20,20,20,0.08)", surface: "#F6F6F4", surface2: "#EFEFEC" };
+const DARK  = { page: "#0E1012", panel: "#16191D", ink: "#F5F6F7", ink2: "#C7CCD1", ink3: "#8B9198", ink4: "#6B7178", line: "rgba(255,255,255,0.09)", surface: "#1F242A", surface2: "#262B31" };
+const ACCENT = "#E0533F";
+const FONT = "'Noto Sans Hebrew','Inter','Noto Sans JP',system-ui,sans-serif";
+
+const Circle = ({ children, onClick, title, P }) => (
+  <button onClick={onClick} title={title} className="tp-press"
+    style={{ width: 40, height: 40, borderRadius: "50%", border: `1px solid ${P.line}`, background: P.surface, color: P.ink, cursor: "pointer", fontSize: 16, fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center" }}>
+    {children}
+  </button>
+);
 
 const DashboardView = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [trips, setTrips] = useState(null); // null = loading
+  const [trips, setTrips] = useState(null);
   const [filter, setFilter] = useState("all");
-  const [shareTrip, setShareTrip] = useState(null);
+  const [dark, setDark] = useState(() => readPrefs().darkMode);
+  const [confirmTrip, setConfirmTrip] = useState(null);
+  const [toast, setToast] = useState("");
+  const P = dark ? DARK : LIGHT;
 
   useEffect(() => {
     let live = true;
@@ -30,13 +41,18 @@ const DashboardView = () => {
     return () => { live = false; };
   }, [user]);
 
+  const showToast = (m) => { setToast(m); setTimeout(() => setToast(""), 1500); };
+  const toggleTheme = () => setDark((d) => { writePrefs({ darkMode: !d }); return !d; });
+
   const counts = useMemo(() => {
     const list = trips || [];
-    return {
-      all: list.length,
-      mine: list.filter((t) => t.role === "owner").length,
-      shared: list.filter((t) => t.role !== "owner").length,
-    };
+    return { all: list.length, mine: list.filter((t) => t.role === "owner").length, shared: list.filter((t) => t.role !== "owner").length };
+  }, [trips]);
+
+  const stats = useMemo(() => {
+    const list = trips || [];
+    const countries = new Set(list.map((t) => t.settings?.destinationHe || t.settings?.destination || t.title).filter(Boolean));
+    return { trips: list.length, countries: countries.size, days: list.reduce((s, t) => s + (t.days || 0), 0) };
   }, [trips]);
 
   const filtered = useMemo(() => {
@@ -47,10 +63,10 @@ const DashboardView = () => {
   }, [trips, filter]);
 
   const openTrip = (t) => navigate(t.readOnly ? "/map?demo=1" : `/map/edit/${t.id}`);
-
-  const deleteTrip = (t) => {
-    if (!window.confirm(`למחוק את "${t.title}"? הפעולה אינה הפיכה.`)) return;
-    setTrips((prev) => (prev || []).filter((x) => x.id !== t.id)); // optimistic
+  const confirmDelete = () => {
+    const t = confirmTrip; setConfirmTrip(null);
+    if (!t) return;
+    setTrips((prev) => (prev || []).filter((x) => x.id !== t.id));
     tripService.deleteTrip(t.id).catch(() => {});
   };
 
@@ -61,74 +77,150 @@ const DashboardView = () => {
   ];
 
   return (
-    <div dir="rtl" style={{ minHeight: "100vh", background: "#EDEDEC", fontFamily: T.font }}>
-      <div className="tp-fade" style={{ maxWidth: 560, margin: "0 auto", background: "#fff", minHeight: "100vh" }}>
-        {/* Top bar */}
-        <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", borderBottom: `1px solid ${T.line}` }}>
-          <button onClick={() => navigate("/")} title="חזרה לעמוד הבית" style={{ width: 38, height: 38, borderRadius: "50%", border: "none", background: T.surface, cursor: "pointer", fontSize: 17, fontFamily: "inherit" }}>›</button>
-          <div style={{ fontSize: 17, fontWeight: 800, color: T.ink }}>המפות שלי</div>
-          <button onClick={() => navigate("/profile")} title="הפרופיל שלי" style={{ width: 38, height: 38, borderRadius: "50%", border: "none", background: T.ink, color: "#fff", cursor: "pointer", fontSize: 15, fontWeight: 800, fontFamily: "inherit" }}>
-            {(user?.name || "?").trim().slice(0, 1)}
-          </button>
+    <div dir="rtl" style={{ minHeight: "100vh", background: P.page, fontFamily: FONT, transition: "background 0.25s" }}>
+      <div className="tp-fade" style={{ maxWidth: 560, margin: "0 auto", background: P.panel, minHeight: "100vh", paddingBottom: 96, transition: "background 0.25s" }}>
+
+        {/* Header action row */}
+        <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px 8px" }}>
+          <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color: P.ink }}>המפות שלי</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <Circle P={P} title="מצב תצוגה" onClick={toggleTheme}>{dark ? "☀️" : "🌙"}</Circle>
+            <Circle P={P} title="שיתוף פרופיל" onClick={() => { navigator.clipboard?.writeText(window.location.origin).catch(() => {}); showToast("הקישור הועתק"); }}>↗</Circle>
+          </div>
         </header>
 
-        <div style={{ padding: "16px 0 40px" }}>
-          {/* Filter pills */}
-          <div style={{ display: "flex", gap: 4, background: T.surface, borderRadius: 999, padding: 4, margin: "0 22px 14px" }}>
+        {/* Identity */}
+        <section style={{ display: "flex", alignItems: "center", gap: 16, padding: "10px 22px 18px" }}>
+          <div style={{ position: "relative", flexShrink: 0 }}>
+            <div style={{ width: 76, height: 76, borderRadius: "50%", background: `linear-gradient(145deg, ${ACCENT}, #B83A2B)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, fontWeight: 800, color: "#fff" }}>
+              {(user?.name || "?").trim().slice(0, 1)}
+            </div>
+            <button title="החלפת תמונה" className="tp-press" style={{ position: "absolute", bottom: -2, insetInlineStart: -2, width: 28, height: 28, borderRadius: "50%", border: `3px solid ${P.panel}`, background: P.ink, color: P.panel, cursor: "pointer", fontSize: 12, fontFamily: "inherit" }}>📷</button>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 21, fontWeight: 800, letterSpacing: "-0.02em", color: P.ink }}>{user?.name}</span>
+              {user?.plan && <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", color: ACCENT, background: "rgba(224,83,63,0.12)", borderRadius: 999, padding: "2px 8px" }}>{user.plan}</span>}
+            </div>
+            <div style={{ fontSize: 13, color: P.ink3, direction: "ltr", textAlign: "right", marginTop: 2 }}>{user?.email}</div>
+            <button onClick={() => navigate("/profile")} className="tp-press" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 8, padding: "5px 12px", borderRadius: 999, border: `1px solid ${P.line}`, background: P.surface, fontSize: 12, fontWeight: 700, color: P.ink, cursor: "pointer", fontFamily: "inherit" }}>
+              ✏ ערכו פרופיל
+            </button>
+          </div>
+        </section>
+
+        {/* Stats grid */}
+        <section style={{ padding: "0 22px 18px" }}>
+          <div style={{ display: "flex", background: P.surface, borderRadius: 18, overflow: "hidden" }}>
+            {[{ n: stats.trips, l: "מסלולים" }, { n: stats.countries, l: "מדינות" }, { n: stats.days, l: "ימי טיול" }].map((s, i) => (
+              <div key={s.l} style={{ flex: 1, textAlign: "center", padding: "14px 0", borderInlineStart: i ? `1px solid ${P.line}` : "none" }}>
+                <div style={{ fontSize: 23, fontWeight: 800, color: P.ink, fontVariantNumeric: "tabular-nums" }}>{s.n}</div>
+                <div style={{ fontSize: 11.5, color: P.ink3, marginTop: 2 }}>{s.l}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Filter pills */}
+        <section style={{ padding: "0 22px 14px" }}>
+          <div style={{ display: "flex", gap: 4, background: P.surface, borderRadius: 999, padding: 4 }}>
             {FILTERS.map((f) => {
               const on = filter === f.id;
               return (
                 <button key={f.id} onClick={() => setFilter(f.id)}
-                  style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "8px 0", borderRadius: 999, border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 12.5, fontWeight: 700, background: on ? "#fff" : "transparent", color: on ? T.ink : T.ink3, boxShadow: on ? "0 1px 3px rgba(0,0,0,0.08)" : "none" }}>
+                  style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 0", borderRadius: 999, border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 700, background: on ? P.panel : "transparent", color: on ? P.ink : P.ink3, boxShadow: on ? "0 1px 4px rgba(0,0,0,0.10)" : "none" }}>
                   {f.label}
-                  <span style={{ fontSize: 10.5, fontWeight: 800, background: on ? T.surface : T.surface2, color: on ? T.ink2 : T.ink3, borderRadius: 999, padding: "1px 7px" }}>{f.n}</span>
+                  <span style={{ fontSize: 10.5, fontWeight: 800, background: on ? P.surface2 : "transparent", color: on ? P.ink2 : P.ink4, borderRadius: 999, padding: "1px 7px" }}>{f.n}</span>
                 </button>
               );
             })}
           </div>
+        </section>
 
-          {/* New map dashed CTA */}
-          <button onClick={() => navigate("/create")}
-            style={{ display: "flex", alignItems: "center", gap: 12, margin: "0 22px 12px", padding: 14, border: `1px dashed ${T.line}`, borderRadius: 18, background: "transparent", cursor: "pointer", width: "calc(100% - 44px)", fontFamily: "inherit", textAlign: "right" }}>
-            <span style={{ width: 44, height: 44, borderRadius: 14, background: T.ink, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 22 }}>＋</span>
+        {/* New map CTA */}
+        <section style={{ padding: "0 22px 12px" }}>
+          <button onClick={() => navigate("/create")} className="tp-press"
+            style={{ display: "flex", alignItems: "center", gap: 12, padding: 14, border: `1px dashed ${P.line}`, borderRadius: 18, background: "transparent", cursor: "pointer", width: "100%", fontFamily: "inherit", textAlign: "right" }}>
+            <span style={{ width: 44, height: 44, borderRadius: 14, background: P.ink, color: P.panel, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 22 }}>＋</span>
             <span style={{ flex: 1 }}>
-              <span style={{ display: "block", fontSize: 14.5, fontWeight: 800, color: T.ink }}>מסלול חדש</span>
-              <span style={{ display: "block", fontSize: 12, color: T.ink3, marginTop: 2 }}>התחילו מאפס או מתבנית מוכנה</span>
+              <span style={{ display: "block", fontSize: 14.5, fontWeight: 800, color: P.ink }}>מסלול חדש</span>
+              <span style={{ display: "block", fontSize: 12, color: P.ink3, marginTop: 2 }}>התחילו מאפס או מתבנית מוכנה</span>
             </span>
           </button>
+        </section>
 
-          {/* Maps list */}
+        {/* Cards */}
+        <section style={{ padding: "0 22px" }}>
           {filtered === null ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "0 22px" }}>
-              {[0, 1, 2].map((i) => <div key={i} style={{ height: 112, borderRadius: 20, background: "linear-gradient(90deg,#f0f0ee,#f7f7f5,#f0f0ee)", backgroundSize: "200% 100%", animation: "tpSkeleton 1.2s ease infinite" }} />)}
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {[0, 1, 2].map((i) => <div key={i} style={{ height: 116, borderRadius: 20, background: `linear-gradient(90deg, ${P.surface}, ${P.surface2}, ${P.surface})`, backgroundSize: "200% 100%", animation: "tpSkeleton 1.2s ease infinite" }} />)}
             </div>
           ) : filtered.length === 0 ? (
-            <div style={{ textAlign: "center", color: T.ink3, padding: "28px 0", fontSize: 13.5 }}>אין מסלולים בקטגוריה זו</div>
+            <div style={{ textAlign: "center", color: P.ink3, padding: "28px 0", fontSize: 13.5 }}>אין מסלולים בקטגוריה זו</div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "0 22px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {filtered.map((t, i) => (
                 <MapCard
                   key={t.id}
                   trip={t}
                   index={i}
+                  dark={dark}
                   onOpen={() => openTrip(t)}
-                  onShare={t.readOnly ? undefined : () => setShareTrip(t)}
-                  onDelete={() => deleteTrip(t)}
+                  onCopyLink={() => showToast("הקישור הועתק")}
+                  onDelete={() => setConfirmTrip(t)}
                 />
               ))}
             </div>
           )}
 
-          {/* Storage footer */}
           {filtered && (
-            <div style={{ textAlign: "center", fontSize: 12, color: T.ink4, marginTop: 18 }}>
+            <div style={{ textAlign: "center", fontSize: 12, color: P.ink4, marginTop: 18 }}>
               נוצרו {counts.all} מסלולים · 24.5MB מתוך 2GB בענן
             </div>
           )}
-        </div>
+        </section>
       </div>
 
-      {shareTrip && <ShareSheet trip={shareTrip} onClose={() => setShareTrip(null)} />}
+      {/* Floating bottom dock */}
+      <nav style={{ position: "fixed", bottom: 16, left: "50%", transform: "translateX(-50%)", zIndex: 40, display: "flex", gap: 4, padding: 6, borderRadius: 999, background: "#0D0F11", boxShadow: "0 12px 40px rgba(0,0,0,0.35)" }}>
+        {[
+          { id: "home", icon: "🏠", title: "בית", onClick: () => navigate("/") },
+          { id: "maps", icon: "🗺", title: "המפות שלי", active: true, onClick: () => {} },
+          { id: "notif", icon: "🔔", title: "התראות", onClick: () => showToast("בקרוב") },
+          { id: "profile", icon: "👤", title: "פרופיל", onClick: () => navigate("/profile") },
+        ].map((it) => (
+          <button key={it.id} onClick={it.onClick} title={it.title} className="tp-press"
+            style={{ width: 48, height: 48, borderRadius: 999, border: "none", cursor: "pointer", fontSize: 18, fontFamily: "inherit", background: it.active ? "#fff" : "transparent", color: it.active ? "#0D0F11" : "rgba(255,255,255,0.7)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {it.icon}
+          </button>
+        ))}
+      </nav>
+
+      {/* Delete confirm modal */}
+      {confirmTrip && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 70, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div onClick={() => setConfirmTrip(null)} className="tp-fade" style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)" }} />
+          <div className="tp-pop" dir="rtl" style={{ position: "relative", width: "100%", maxWidth: 360, background: P.panel, borderRadius: 22, padding: "24px 22px", boxShadow: "0 30px 80px rgba(0,0,0,0.4)", textAlign: "center", fontFamily: FONT }}>
+            <div style={{ fontSize: 34, marginBottom: 8 }}>🗑️</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: P.ink, marginBottom: 6 }}>מחיקת מפה</div>
+            <div style={{ fontSize: 14, color: P.ink3, lineHeight: 1.5, marginBottom: 20 }}>
+              האם אתה בטוח שברצונך למחוק את "{confirmTrip.title}"?<br />הפעולה אינה הפיכה.
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setConfirmTrip(null)} style={{ flex: 1, height: 48, borderRadius: 999, border: `1px solid ${P.line}`, background: P.surface, color: P.ink, fontSize: 14.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>ביטול</button>
+              <button onClick={confirmDelete} style={{ flex: 1, height: 48, borderRadius: 999, border: "none", background: "#C0392B", color: "#fff", fontSize: 14.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>מחק מפה</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div className="tp-fade" style={{ position: "fixed", bottom: 84, left: "50%", transform: "translateX(-50%)", zIndex: 80, background: "#0D0F11", color: "#fff", borderRadius: 999, padding: "10px 20px", fontSize: 13.5, fontWeight: 600, fontFamily: FONT }}>
+          {toast}
+        </div>
+      )}
+
       <style>{`@keyframes tpSkeleton{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
     </div>
   );
