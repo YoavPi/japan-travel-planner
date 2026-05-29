@@ -75,8 +75,8 @@ const AddStopSheet = ({ pendingCoord, onStartPin, onAdd, onClose }) => {
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 60, display: "flex", alignItems: "flex-end" }}>
-      <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.32)" }} />
-      <div dir="rtl" style={{
+      <div onClick={onClose} className="tp-fade" style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.32)" }} />
+      <div dir="rtl" className="tp-sheet-up" style={{
         position: "relative", width: "100%", background: "#fff",
         borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: "16px 18px 28px",
         boxShadow: "0 -24px 60px rgba(0,0,0,0.18)", maxWidth: 720, margin: "0 auto",

@@ -124,6 +124,27 @@ body {
   cursor: grab;
 }
 
+/* ── SaaS motion system — subtle, fast, consistent ──────── */
+@keyframes tpFadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes tpFade   { from { opacity: 0; } to { opacity: 1; } }
+@keyframes tpScaleIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
+@keyframes tpSlideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+.tp-fade-up { animation: tpFadeUp 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.tp-fade    { animation: tpFade 0.4s ease both; }
+.tp-pop     { animation: tpScaleIn 0.22s cubic-bezier(0.22, 1, 0.36, 1) both; transform-origin: top center; }
+.tp-sheet-up { animation: tpSlideUp 0.34s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+.tp-card { transition: transform 0.18s ease, box-shadow 0.18s ease; }
+.tp-card:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(20, 20, 20, 0.10) !important; }
+.tp-press { transition: transform 0.12s ease; }
+.tp-press:active { transform: scale(0.94); }
+
+@media (prefers-reduced-motion: reduce) {
+  .tp-fade-up, .tp-fade, .tp-pop, .tp-sheet-up { animation: none; }
+  .tp-card:hover { transform: none; }
+}
+
 /* Custom scrollbar — warm tones */
 .scrollbar-thin::-webkit-scrollbar {
   width: 5px;

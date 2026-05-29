@@ -159,7 +159,7 @@ const WizardView = () => {
           </button>
         </div>
 
-        <div style={{ flex: 1, overflowY: "auto", padding: "10px 22px 0" }}>
+        <div key={step} className="tp-fade-up" style={{ flex: 1, overflowY: "auto", padding: "10px 22px 0" }}>
           {/* STEP 1 — Destination */}
           {step === 0 && (
             <>

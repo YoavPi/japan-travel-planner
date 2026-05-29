@@ -121,7 +121,7 @@ const ShareSheet = ({ trip, onClose }) => {
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 70, display: "flex", alignItems: "flex-end", fontFamily: T.font }}>
       <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.35)" }} />
-      <div dir="rtl" style={{ position: "relative", width: "100%", maxWidth: 560, margin: "0 auto", background: "#fff", borderTopLeftRadius: 22, borderTopRightRadius: 22, maxHeight: "90%", overflowY: "auto", boxShadow: "0 -24px 60px rgba(0,0,0,0.18)", padding: "14px 20px 24px" }}>
+      <div dir="rtl" className="tp-sheet-up" style={{ position: "relative", width: "100%", maxWidth: 560, margin: "0 auto", background: "#fff", borderTopLeftRadius: 22, borderTopRightRadius: 22, maxHeight: "90%", overflowY: "auto", boxShadow: "0 -24px 60px rgba(0,0,0,0.18)", padding: "14px 20px 24px" }}>
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}>
           <div style={{ width: 44, height: 5, borderRadius: 999, background: "rgba(20,20,20,0.18)" }} />
         </div>

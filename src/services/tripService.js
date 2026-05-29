@@ -169,6 +169,14 @@ export const tripService = {
     return trips[idx];
   },
 
+  /* Delete a trip from the store. */
+  async deleteTrip(tripId) {
+    await delay(LAG);
+    const trips = readStore().filter((t) => t.id !== tripId);
+    writeStore(trips);
+    return true;
+  },
+
   /* Create a blank itinerary from wizard settings. When
      `settings.days` is given we scaffold that many empty day
      objects (each with an empty attractions[] keyed to the
