@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Map, { Marker, Source, Layer } from "react-map-gl/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
 
@@ -15,8 +15,9 @@ import "maplibre-gl/dist/maplibre-gl.css";
 
 const MAP_STYLE = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
 
-const EditorMap = ({ stops = [], color = "#0D0F11", isPinning = false, onMapPick, center = null }) => {
+const EditorMap = ({ stops = [], color = "#0D0F11", isPinning = false, onMapPick, center = null, pendingPin = null }) => {
   const mapRef = useRef(null);
+  const [hoverCoord, setHoverCoord] = useState(null); // ghost pin while pinning
 
   const pts = useMemo(
     () => stops.filter((s) => s.coordinates && Number.isFinite(s.coordinates.lng)),
@@ -70,7 +71,23 @@ const EditorMap = ({ stops = [], color = "#0D0F11", isPinning = false, onMapPick
       onClick={(e) => {
         if (isPinning && onMapPick) onMapPick({ lng: e.lngLat.lng, lat: e.lngLat.lat });
       }}
+      onMouseMove={(e) => { if (isPinning) setHoverCoord({ lng: e.lngLat.lng, lat: e.lngLat.lat }); }}
+      onMouseOut={() => setHoverCoord(null)}
     >
+      {/* Ghost pin that follows the cursor while pinning (hover preview) */}
+      {isPinning && hoverCoord && (
+        <Marker longitude={hoverCoord.lng} latitude={hoverCoord.lat} anchor="bottom">
+          <div style={{ fontSize: 30, opacity: 0.55, filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.3))", pointerEvents: "none" }}>📍</div>
+        </Marker>
+      )}
+
+      {/* The pin we just placed (pending — before it's added as a stop) */}
+      {pendingPin && (
+        <Marker longitude={pendingPin.lng} latitude={pendingPin.lat} anchor="bottom">
+          <div style={{ fontSize: 36, filter: "drop-shadow(0 3px 6px rgba(0,0,0,0.35))" }}>📍</div>
+        </Marker>
+      )}
+
       {pts.length > 1 && (
         <Source id="editor-route" type="geojson" data={routeGeoJSON}>
           <Layer

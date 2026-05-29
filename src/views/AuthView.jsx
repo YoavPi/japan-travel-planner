@@ -1,6 +1,10 @@
 import React from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import Map from "react-map-gl/maplibre";
+import "maplibre-gl/dist/maplibre-gl.css";
 import { useAuth } from "../context/AuthContext";
+
+const MAP_STYLE = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
 
 /* ──────────────────────────────────────────────────────────────
    AuthView — premium sign-in bottom sheet (home-auth blueprint).
@@ -63,8 +67,18 @@ const AuthView = () => {
 
   return (
     <div dir="rtl" style={{ position: "fixed", inset: 0, fontFamily: T.font, overflow: "hidden" }}>
-      {/* Hero behind the sheet */}
-      <div style={{ position: "absolute", inset: 0, background: `linear-gradient(to bottom, rgba(13,15,17,0.30), rgba(13,15,17,0.55)), center/cover url(/photos/home/hero_couple_fuji.png), #1C2333` }} />
+      {/* Beautiful map behind the sheet (non-interactive) */}
+      <div style={{ position: "absolute", inset: 0 }}>
+        <Map
+          initialViewState={{ longitude: 12.4964, latitude: 41.9028, zoom: 4.4 }}
+          style={{ width: "100%", height: "100%" }}
+          mapStyle={MAP_STYLE}
+          attributionControl={false}
+          interactive={false}
+        />
+      </div>
+      {/* Soft scrim for contrast under the sheet */}
+      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(13,15,17,0.10), rgba(13,15,17,0.28) 60%, rgba(13,15,17,0.40))" }} />
 
       {/* Close → home */}
       <button onClick={() => navigate("/")} title="חזרה לעמוד הבית"

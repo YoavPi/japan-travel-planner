@@ -95,21 +95,35 @@ const WizardView = () => {
 
   const back = () => (step === 0 ? navigate("/dashboard") : setStep((s) => s - 1));
 
-  /* City-routing helpers */
+  /* City-routing helpers.
+     Each row is { name, days }. The day SEQUENCE is derived from the
+     row order: city #1 takes days 1..d1, city #2 the next d2 days, …
+     so the same city can appear multiple times (e.g. Rome 3 → Florence
+     4 → Rome 3 = days 1-3, 4-7, 8-10). */
   const addCity = (name = "") => {
-    const used = cities.reduce((m, c) => Math.max(m, c.toDay), 0);
-    const from = Math.min(used + 1, dur);
-    setCities([...cities, { name: typeof name === "string" ? name : "", fromDay: from, toDay: Math.min(from + 1, dur) }]);
+    setCities((prev) => [...prev, { name: typeof name === "string" ? name : "", days: 2 }]);
   };
   const updateCity = (i, patch) => setCities(cities.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
   const removeCity = (i) => setCities(cities.filter((_, idx) => idx !== i));
 
+  /* Sequential day ranges from the ordered rows. */
+  const sequencedCities = useMemo(() => {
+    let cursor = 1;
+    return cities
+      .filter((c) => c.name.trim())
+      .map((c) => {
+        const fromDay = cursor;
+        const toDay = cursor + Math.max(1, c.days) - 1;
+        cursor = toDay + 1;
+        return { city: c.name.trim(), cityHe: c.name.trim(), days: Math.max(1, c.days), fromDay, toDay };
+      });
+  }, [cities]);
+
+  const totalAssigned = useMemo(() => sequencedCities.reduce((s, c) => s + c.days, 0), [sequencedCities]);
+
   const finish = async () => {
     setCreating(true);
-    /* Build day→city ranges payload (only rows with a name). */
-    const cityRanges = cities
-      .filter((c) => c.name.trim())
-      .map((c) => ({ city: c.name.trim(), cityHe: c.name.trim(), fromDay: c.fromDay, toDay: c.toDay }));
+    const cityRanges = sequencedCities.map(({ city, cityHe, fromDay, toDay }) => ({ city, cityHe, fromDay, toDay }));
     const trip = await tripService.createNewTrip({
       title: dest.name,
       destination: dest.en,
@@ -125,14 +139,9 @@ const WizardView = () => {
 
   /* Compact city-timeline string for the summary. */
   const cityTimeline = useMemo(() => {
-    const named = cities.filter((c) => c.name.trim());
-    if (!named.length) return null;
-    return named
-      .slice()
-      .sort((a, b) => a.fromDay - b.fromDay)
-      .map((c) => `${c.name.trim()} (${c.toDay - c.fromDay + 1} ימים)`)
-      .join(" ← ");
-  }, [cities]);
+    if (!sequencedCities.length) return null;
+    return sequencedCities.map((c) => `${c.city} (${c.days} ימים)`).join(" ← ");
+  }, [sequencedCities]);
 
   return (
     <div dir="rtl" style={{ minHeight: "100vh", background: "#EDEDEC", fontFamily: T.font }}>
@@ -171,8 +180,7 @@ const WizardView = () => {
                       style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 16, cursor: "pointer", fontFamily: "inherit", textAlign: "right", border: `1.5px solid ${on ? T.ink : T.line}`, background: on ? "rgba(13,15,17,0.03)" : "#fff" }}>
                       <div style={{ fontSize: 26 }}>{c.flag}</div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 15, fontWeight: 800, color: T.ink }}>{c.name}{c.popular && <span style={{ fontSize: 10, fontWeight: 700, color: T.accent, marginInlineStart: 6 }}>פופולרי</span>}</div>
-                        <div style={{ fontSize: 12, color: T.ink3 }}>{c.sub}</div>
+                        <div style={{ fontSize: 16, fontWeight: 800, color: T.ink }}>{c.name}{c.popular && <span style={{ fontSize: 10, fontWeight: 700, color: T.accent, marginInlineStart: 6 }}>פופולרי</span>}</div>
                       </div>
                       <span style={{ color: on ? T.ink : T.ink4, fontSize: 18 }}>{on ? "✓" : "‹"}</span>
                     </button>
@@ -196,23 +204,35 @@ const WizardView = () => {
                 <span style={{ fontSize: 18, fontWeight: 700, color: T.ink3, marginInlineStart: 8 }}>ימים</span>
               </div>
 
-              {/* Slider bar (range input, RTL-flipped so 1 is on the
-                  right and 45 on the left). Filled track shows progress. */}
-              <div style={{ padding: "0 4px" }}>
-                <input
-                  className="wiz-day-slider"
-                  type="range" min={1} max={45} step={1} value={dur}
-                  onChange={(e) => setDur(Number(e.target.value))}
-                  style={{
-                    width: "100%",
-                    background: `linear-gradient(to left, ${T.accent} 0%, ${T.accent} ${((dur - 1) / 44) * 100}%, ${T.surface2} ${((dur - 1) / 44) * 100}%, ${T.surface2} 100%)`,
-                  }}
-                />
-                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10, fontSize: 12, fontWeight: 700, color: T.ink4 }}>
-                  <span>יום 1</span>
-                  <span>45 ימים</span>
-                </div>
-              </div>
+              {/* Custom slider: a clearly-visible track + filled bar +
+                  big thumb, with a transparent native range on top to
+                  capture drag/keys. RTL → fill grows from the right. */}
+              {(() => {
+                const pct = ((dur - 1) / 44) * 100;
+                return (
+                  <div style={{ padding: "0 6px" }}>
+                    <div style={{ position: "relative", height: 40, display: "flex", alignItems: "center" }}>
+                      {/* track */}
+                      <div style={{ position: "absolute", left: 0, right: 0, height: 12, borderRadius: 999, background: T.surface2 }} />
+                      {/* fill (from the right edge in RTL) */}
+                      <div style={{ position: "absolute", right: 0, width: `${pct}%`, height: 12, borderRadius: 999, background: T.accent }} />
+                      {/* thumb */}
+                      <div style={{ position: "absolute", right: `calc(${pct}% - 15px)`, width: 30, height: 30, borderRadius: "50%", background: T.ink, border: "3px solid #fff", boxShadow: "0 2px 10px rgba(0,0,0,0.3)", pointerEvents: "none" }} />
+                      {/* invisible range on top for interaction */}
+                      <input
+                        type="range" min={1} max={45} step={1} value={dur}
+                        onChange={(e) => setDur(Number(e.target.value))}
+                        aria-label="מספר ימים"
+                        style={{ position: "absolute", left: 0, right: 0, width: "100%", height: 40, margin: 0, opacity: 0, cursor: "pointer", direction: "rtl" }}
+                      />
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 12, fontWeight: 700, color: T.ink4 }}>
+                      <span>יום 1</span>
+                      <span>45 ימים</span>
+                    </div>
+                  </div>
+                );
+              })()}
             </>
           )}
 
@@ -228,10 +248,10 @@ const WizardView = () => {
               {(() => {
                 const q = citySearch.trim();
                 const pool = CITY_POOL[destId] || SUGGESTED_CITIES[destId] || [];
-                const matches = q
-                  ? pool.filter((c) => c.includes(q) && !cities.some((x) => x.name.trim() === c)).slice(0, 6)
-                  : [];
-                const exactExists = pool.some((c) => c === q) || cities.some((x) => x.name.trim() === q);
+                /* Repeats allowed — a city can appear several times in
+                   the sequence, so we don't filter out added ones. */
+                const matches = q ? pool.filter((c) => c.includes(q)).slice(0, 6) : [];
+                const exactExists = pool.some((c) => c === q);
                 return (
                   <div style={{ position: "relative", marginBottom: 16 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "11px 14px", borderRadius: 16, background: T.surface, border: `1px solid ${T.line}` }}>
@@ -259,47 +279,65 @@ const WizardView = () => {
                 );
               })()}
 
-              {/* Suggested cities for the selected country */}
+              {/* Suggested cities — tap to add (can add the same city
+                  more than once to build a loop). */}
               {(SUGGESTED_CITIES[destId] || []).length > 0 && (
                 <div style={{ marginBottom: 16 }}>
                   <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: T.ink3, marginBottom: 8 }}>
                     ערים מומלצות ב{dest.name}
                   </div>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {SUGGESTED_CITIES[destId].map((cityName) => {
-                      const already = cities.some((c) => c.name.trim() === cityName);
-                      return (
-                        <button key={cityName} onClick={() => !already && addCity(cityName)} disabled={already}
-                          style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 999, cursor: already ? "default" : "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 600,
-                            border: `1px solid ${already ? T.line : T.accent + "55"}`, background: already ? T.surface : T.accent + "0F", color: already ? T.ink4 : T.accent, opacity: already ? 0.6 : 1 }}>
-                          {already ? "✓" : "＋"} {cityName}
-                        </button>
-                      );
-                    })}
+                    {SUGGESTED_CITIES[destId].map((cityName) => (
+                      <button key={cityName} onClick={() => addCity(cityName)}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 999, cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 600,
+                          border: `1px solid ${T.accent}55`, background: `${T.accent}0F`, color: T.accent }}>
+                        ＋ {cityName}
+                      </button>
+                    ))}
                   </div>
                 </div>
               )}
 
+              {/* Ordered city rows — each picks a NUMBER OF DAYS; the
+                  day range is derived from the order (city 1 → days
+                  1..d1, city 2 → next d2 days, …). */}
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {cities.map((c, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 16, border: `1px solid ${T.line}`, background: "#fff" }}>
-                    <input value={c.name} onChange={(e) => updateCity(i, { name: e.target.value })} placeholder="עיר (למשל טוקיו)"
-                      style={{ flex: 1, minWidth: 0, border: "none", background: "transparent", fontSize: 15, fontFamily: "inherit", direction: "rtl", textAlign: "right" }} />
-                    <span style={{ fontSize: 12, color: T.ink3 }}>ימים</span>
-                    <select value={c.fromDay} onChange={(e) => updateCity(i, { fromDay: Math.min(+e.target.value, c.toDay) })} style={{ border: `1px solid ${T.line}`, borderRadius: 8, padding: "5px 6px", fontFamily: "inherit", fontSize: 13 }}>
-                      {Array.from({ length: dur }, (_, k) => k + 1).map((n) => <option key={n} value={n}>{n}</option>)}
-                    </select>
-                    <span style={{ color: T.ink4 }}>–</span>
-                    <select value={c.toDay} onChange={(e) => updateCity(i, { toDay: Math.max(+e.target.value, c.fromDay) })} style={{ border: `1px solid ${T.line}`, borderRadius: 8, padding: "5px 6px", fontFamily: "inherit", fontSize: 13 }}>
-                      {Array.from({ length: dur }, (_, k) => k + 1).map((n) => <option key={n} value={n}>{n}</option>)}
-                    </select>
-                    <button onClick={() => removeCity(i)} style={{ border: "none", background: "transparent", color: T.ink4, cursor: "pointer", fontSize: 16, fontFamily: "inherit" }}>✕</button>
-                  </div>
-                ))}
+                {cities.map((c, i) => {
+                  const seq = sequencedCities;
+                  /* Map this row index to its sequenced range (skipping
+                     unnamed rows that aren't sequenced). */
+                  const namedBefore = cities.slice(0, i).filter((x) => x.name.trim()).length;
+                  const range = c.name.trim() ? seq[namedBefore] : null;
+                  return (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 16, border: `1px solid ${T.line}`, background: "#fff" }}>
+                      <span style={{ width: 24, height: 24, borderRadius: "50%", background: T.surface2, color: T.ink2, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, flexShrink: 0 }}>{i + 1}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <input value={c.name} onChange={(e) => updateCity(i, { name: e.target.value })} placeholder="עיר (למשל רומא)"
+                          style={{ width: "100%", border: "none", background: "transparent", fontSize: 15, fontWeight: 700, fontFamily: "inherit", direction: "rtl", textAlign: "right", color: T.ink }} />
+                        {range && <div style={{ fontSize: 11, color: T.ink4, marginTop: 1 }}>ימים {range.fromDay}–{range.toDay}</div>}
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <button onClick={() => updateCity(i, { days: Math.max(1, c.days - 1) })} style={{ width: 28, height: 28, borderRadius: 8, border: `1px solid ${T.line}`, background: T.surface, cursor: "pointer", fontFamily: "inherit", fontSize: 16, color: T.ink2 }}>−</button>
+                        <span style={{ minWidth: 54, textAlign: "center", fontSize: 13, fontWeight: 700, color: T.ink }}>{c.days} ימים</span>
+                        <button onClick={() => updateCity(i, { days: Math.min(45, c.days + 1) })} style={{ width: 28, height: 28, borderRadius: 8, border: `1px solid ${T.line}`, background: T.surface, cursor: "pointer", fontFamily: "inherit", fontSize: 16, color: T.ink2 }}>＋</button>
+                      </div>
+                      <button onClick={() => removeCity(i)} style={{ border: "none", background: "transparent", color: T.ink4, cursor: "pointer", fontSize: 16, fontFamily: "inherit" }}>✕</button>
+                    </div>
+                  );
+                })}
               </div>
-              <button onClick={addCity} style={{ marginTop: 12, width: "100%", padding: 14, borderRadius: 16, border: `2px dashed ${T.line}`, background: "transparent", color: T.ink2, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+
+              <button onClick={() => addCity()} style={{ marginTop: 12, width: "100%", padding: 14, borderRadius: 16, border: `2px dashed ${T.line}`, background: "transparent", color: T.ink2, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
                 ＋ הוסף עיר
               </button>
+
+              {sequencedCities.length > 0 && (
+                <div style={{ marginTop: 12, fontSize: 12.5, fontWeight: 600, color: totalAssigned === dur ? "#3E7C4A" : T.ink3, textAlign: "center" }}>
+                  {totalAssigned === dur
+                    ? `מצוין — ${totalAssigned} ימים תואמים למשך הטיול`
+                    : `שובצו ${totalAssigned} מתוך ${dur} ימים`}
+                </div>
+              )}
             </>
           )}
 
