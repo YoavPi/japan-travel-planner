@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import SideMenu from "../components/SideMenu";
 
 /* ──────────────────────────────────────────────────────────────
    LandingView — the SaaS platform HOME PAGE ("עמוד הבית הראשי").
@@ -55,15 +56,33 @@ const Step = ({ n, title, sub }) => (
 const LandingView = () => {
   const navigate = useNavigate();
   const { isAuthenticated, user } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <div dir="rtl" style={{ minHeight: "100vh", background: T.bgPage, fontFamily: T.font }}>
       <div style={{ maxWidth: 720, margin: "0 auto", background: T.bg, minHeight: "100vh" }}>
         {/* Header */}
         <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 22px 8px" }}>
-          <div style={{ fontSize: 14, color: T.ink3 }}>
-            {isAuthenticated ? <>שלום, <b style={{ color: T.ink }}>{user?.name?.split(" ")[0]}</b></> : "מתכננים טיול?"}
+          {/* Right side (RTL start): greeting + hamburger when signed in */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {isAuthenticated && (
+              <button
+                onClick={() => setMenuOpen(true)}
+                title="תפריט"
+                aria-label="תפריט"
+                style={{ width: 38, height: 38, borderRadius: 12, border: `1px solid ${T.line}`, background: T.surface, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, padding: 0 }}
+              >
+                <span style={{ width: 18, height: 2, borderRadius: 2, background: T.ink }} />
+                <span style={{ width: 18, height: 2, borderRadius: 2, background: T.ink }} />
+                <span style={{ width: 18, height: 2, borderRadius: 2, background: T.ink }} />
+              </button>
+            )}
+            <div style={{ fontSize: 14, color: T.ink3 }}>
+              {isAuthenticated ? <>שלום, <b style={{ color: T.ink }}>{user?.name?.split(" ")[0]}</b></> : "מתכננים טיול?"}
+            </div>
           </div>
+
+          {/* Left side (RTL end): primary action */}
           <button
             onClick={() => navigate(isAuthenticated ? "/dashboard" : "/auth")}
             style={{ border: `1px solid ${T.line}`, background: T.surface, borderRadius: 999, padding: "7px 14px", fontSize: 12.5, fontWeight: 600, color: T.ink, cursor: "pointer", fontFamily: "inherit" }}
@@ -71,6 +90,8 @@ const LandingView = () => {
             {isAuthenticated ? "המפות שלי" : "התחברות"}
           </button>
         </header>
+
+        <SideMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
 
         {/* H1 + lede */}
         <div style={{ padding: "12px 22px 0" }}>
