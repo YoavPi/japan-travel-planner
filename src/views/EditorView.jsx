@@ -350,6 +350,7 @@ const EditorView = () => {
           stops={mapStops}
           color={cityColor(activeDayData?.city)}
           isPinning={isPinning}
+          center={trip?.center || trip?.settings?.center || null}
           onMapPick={(coord) => { setPendingCoord(coord); setIsPinning(false); setShowAddStop(true); }}
         />
       </div>

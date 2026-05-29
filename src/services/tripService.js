@@ -180,10 +180,17 @@ export const tripService = {
     const dayCount = Number(tripSettings.days) || 0;
     const city = tripSettings.destination || "";
     const cityHe = tripSettings.destinationHe || tripSettings.title || "";
+    /* Optional day→city ranges from the wizard's city-routing step.
+       Each day picks the range that covers it (fallback = the
+       destination country) so timeline headers are pre-populated. */
+    const ranges = Array.isArray(tripSettings.cityRanges) ? tripSettings.cityRanges : [];
+    const cityForDay = (dayNum) => {
+      const r = ranges.find((x) => dayNum >= x.fromDay && dayNum <= x.toDay);
+      return r ? { city: r.city, cityHe: r.cityHe || r.city } : { city, cityHe };
+    };
     const scaffold = Array.from({ length: dayCount }, (_, i) => ({
       day: i + 1,
-      city,
-      cityHe,
+      ...cityForDay(i + 1),
       attractions: [],
     }));
     const trip = {
@@ -197,6 +204,9 @@ export const tripService = {
       owner: { id: "u_michali", name: "מיכלי דמרי פינטל" },
       collaborators: [],
       lastEdited: nowISO(),
+      /* Map center for dynamic viewport init (the editor flies here
+         when a trip has no stops yet). */
+      center: tripSettings.center || null,
       settings: tripSettings,
       data: { tripData: scaffold, cityTransitions: [], lodgingOverrides: {} },
     };

@@ -15,13 +15,23 @@ import "maplibre-gl/dist/maplibre-gl.css";
 
 const MAP_STYLE = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
 
-const EditorMap = ({ stops = [], color = "#0D0F11", isPinning = false, onMapPick }) => {
+const EditorMap = ({ stops = [], color = "#0D0F11", isPinning = false, onMapPick, center = null }) => {
   const mapRef = useRef(null);
 
   const pts = useMemo(
     () => stops.filter((s) => s.coordinates && Number.isFinite(s.coordinates.lng)),
     [stops]
   );
+
+  /* Dynamic viewport: when the active day has no stops, fly to the
+     trip's destination center (set by the onboarding wizard) so a
+     brand-new global trip opens on the right country instead of the
+     hardcoded default. */
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || pts.length > 0 || !center) return;
+    map.flyTo({ center: [center.lng, center.lat], zoom: center.zoom ?? 6, duration: 800 });
+  }, [center, pts.length]);
 
   /* Fit/fly to the active day's cluster whenever it changes. */
   useEffect(() => {
@@ -49,7 +59,11 @@ const EditorMap = ({ stops = [], color = "#0D0F11", isPinning = false, onMapPick
   return (
     <Map
       ref={mapRef}
-      initialViewState={{ longitude: pts[0]?.coordinates.lng ?? 139.7, latitude: pts[0]?.coordinates.lat ?? 35.6, zoom: 12 }}
+      initialViewState={{
+        longitude: pts[0]?.coordinates.lng ?? center?.lng ?? 139.7,
+        latitude: pts[0]?.coordinates.lat ?? center?.lat ?? 35.6,
+        zoom: pts[0] ? 12 : (center?.zoom ?? 6),
+      }}
       style={{ width: "100%", height: "100%", cursor: isPinning ? "crosshair" : "grab" }}
       mapStyle={MAP_STYLE}
       attributionControl={false}
