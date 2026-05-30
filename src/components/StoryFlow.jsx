@@ -439,8 +439,15 @@ const StopRow = ({ item, isActive, onClick, side, compact, inlineExpand, isExpan
             Google Maps link. The description is intentionally NOT
             repeated here (it already shows above the card). */}
         {showExpansion && (() => {
-          const mapsHref = item.link
-            || (item.coordinates
+          /* Defensive: only use item.link if it's an actual URL.
+             Earlier data carried plain strings (e.g. "Tokyo Disneyland")
+             which rendered as <a href="Tokyo Disneyland"> — broken
+             relative links. Fall back to a coordinate-based Google
+             Maps search whenever the link isn't a real URL. */
+          const hasUrlLink = typeof item.link === "string" && /^https?:\/\//i.test(item.link);
+          const mapsHref = hasUrlLink
+            ? item.link
+            : (item.coordinates
                   ? `https://www.google.com/maps/search/?api=1&query=${item.coordinates.lat},${item.coordinates.lng}`
                   : null);
           return (
@@ -760,7 +767,7 @@ const HotelAnchor = ({ item, onClick, isExpanded, inlineExpand }) => {
                 {item.descHe}
               </div>
             )}
-            {item.link && (
+            {typeof item.link === "string" && /^https?:\/\//i.test(item.link) && (
               <a
                 href={item.link}
                 target="_blank"
