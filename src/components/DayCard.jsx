@@ -4,6 +4,7 @@ import { vibeDescriptions } from "../data/landmarkImages";
 import { CityIllustrations, cityToHeroIllustration, ActivityIcons } from "../data/illustrations";
 import { lodgingOverrides } from "../data/transportData";
 import { getDayPhoto, getLocationPhoto } from "../data/photoMap";
+import { mapsUrlFor } from "../utils/mapsUrl";
 import TripPhoto from "./TripPhoto";
 
 /* ══════════════════════════════════════════════
@@ -57,8 +58,8 @@ const Icons = {
    Trilingual location name display
    ────────────────────────────────────────────── */
 /* Google Maps link helper */
-const gmapsUrl = (name) =>
-  `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name + " Japan")}`;
+/* Re-exports the shared resolver — accepts an item OR a name. */
+const gmapsUrl = (itemOrName) => mapsUrlFor(itemOrName);
 
 // Title is always plain text. Google Maps link is a SEPARATE, dedicated
 // control rendered below the title via <GoogleMapsLink /> — only visible

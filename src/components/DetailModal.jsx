@@ -5,6 +5,7 @@ import { getLocationPhoto, getDayPhoto } from "../data/photoMap";
 import { ActivityIcons } from "../data/illustrations";
 import { vibeDescriptions } from "../data/landmarkImages";
 import { tripData } from "../data/tripData";
+import { mapsUrlFor } from "../utils/mapsUrl";
 
 /* ══════════════════════════════════════════════════════════════
    DETAIL MODAL — "Nori" Style
@@ -19,9 +20,7 @@ import { tripData } from "../data/tripData";
    • Fully responsive (vertical on mobile)
    ══════════════════════════════════════════════════════════════ */
 
-/* ── Google Maps URL helper ── */
-const gmapsUrl = (name) =>
-  `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name + " Japan")}`;
+const gmapsUrl = (itemOrName) => mapsUrlFor(itemOrName);
 
 /* ── Activity icon picker ── */
 const getActivityIcon = (name) => {
