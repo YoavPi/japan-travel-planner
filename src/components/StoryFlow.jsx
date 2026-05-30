@@ -4,6 +4,7 @@ import { Glyph, MetaIcon, TRANSIT_LABEL_HE } from "./StoryFlowGlyph";
 import { atmospherePhotoFor } from "../data/tripHelpers";
 import { STOP_PHOTO } from "../data/stopPhotos";
 import { getLocationPhoto } from "../data/photoMap";
+import { mapsUrlFor } from "../utils/mapsUrl";
 
 /* photoForStop — per-location image lookup.
 
@@ -433,6 +434,31 @@ const StopRow = ({ item, isActive, onClick, side, compact, inlineExpand, isExpan
               {item.descHe}
             </div>
           )}
+          {/* Google Maps button — always visible in the stop's info
+              bar (per user feedback: was missing). Uses the shared
+              mapsUrlFor resolver so it honors curated item.link. */}
+          {(() => {
+            const href = mapsUrlFor(item);
+            if (!href) return null;
+            return (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  marginTop: 10, padding: "5px 12px", borderRadius: 18,
+                  background: "#FDFCF7", border: `1px solid ${accent}55`,
+                  color: accent, fontSize: 11, fontWeight: 700,
+                  textDecoration: "none", letterSpacing: "0.02em",
+                }}
+              >
+                <span style={{ fontSize: 12 }}>📍</span>
+                Google Maps
+              </a>
+            );
+          })()}
         </div>
         {/* Inline expansion panel (MOBILE ONLY).
             Per the latest spec: VISUAL only — atmosphere image +
@@ -444,12 +470,7 @@ const StopRow = ({ item, isActive, onClick, side, compact, inlineExpand, isExpan
              which rendered as <a href="Tokyo Disneyland"> — broken
              relative links. Fall back to a coordinate-based Google
              Maps search whenever the link isn't a real URL. */
-          const hasUrlLink = typeof item.link === "string" && /^https?:\/\//i.test(item.link);
-          const mapsHref = hasUrlLink
-            ? item.link
-            : (item.coordinates
-                  ? `https://www.google.com/maps/search/?api=1&query=${item.coordinates.lat},${item.coordinates.lng}`
-                  : null);
+          const mapsHref = mapsUrlFor(item);
           return (
             <div
               style={{
@@ -767,9 +788,9 @@ const HotelAnchor = ({ item, onClick, isExpanded, inlineExpand }) => {
                 {item.descHe}
               </div>
             )}
-            {typeof item.link === "string" && /^https?:\/\//i.test(item.link) && (
+            {mapsUrlFor(item) && (
               <a
-                href={item.link}
+                href={mapsUrlFor(item)}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}

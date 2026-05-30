@@ -3,6 +3,7 @@ import { tripData } from "../data/tripData";
 import { vibeDescriptions } from "../data/landmarkImages";
 import { ActivityIcons } from "../data/illustrations";
 import { getLocationPhoto } from "../data/photoMap";
+import { mapsUrlFor } from "../utils/mapsUrl";
 import TripPhoto from "./TripPhoto";
 
 /* ══════════════════════════════════════════════════════════════
@@ -34,8 +35,7 @@ const isShopping = (name) => {
   return SHOPPING_KEYWORDS.some((kw) => n.includes(kw));
 };
 
-const gmapsUrl = (name) =>
-  `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name + " Japan")}`;
+const gmapsUrl = (itemOrName) => mapsUrlFor(itemOrName);
 
 /* ── Activity icon picker ── */
 const getActivityIcon = (name) => {
@@ -294,7 +294,7 @@ const ResultCard = ({ item, theme, onSelectLocation, onSelectDay, onOpenDetail }
 
           <div className="flex items-center gap-3 mt-1.5">
             <a
-              href={gmapsUrl(item.name)} target="_blank" rel="noopener noreferrer"
+              href={gmapsUrl(item) /* prefer curated link */} target="_blank" rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
               className="inline-flex items-center gap-1 text-[10px] font-display text-sumi-400 hover:text-blue-600 transition-colors group/gm"
             >

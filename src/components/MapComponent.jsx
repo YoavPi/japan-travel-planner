@@ -12,6 +12,7 @@ import { FILTERS, getChronologicalCityPath } from "./ItineraryList";
 import { vibeDescriptions } from "../data/landmarkImages";
 import { CityIllustrations, cityToHeroIllustration, ActivityIcons } from "../data/illustrations";
 import { getLocationPhoto } from "../data/photoMap";
+import { mapsUrlFor } from "../utils/mapsUrl";
 
 /* ══════════════════════════════════════════════
    CONSTANTS & CONFIG
@@ -104,9 +105,10 @@ const SubLocationMarker = () => (
 /* ══════════════════════════════════════════════
    MAP COMPONENT
    ══════════════════════════════════════════════ */
-/* ── Google Maps URL helper ── */
-const gmapsUrl = (name) =>
-  `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name + " Japan")}`;
+/* ── Google Maps URL helper — re-exports the SHARED resolver so
+   every popup respects curated item.link URLs. Accepts either a
+   full item (preferred) or just a name (legacy fallback). */
+const gmapsUrl = (itemOrName) => mapsUrlFor(itemOrName);
 
 /* ── Parent city mapping (matches FilterResultsPanel) ── */
 const PARENT_CITY_MAP = {
@@ -504,6 +506,7 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
               nameHe: a.nameHe,
               desc:   a.desc,
               rating: a.rating,
+              link:   a.link,
             });
           }
         });
@@ -523,6 +526,7 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
               nameHe: meal.nameHe,
               desc:   meal.desc,
               rating: meal.rating,
+              link:   meal.link,
             });
           }
         });
@@ -540,6 +544,7 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
               nameJa: a.nameJa,
               nameHe: a.nameHe,
               desc: a.desc,
+              link: a.link,
             });
           }
         });
@@ -557,6 +562,7 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
               nameJa: a.nameJa,
               nameHe: a.nameHe,
               desc: a.desc,
+              link: a.link,
             });
           }
         });
@@ -573,6 +579,7 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
               lat: h.lat,
               name: day.hotel,
               hotel: day.hotel,
+              link: day.hotelLink,
             });
           }
         }
@@ -1576,7 +1583,7 @@ const SubLocationInfoCard = ({ loc, onOpenFullDetail }) => {
             </button>
           )}
           <a
-            href={gmapsUrl(loc.name)}
+            href={gmapsUrl(loc) /* loc has link/coords/name → curated URL when available */}
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
