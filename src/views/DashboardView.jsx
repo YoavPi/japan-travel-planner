@@ -163,7 +163,17 @@ const DashboardView = () => {
               {[0, 1, 2].map((i) => <div key={i} style={{ height: 116, borderRadius: 20, background: `linear-gradient(90deg, ${P.surface}, ${P.surface2}, ${P.surface})`, backgroundSize: "200% 100%", animation: "tpSkeleton 1.2s ease infinite" }} />)}
             </div>
           ) : filtered.length === 0 ? (
-            <div style={{ textAlign: "center", color: P.ink3, padding: "28px 0", fontSize: 13.5 }}>אין מסלולים בקטגוריה זו</div>
+            <div className="tp-fade-up" style={{ textAlign: "center", padding: "36px 16px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+              <div style={{ width: 64, height: 64, borderRadius: "50%", background: P.surface, color: P.ink3, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                <Icon name="map" size={28} strokeWidth={1.6} />
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: P.ink }}>אין כאן מסלולים עדיין</div>
+              <div style={{ fontSize: 13, color: P.ink3, lineHeight: 1.55, maxWidth: 280 }}>בנו את המסלול הראשון שלכם — נמלא יעדים, ימים וערים תוך דקה.</div>
+              <button onClick={() => navigate("/create")} className="tp-press"
+                style={{ marginTop: 4, padding: "11px 22px", borderRadius: 999, border: "none", background: P.ink, color: P.panel, fontSize: 13.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 8 }}>
+                <Icon name="plus" size={15} strokeWidth={2.2} /> מסלול חדש
+              </button>
+            </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {filtered.map((t, i) => (

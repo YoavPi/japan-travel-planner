@@ -64,7 +64,9 @@ const SAMPLE_TRIPS = [
   {
     id: "dubai-2026",
     title: "הטיול שלי לדובאי",
-    cover: "/photos/source/day22_teamlab-planets.jpg",
+    /* No cover yet — MapCard falls back to the themed Dubai gradient
+       + landmark glyph. Better than borrowing a Japan photo. */
+    cover: null,
     days: 5,
     meta: "5 ימים · דובאי · 2026",
     role: "owner",
@@ -104,7 +106,7 @@ const SAMPLE_TRIPS = [
   {
     id: "paris-weekend",
     title: "סופ\"ש בפריז",
-    cover: "/photos/source/day29_starbucks-reserve.jpg",
+    cover: null,
     days: 3,
     meta: "3 ימים · פריז · שותף איתך",
     role: "edit",

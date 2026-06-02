@@ -38,7 +38,7 @@ const SettingsView = () => {
     <div style={{ background: P.panel, borderRadius: 18, border: `1px solid ${P.line}`, overflow: "hidden", marginBottom: 14 }}>{children}</div>
   );
 
-  const Row = ({ icon, title, sub, value, control, onClick, danger, first }) => (
+  const Row = ({ icon, title, sub, value, control, onClick, danger, first, soonBadge }) => (
     <div onClick={onClick}
       style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderTop: first ? "none" : `1px solid ${P.line}`, cursor: onClick ? "pointer" : "default" }}>
       <span style={{ width: 34, height: 34, borderRadius: 10, background: danger ? "rgba(192,57,43,0.12)" : P.surface, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: danger ? P.danger : P.ink2 }}>
@@ -48,9 +48,12 @@ const SettingsView = () => {
         <span style={{ display: "block", fontSize: 14.5, fontWeight: 600, color: danger ? P.danger : P.ink }}>{title}</span>
         {sub && <span style={{ display: "block", fontSize: 12, color: P.ink3, marginTop: 1 }}>{sub}</span>}
       </span>
+      {soonBadge && (
+        <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: "0.04em", color: P.ink3, background: P.surface, border: `1px solid ${P.line}`, borderRadius: 999, padding: "3px 8px" }}>בקרוב</span>
+      )}
       {value && <span style={{ fontSize: 13, fontWeight: 600, color: P.ink3 }}>{value}</span>}
       {control}
-      {onClick && !control && <span style={{ color: P.ink4, display: "inline-flex" }}><Icon name="chevronStart" size={15} strokeWidth={2} /></span>}
+      {onClick && !control && !soonBadge && <span style={{ color: P.ink4, display: "inline-flex" }}><Icon name="chevronStart" size={15} strokeWidth={2} /></span>}
     </div>
   );
 
@@ -58,7 +61,7 @@ const SettingsView = () => {
     <div dir="rtl" style={{ minHeight: "100vh", background: P.page, fontFamily: FONT, transition: "background 0.25s" }}>
       <div style={{ maxWidth: 560, margin: "0 auto", minHeight: "100vh" }}>
         <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: P.panel, borderBottom: `1px solid ${P.line}`, transition: "background 0.25s" }}>
-          <button onClick={() => navigate("/dashboard")} title="חזרה" style={{ width: 40, height: 40, borderRadius: "50%", border: "none", background: P.surface, cursor: "pointer", fontSize: 17, fontFamily: "inherit", color: P.ink }}>›</button>
+          <button onClick={() => navigate("/dashboard")} title="חזרה" aria-label="חזרה" style={{ width: 40, height: 40, borderRadius: "50%", border: "none", background: P.surface, cursor: "pointer", fontFamily: "inherit", color: P.ink, display: "inline-flex", alignItems: "center", justifyContent: "center" }}><Icon name="chevronStart" size={16} strokeWidth={2} /></button>
           <div style={{ fontSize: 17, fontWeight: 800, color: P.ink }}>הגדרות וניהול</div>
           <span style={{ width: 40 }} />
         </header>
@@ -66,13 +69,13 @@ const SettingsView = () => {
         <div style={{ padding: "16px 16px 96px" /* reserve bottom space for the floating dock */ }}>
           {/* Account */}
           <Group>
-            <Row first icon="user" title="פרטי חשבון" sub={user?.email || "שם, מייל, תמונת פרופיל"} onClick={soon} />
-            <Row icon="sparkle" title="מנוי וחיוב" value={user?.plan || "Free"} onClick={soon} />
+            <Row first icon="user" title="פרטי חשבון" sub={user?.email || "שם, מייל, תמונת פרופיל"} onClick={soon} soonBadge />
+            <Row icon="sparkle" title="מנוי וחיוב" value={user?.plan || "Free"} onClick={soon} soonBadge />
           </Group>
 
           {/* Preferences */}
           <Group>
-            <Row first icon="globe" title="שפה" value="עברית" onClick={soon} />
+            <Row first icon="globe" title="שפה" value="עברית" onClick={soon} soonBadge />
             <Row icon="ruler" title="יחידות מרחק"
               value={prefs.units === "km" ? "קילומטרים" : "מיילים"}
               onClick={() => update({ units: prefs.units === "km" ? "mi" : "km" })} />
@@ -83,12 +86,12 @@ const SettingsView = () => {
           <Group>
             <Row first icon="bell" title="התראות" sub="תזכורות ועדכונים מהמסלול" control={<Toggle on={prefs.notifications} onClick={() => update({ notifications: !prefs.notifications })} />} />
             <Row icon="share" title="עדכוני שיתוף" sub="כשמישהו עורך מסלול משותף" control={<Toggle on={prefs.shareUpdates} onClick={() => update({ shareUpdates: !prefs.shareUpdates })} />} />
-            <Row icon="shield" title="פרטיות והרשאות" sub="ברירת מחדל לשיתוף מסלולים" onClick={soon} />
+            <Row icon="shield" title="פרטיות והרשאות" sub="ברירת מחדל לשיתוף מסלולים" onClick={soon} soonBadge />
           </Group>
 
           {/* Support + danger */}
           <Group>
-            <Row first icon="helpCircle" title="עזרה ותמיכה" onClick={soon} />
+            <Row first icon="helpCircle" title="עזרה ותמיכה" onClick={soon} soonBadge />
             <Row icon="logOut" title="התנתקות" danger onClick={() => { signOut(); navigate("/"); }} />
           </Group>
 
