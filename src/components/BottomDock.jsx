@@ -24,18 +24,20 @@ const BottomDock = () => {
   const { P } = useDarkMode();
 
   const active = useMemo(() => {
-    if (pathname.startsWith("/profile")) return "profile";
+    if (pathname.startsWith("/settings")) return "settings";
     if (pathname.startsWith("/notifications")) return "notif";
-    if (pathname.startsWith("/dashboard") || pathname.startsWith("/map/edit")) return "maps";
+    if (pathname.startsWith("/profile") || pathname.startsWith("/dashboard") || pathname.startsWith("/map/edit")) return "maps";
     if (pathname === "/" || pathname.startsWith("/japan")) return "home";
     return null;
   }, [pathname]);
 
+  /* "My Maps" is the merged Profile+Maps hub. Settings sits at the
+     end (it inherits the old Profile-screen slot). */
   const items = [
-    { id: "profile", icon: "👤", title: "פרופיל", to: "/profile" },
-    { id: "notif",   icon: "🔔", title: "התראות", to: "/notifications" },
-    { id: "maps",    icon: "🗺",  title: "המפות שלי", to: "/dashboard" },
-    { id: "home",    icon: "🏠", title: "בית",     to: "/" },
+    { id: "settings", icon: "⚙",  title: "הגדרות", to: "/settings" },
+    { id: "notif",    icon: "🔔", title: "התראות", to: "/notifications" },
+    { id: "maps",     icon: "🗺", title: "הפרופיל שלי", to: "/dashboard" },
+    { id: "home",     icon: "🏠", title: "בית",     to: "/" },
   ];
 
   return (

@@ -73,9 +73,10 @@ const SideMenu = ({ open, onClose }) => {
           <Item icon="🏠" label="עמוד הבית" onClick={() => go("/")} />
           {isAuthenticated ? (
             <>
-              <Item icon="👤" label="הפרופיל שלי" onClick={() => go("/profile")} />
-              <Item icon="🗺" label="המפות שלי" onClick={() => go("/dashboard")} />
+              {/* My Maps IS the profile (merged). */}
+              <Item icon="🗺" label="הפרופיל ומסלולים שלי" onClick={() => go("/dashboard")} />
               <Item icon="➕" label="מסלול חדש" onClick={() => go("/create")} />
+              <Item icon="🔔" label="התראות" onClick={() => go("/notifications")} />
               <Item icon="⚙" label="הגדרות וניהול" onClick={() => go("/settings")} />
               <Item icon="🌸" label="טיול לדוגמה (יפן)" onClick={() => go("/japan")} />
             </>

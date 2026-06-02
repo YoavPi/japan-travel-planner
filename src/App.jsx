@@ -9,7 +9,8 @@ import ExploreView from "./views/ExploreView";
 import AuthView from "./views/AuthView";
 import DashboardView from "./views/DashboardView";
 import WizardView from "./views/WizardView";
-import ProfileView from "./views/ProfileView";
+/* ProfileView retired — merged into DashboardView (one premium
+   "המפות שלי / הפרופיל שלי" page). /profile now redirects there. */
 import SettingsView from "./views/SettingsView";
 import NotificationsView from "./views/NotificationsView";
 import EditorView from "./views/EditorView";
@@ -59,14 +60,8 @@ const App = () => (
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/profile"
-          element={
-            <ProtectedRoute>
-              <ProfileView />
-            </ProtectedRoute>
-          }
-        />
+        {/* Legacy /profile alias — folded into /dashboard. */}
+        <Route path="/profile" element={<Navigate to="/dashboard" replace />} />
         <Route
           path="/settings"
           element={

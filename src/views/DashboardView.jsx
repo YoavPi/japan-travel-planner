@@ -100,7 +100,7 @@ const DashboardView = () => {
               {user?.plan && <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", color: ACCENT, background: "rgba(224,83,63,0.12)", borderRadius: 999, padding: "2px 8px" }}>{user.plan}</span>}
             </div>
             <div style={{ fontSize: 13, color: P.ink3, direction: "ltr", textAlign: "right", marginTop: 2 }}>{user?.email}</div>
-            <button onClick={() => navigate("/profile")} className="tp-press" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 8, padding: "5px 12px", borderRadius: 999, border: `1px solid ${P.line}`, background: P.surface, fontSize: 12, fontWeight: 700, color: P.ink, cursor: "pointer", fontFamily: "inherit" }}>
+            <button onClick={() => navigate("/settings")} className="tp-press" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 8, padding: "5px 12px", borderRadius: 999, border: `1px solid ${P.line}`, background: P.surface, fontSize: 12, fontWeight: 700, color: P.ink, cursor: "pointer", fontFamily: "inherit" }}>
               ✏ ערכו פרופיל
             </button>
           </div>
@@ -175,6 +175,26 @@ const DashboardView = () => {
               נוצרו {counts.all} מסלולים · 24.5MB מתוך 2GB בענן
             </div>
           )}
+        </section>
+
+        {/* Account rows (merged from the old Profile screen). */}
+        <section style={{ padding: "0 22px 28px" }}>
+          <div style={{ borderRadius: 18, border: `1px solid ${P.line}`, overflow: "hidden" }}>
+            {[
+              { icon: "⚙",  label: "הגדרות וניהול",   sub: "שפה, יחידות, התראות, פרטיות" },
+              { icon: "⬇", label: "מפות לא־מקוונות", sub: "זמינות גם בלי רשת" },
+            ].map((r, i) => (
+              <button key={r.label} onClick={() => navigate("/settings")} className="tp-press"
+                style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderTop: i ? `1px solid ${P.line}` : "none", width: "100%", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit", textAlign: "right" }}>
+                <span style={{ width: 34, height: 34, borderRadius: 10, background: P.surface, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>{r.icon}</span>
+                <span style={{ flex: 1 }}>
+                  <span style={{ display: "block", fontSize: 14.5, fontWeight: 600, color: P.ink }}>{r.label}</span>
+                  <span style={{ display: "block", fontSize: 12, color: P.ink3, marginTop: 1 }}>{r.sub}</span>
+                </span>
+                <span style={{ color: P.ink4 }}>‹</span>
+              </button>
+            ))}
+          </div>
         </section>
       </div>
 

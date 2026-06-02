@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { readPrefs, writePrefs } from "../services/prefsService";
 import { useDarkMode } from "../utils/theme";
+import BottomDock from "../components/BottomDock";
 
 /* ──────────────────────────────────────────────────────────────
    SettingsView — "הגדרות וניהול". Dark-mode aware. The dark
@@ -54,12 +55,12 @@ const SettingsView = () => {
     <div dir="rtl" style={{ minHeight: "100vh", background: P.page, fontFamily: FONT, transition: "background 0.25s" }}>
       <div style={{ maxWidth: 560, margin: "0 auto", minHeight: "100vh" }}>
         <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: P.panel, borderBottom: `1px solid ${P.line}`, transition: "background 0.25s" }}>
-          <button onClick={() => navigate("/profile")} title="חזרה" style={{ width: 40, height: 40, borderRadius: "50%", border: "none", background: P.surface, cursor: "pointer", fontSize: 17, fontFamily: "inherit", color: P.ink }}>›</button>
+          <button onClick={() => navigate("/dashboard")} title="חזרה" style={{ width: 40, height: 40, borderRadius: "50%", border: "none", background: P.surface, cursor: "pointer", fontSize: 17, fontFamily: "inherit", color: P.ink }}>›</button>
           <div style={{ fontSize: 17, fontWeight: 800, color: P.ink }}>הגדרות וניהול</div>
           <span style={{ width: 40 }} />
         </header>
 
-        <div style={{ padding: "16px 16px 40px" }}>
+        <div style={{ padding: "16px 16px 96px" /* reserve bottom space for the floating dock */ }}>
           {/* Account */}
           <Group>
             <Row first icon="👤" title="פרטי חשבון" sub={user?.email || "שם, מייל, תמונת פרופיל"} onClick={soon} />
@@ -95,10 +96,11 @@ const SettingsView = () => {
       </div>
 
       {toast && (
-        <div style={{ position: "fixed", bottom: 28, left: "50%", transform: "translateX(-50%)", background: P.ink, color: P.panel, borderRadius: 999, padding: "10px 20px", fontSize: 13.5, fontWeight: 600, zIndex: 80, fontFamily: FONT }}>
+        <div style={{ position: "fixed", bottom: 96, left: "50%", transform: "translateX(-50%)", background: P.ink, color: P.panel, borderRadius: 999, padding: "10px 20px", fontSize: 13.5, fontWeight: 600, zIndex: 80, fontFamily: FONT }}>
           {toast}
         </div>
       )}
+      <BottomDock />
     </div>
   );
 };
