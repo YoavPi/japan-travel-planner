@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import tripService from "../services/tripService";
 import { useDarkMode } from "../utils/theme";
 import MapCard from "../components/MapCard";
+import BottomDock from "../components/BottomDock";
 
 /* ──────────────────────────────────────────────────────────────
    DashboardView — premium "My Maps" profile dashboard.
@@ -177,20 +178,8 @@ const DashboardView = () => {
         </section>
       </div>
 
-      {/* Floating bottom dock */}
-      <nav style={{ position: "fixed", bottom: 16, left: "50%", transform: "translateX(-50%)", zIndex: 40, display: "flex", gap: 4, padding: 6, borderRadius: 999, background: "#0D0F11", boxShadow: "0 12px 40px rgba(0,0,0,0.35)" }}>
-        {[
-          { id: "home", icon: "🏠", title: "בית", onClick: () => navigate("/") },
-          { id: "maps", icon: "🗺", title: "המפות שלי", active: true, onClick: () => {} },
-          { id: "notif", icon: "🔔", title: "התראות", onClick: () => navigate("/notifications") },
-          { id: "profile", icon: "👤", title: "פרופיל", onClick: () => navigate("/profile") },
-        ].map((it) => (
-          <button key={it.id} onClick={it.onClick} title={it.title} className="tp-press"
-            style={{ width: 48, height: 48, borderRadius: 999, border: "none", cursor: "pointer", fontSize: 18, fontFamily: "inherit", background: it.active ? "#fff" : "transparent", color: it.active ? "#0D0F11" : "rgba(255,255,255,0.7)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            {it.icon}
-          </button>
-        ))}
-      </nav>
+      {/* Shared floating bottom dock — auto-detects active route */}
+      <BottomDock />
 
       {/* Delete confirm modal */}
       {confirmTrip && (

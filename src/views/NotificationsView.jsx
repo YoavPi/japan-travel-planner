@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDarkMode } from "../utils/theme";
+import BottomDock from "../components/BottomDock";
 
 /* ──────────────────────────────────────────────────────────────
    NotificationsView — "התראות" feed.
@@ -143,20 +144,7 @@ const NotificationsView = () => {
         </div>
       </div>
 
-      {/* Floating bottom dock (same as Dashboard) */}
-      <nav style={{ position: "fixed", bottom: 16, left: "50%", transform: "translateX(-50%)", zIndex: 40, display: "flex", gap: 4, padding: 6, borderRadius: 999, background: "#0D0F11", boxShadow: "0 12px 40px rgba(0,0,0,0.35)" }}>
-        {[
-          { id: "home", icon: "🏠", title: "בית", onClick: () => navigate("/") },
-          { id: "maps", icon: "🗺", title: "המפות שלי", onClick: () => navigate("/dashboard") },
-          { id: "notif", icon: "🔔", title: "התראות", active: true, onClick: () => {} },
-          { id: "profile", icon: "👤", title: "פרופיל", onClick: () => navigate("/profile") },
-        ].map((it) => (
-          <button key={it.id} onClick={it.onClick} title={it.title} className="tp-press"
-            style={{ width: 48, height: 48, borderRadius: 999, border: "none", cursor: "pointer", fontSize: 18, fontFamily: "inherit", background: it.active ? "#fff" : "transparent", color: it.active ? "#0D0F11" : "rgba(255,255,255,0.7)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            {it.icon}
-          </button>
-        ))}
-      </nav>
+      <BottomDock />
     </div>
   );
 };

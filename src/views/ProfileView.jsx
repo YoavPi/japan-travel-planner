@@ -5,6 +5,7 @@ import tripService from "../services/tripService";
 import { useDarkMode } from "../utils/theme";
 import ShareSheet from "../components/ShareSheet";
 import MapCard from "../components/MapCard";
+import BottomDock from "../components/BottomDock";
 
 /* ──────────────────────────────────────────────────────────────
    ProfileView — "הפרופיל שלי" (home-profile blueprint, screen 1).
@@ -69,7 +70,7 @@ const ProfileView = () => {
 
   return (
     <div dir="rtl" style={{ minHeight: "100vh", background: T.page, fontFamily: T.font, transition: "background 0.25s" }}>
-      <div className="tp-fade" style={{ maxWidth: 560, margin: "0 auto", background: T.panel, minHeight: "100vh", transition: "background 0.25s" }}>
+      <div className="tp-fade" style={{ maxWidth: 560, margin: "0 auto", background: T.panel, minHeight: "100vh", paddingBottom: 96, transition: "background 0.25s" }}>
         {/* Top bar */}
         <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px 10px" }}>
           <button onClick={() => navigate("/")} title="חזרה לעמוד הבית" className="tp-press" style={{ width: 40, height: 40, borderRadius: "50%", border: "none", background: T.surface, cursor: "pointer", fontSize: 17, fontFamily: "inherit" }}>←</button>
@@ -172,6 +173,7 @@ const ProfileView = () => {
       </div>
 
       {shareTrip && <ShareSheet trip={shareTrip} onClose={() => setShareTrip(null)} />}
+      <BottomDock />
       <style>{`@keyframes tpSkeleton{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
     </div>
   );

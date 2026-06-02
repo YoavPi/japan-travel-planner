@@ -1,5 +1,5 @@
 import React from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Analytics } from "@vercel/analytics/react";
 import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -13,6 +13,12 @@ import ProfileView from "./views/ProfileView";
 import SettingsView from "./views/SettingsView";
 import NotificationsView from "./views/NotificationsView";
 import EditorView from "./views/EditorView";
+import OnboardingView, { isOnboarded } from "./views/OnboardingView";
+
+/* First-visit gate: send guests through the 5-step walkthrough
+   before they ever hit the SaaS landing. The flag persists so the
+   redirect only happens once per device. */
+const LandingGate = () => (isOnboarded() ? <LandingView /> : <Navigate to="/welcome" replace />);
 
 /* ══════════════════════════════════════════════════════════════
    APP — Top-level router
@@ -32,7 +38,8 @@ const App = () => (
   <AuthProvider>
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<LandingView />} />
+        <Route path="/" element={<LandingGate />} />
+        <Route path="/welcome" element={<OnboardingView />} />
         <Route path="/japan" element={<HomePage />} />
         <Route path="/map" element={<ExploreView />} />
         <Route path="/auth" element={<AuthView />} />
