@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import tripService from "../services/tripService";
-import { readPrefs, writePrefs } from "../services/prefsService";
+import { useDarkMode } from "../utils/theme";
 import MapCard from "../components/MapCard";
 
 /* ──────────────────────────────────────────────────────────────
@@ -13,8 +13,6 @@ import MapCard from "../components/MapCard";
    confirm modal) · floating bottom dock.
    ────────────────────────────────────────────────────────────── */
 
-const LIGHT = { page: "#EDEDEC", panel: "#fff", ink: "#0D0F11", ink2: "#2A3036", ink3: "#6B7178", ink4: "#A4AAB1", line: "rgba(20,20,20,0.08)", surface: "#F6F6F4", surface2: "#EFEFEC" };
-const DARK  = { page: "#0E1012", panel: "#16191D", ink: "#F5F6F7", ink2: "#C7CCD1", ink3: "#8B9198", ink4: "#6B7178", line: "rgba(255,255,255,0.09)", surface: "#1F242A", surface2: "#262B31" };
 const ACCENT = "#E0533F";
 const FONT = "'Noto Sans Hebrew','Inter','Noto Sans JP',system-ui,sans-serif";
 
@@ -30,10 +28,9 @@ const DashboardView = () => {
   const navigate = useNavigate();
   const [trips, setTrips] = useState(null);
   const [filter, setFilter] = useState("all");
-  const [dark, setDark] = useState(() => readPrefs().darkMode);
+  const { dark, toggle: toggleTheme, P } = useDarkMode();
   const [confirmTrip, setConfirmTrip] = useState(null);
   const [toast, setToast] = useState("");
-  const P = dark ? DARK : LIGHT;
 
   useEffect(() => {
     let live = true;
@@ -42,7 +39,6 @@ const DashboardView = () => {
   }, [user]);
 
   const showToast = (m) => { setToast(m); setTimeout(() => setToast(""), 1500); };
-  const toggleTheme = () => setDark((d) => { writePrefs({ darkMode: !d }); return !d; });
 
   const counts = useMemo(() => {
     const list = trips || [];
@@ -186,7 +182,7 @@ const DashboardView = () => {
         {[
           { id: "home", icon: "🏠", title: "בית", onClick: () => navigate("/") },
           { id: "maps", icon: "🗺", title: "המפות שלי", active: true, onClick: () => {} },
-          { id: "notif", icon: "🔔", title: "התראות", onClick: () => showToast("בקרוב") },
+          { id: "notif", icon: "🔔", title: "התראות", onClick: () => navigate("/notifications") },
           { id: "profile", icon: "👤", title: "פרופיל", onClick: () => navigate("/profile") },
         ].map((it) => (
           <button key={it.id} onClick={it.onClick} title={it.title} className="tp-press"

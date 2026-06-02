@@ -11,6 +11,7 @@ import DashboardView from "./views/DashboardView";
 import WizardView from "./views/WizardView";
 import ProfileView from "./views/ProfileView";
 import SettingsView from "./views/SettingsView";
+import NotificationsView from "./views/NotificationsView";
 import EditorView from "./views/EditorView";
 
 /* ══════════════════════════════════════════════════════════════
@@ -64,6 +65,14 @@ const App = () => (
           element={
             <ProtectedRoute>
               <SettingsView />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/notifications"
+          element={
+            <ProtectedRoute>
+              <NotificationsView />
             </ProtectedRoute>
           }
         />
