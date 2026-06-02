@@ -13,11 +13,9 @@ import Icon from "./Icon";
    <BottomDock /> in without props.
    ══════════════════════════════════════════════════════════════ */
 
-const PROTECTED_FOR_GUEST = {
-  profile: "/auth",
-  notif:   "/auth",
-  maps:    "/auth",
-};
+/* The dock only renders inside authenticated screens (Dashboard,
+   Settings, Notifications, Profile) — ProtectedRoute already
+   redirects guests to /auth, so we don't need to gate per-item. */
 
 const BottomDock = () => {
   const navigate = useNavigate();
@@ -56,7 +54,7 @@ const BottomDock = () => {
         const isActive = active === it.id;
         return (
           <button key={it.id}
-            onClick={() => navigate(PROTECTED_FOR_GUEST[it.id] && false ? PROTECTED_FOR_GUEST[it.id] : it.to)}
+            onClick={() => navigate(it.to)}
             title={it.title}
             aria-label={it.title}
             aria-current={isActive ? "page" : undefined}
