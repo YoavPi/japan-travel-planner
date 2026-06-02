@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import tripService from "../services/tripService";
+import Icon from "./Icon";
 
 /* ══════════════════════════════════════════════════════════════
    ShareSheet — Google-Sheets-style share-by-email (spec §Profile-3).
@@ -132,20 +133,20 @@ const ShareSheet = ({ trip, onClose }) => {
             <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: T.ink3 }}>שיתוף מסלול</div>
             <h2 style={{ fontSize: 19, fontWeight: 800, color: T.ink, margin: "2px 0 0" }}>{trip.title}</h2>
           </div>
-          <button onClick={onClose} style={{ width: 34, height: 34, borderRadius: "50%", border: "none", background: T.surface, cursor: "pointer", fontSize: 16, fontFamily: "inherit" }}>✕</button>
+          <button onClick={onClose} aria-label="סגירה" style={{ width: 34, height: 34, borderRadius: "50%", border: "none", background: T.surface, cursor: "pointer", fontFamily: "inherit", color: T.ink2, display: "inline-flex", alignItems: "center", justifyContent: "center" }}><Icon name="x" size={15} strokeWidth={2.2} /></button>
         </div>
 
         {/* Invite row */}
         <div style={{ display: "flex", gap: 8, position: "relative" }}>
           <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, height: 50, padding: "0 12px", borderRadius: 16, border: `1px solid ${T.line}`, background: T.surface }}>
-            <span aria-hidden>✉️</span>
+            <span aria-hidden style={{ color: T.ink3, display: "inline-flex" }}><Icon name="mail" size={17} /></span>
             <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="הוסיפו כתובת מייל"
               style={{ flex: 1, border: "none", background: "transparent", fontSize: 16, fontFamily: "inherit", direction: "ltr", textAlign: "right" }} />
             <button onClick={() => setShowPop((v) => !v)} style={{ border: "none", background: "transparent", fontSize: 12.5, fontWeight: 700, color: T.ink2, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
               {ROLE_HE[inviteRole]} ▾
             </button>
           </div>
-          <button onClick={sendInvite} style={{ width: 50, height: 50, borderRadius: 16, border: "none", background: T.ink, color: "#fff", cursor: "pointer", fontSize: 18, fontFamily: "inherit" }}>←</button>
+          <button onClick={sendInvite} aria-label="שליחת הזמנה" style={{ width: 50, height: 50, borderRadius: 16, border: "none", background: T.ink, color: "#fff", cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><Icon name="chevronStart" size={18} strokeWidth={2.2} /></button>
 
           {showPop && (
             <div style={{ position: "absolute", insetInlineEnd: 58, top: 54, zIndex: 5, background: "#fff", border: `1px solid ${T.line}`, borderRadius: 14, boxShadow: "0 24px 60px rgba(0,0,0,0.16)", width: 260, overflow: "hidden" }}>
@@ -154,7 +155,7 @@ const ShareSheet = ({ trip, onClose }) => {
                 { r: "view", t: "יכול לצפות", s: "לראות את המסלול בלבד, בלי לערוך" },
               ].map((o) => (
                 <button key={o.r} onClick={() => { setInviteRole(o.r); setShowPop(false); }} style={{ display: "flex", gap: 8, alignItems: "flex-start", width: "100%", textAlign: "right", padding: "11px 12px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit" }}>
-                  <span style={{ width: 18, color: T.accent }}>{inviteRole === o.r ? "✓" : ""}</span>
+                  <span style={{ width: 18, color: T.accent, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{inviteRole === o.r ? <Icon name="check" size={14} strokeWidth={2.4} /> : null}</span>
                   <span>
                     <span style={{ display: "block", fontSize: 13.5, fontWeight: 700, color: T.ink }}>{o.t}</span>
                     <span style={{ display: "block", fontSize: 11.5, color: T.ink3 }}>{o.s}</span>
@@ -176,7 +177,7 @@ const ShareSheet = ({ trip, onClose }) => {
         {/* General link access */}
         <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: T.ink3, margin: "18px 0 8px" }}>גישה כללית</div>
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 16, background: T.surface }}>
-          <span aria-hidden style={{ fontSize: 18 }}>🔗</span>
+          <span aria-hidden style={{ color: T.ink2, display: "inline-flex" }}><Icon name="link" size={18} /></span>
           <div style={{ flex: 1, minWidth: 0 }}>
             <button onClick={toggleLinkMode} style={{ border: "none", background: "transparent", padding: 0, cursor: "pointer", fontFamily: "inherit", fontSize: 13.5, fontWeight: 700, color: T.ink }}>
               {linkAccess.mode === "anyone" ? "כל מי שיש לו קישור" : "מוגבל"} ▾
@@ -194,8 +195,8 @@ const ShareSheet = ({ trip, onClose }) => {
 
         {/* Footer */}
         <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
-          <button onClick={copyLink} style={{ flex: 1, height: 50, borderRadius: 999, border: `1px solid ${T.line}`, background: "#fff", color: T.ink, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-            {copied ? "הקישור הועתק ✓" : "העתקת קישור"}
+          <button onClick={copyLink} style={{ flex: 1, height: 50, borderRadius: 999, border: `1px solid ${T.line}`, background: "#fff", color: T.ink, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+            {copied ? (<><Icon name="check" size={15} strokeWidth={2.4} /> הקישור הועתק</>) : (<><Icon name="copy" size={15} /> העתקת קישור</>)}
           </button>
           <button onClick={onClose} style={{ flex: 1, height: 50, borderRadius: 999, border: "none", background: T.ink, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
             סיום

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import Icon from "./Icon";
 
 /* ══════════════════════════════════════════════════════════════
    MapCard — rich trip card (premium profile dashboard).
@@ -25,9 +26,9 @@ const NATURE_SOFT = "#E4EFE5", NATURE_DEEP = "#2B7B71", DANGER = "#C0392B";
 const FONT = "'Noto Sans Hebrew','Inter','Noto Sans JP',system-ui,sans-serif";
 
 const ROLE = {
-  owner: { label: "בעלים", icon: "👤", bg: "#0D0F11", fg: "#fff" },
-  edit:  { label: "עריכה", icon: "✏", bg: NATURE_SOFT, fg: NATURE_DEEP },
-  view:  { label: "צפייה", icon: "👁", bg: "#EFEFEC", fg: "#2A3036" },
+  owner: { label: "בעלים", icon: "user", bg: "#0D0F11", fg: "#fff" },
+  edit:  { label: "עריכה", icon: "edit", bg: NATURE_SOFT, fg: NATURE_DEEP },
+  view:  { label: "צפייה", icon: "eye",  bg: "#EFEFEC", fg: "#2A3036" },
 };
 
 /* Country → landmark glyph + themed gradient for the thumb. */
@@ -93,7 +94,9 @@ const MapCard = ({ trip, index = 0, dark = false, onOpen, onCopyLink, onShare, o
   const MenuItem = ({ icon, label, danger, onClick }) => (
     <button onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onClick && onClick(); }}
       style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "right", padding: "11px 14px", border: "none", background: "transparent", cursor: "pointer", fontFamily: FONT, fontSize: 13.5, fontWeight: 600, color: danger ? DANGER : P.ink, borderBottom: `1px solid ${P.line}` }}>
-      <span aria-hidden style={{ width: 18 }}>{icon}</span>{label}
+      <span style={{ width: 18, display: "inline-flex", alignItems: "center", justifyContent: "center", color: danger ? DANGER : P.ink3 }}>
+        <Icon name={icon} size={15} strokeWidth={1.9} />
+      </span>{label}
     </button>
   );
 
@@ -109,17 +112,24 @@ const MapCard = ({ trip, index = 0, dark = false, onOpen, onCopyLink, onShare, o
         animationDelay: `${Math.min(index, 8) * 55}ms`,
       }}
     >
-      {/* Illustrated thumb */}
-      <div style={{ width: 92, height: 92, borderRadius: 14, flexShrink: 0, position: "relative", overflow: "hidden", background: `linear-gradient(145deg, ${lm.g[0]}, ${lm.g[1]})` }}>
-        <span aria-hidden style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40, filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.25))" }}>{lm.e}</span>
+      {/* Thumb — real cover photo when present, otherwise a tinted
+          gradient with a quieter landmark glyph (low-opacity SVG-
+          stroke-style) so a grid of cards never reads as emoji art. */}
+      <div style={{
+        width: 92, height: 92, borderRadius: 14, flexShrink: 0, position: "relative", overflow: "hidden",
+        background: trip.cover ? `center/cover url(${trip.cover}), linear-gradient(145deg, ${lm.g[0]}, ${lm.g[1]})` : `linear-gradient(145deg, ${lm.g[0]}, ${lm.g[1]})`,
+      }}>
+        {!trip.cover && (
+          <span aria-hidden style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 38, opacity: 0.45, filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.2))" }}>{lm.e}</span>
+        )}
         {trip.days ? (
           <span style={{ position: "absolute", bottom: 6, insetInlineStart: 6, background: "rgba(13,15,17,0.82)", color: "#fff", fontSize: 10.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999 }}>{trip.days} ימים</span>
         ) : null}
         {/* Standalone overlay SHARE (immediate copy) */}
         {onCopyLink && (
-          <button onClick={copyLink} title="העתקת קישור" className="tp-press"
-            style={{ position: "absolute", top: 6, insetInlineEnd: 6, width: 26, height: 26, borderRadius: "50%", border: "none", background: "rgba(255,255,255,0.92)", color: "#0D0F11", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 6px rgba(0,0,0,0.2)" }}>
-            {copied ? "✓" : "↗"}
+          <button onClick={copyLink} title={copied ? "הועתק" : "העתקת קישור"} aria-label={copied ? "הקישור הועתק" : "העתקת קישור"} className="tp-press"
+            style={{ position: "absolute", top: 6, insetInlineEnd: 6, width: 28, height: 28, borderRadius: "50%", border: "none", background: copied ? "#1FA67A" : "rgba(255,255,255,0.94)", color: copied ? "#fff" : "#0D0F11", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 6px rgba(0,0,0,0.22)", transition: "background 0.2s" }}>
+            <Icon name={copied ? "check" : "arrowUpRight"} size={14} strokeWidth={2.4} />
           </button>
         )}
       </div>
@@ -132,7 +142,7 @@ const MapCard = ({ trip, index = 0, dark = false, onOpen, onCopyLink, onShare, o
         </div>
         <div style={{ marginTop: "auto", paddingTop: 8, display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10.5, fontWeight: 800, letterSpacing: "0.02em", background: role.bg, color: role.fg, borderRadius: 999, padding: "4px 9px" }}>
-            <span aria-hidden>{role.icon}</span>{role.label}
+            <Icon name={role.icon} size={11} strokeWidth={2.2} />{role.label}
           </span>
           {isOwner && shown.length > 0 && (
             <span style={{ display: "flex", alignItems: "center", marginInlineStart: "auto" }}>
@@ -146,13 +156,15 @@ const MapCard = ({ trip, index = 0, dark = false, onOpen, onCopyLink, onShare, o
       {/* Ellipsis menu (open / delete) */}
       {(onShare || onDelete) && (
         <div ref={menuRef} style={{ position: "absolute", top: 12, insetInlineStart: 12 }}>
-          <span onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }} title="אפשרויות" className="tp-press"
-            style={{ width: 30, height: 30, borderRadius: "50%", background: menuOpen ? P.surface2 : P.surface, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, cursor: "pointer", color: P.ink2 }}>⋯</span>
+          <span onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }} title="אפשרויות" aria-label="פעולות נוספות" className="tp-press"
+            style={{ width: 30, height: 30, borderRadius: "50%", background: menuOpen ? P.surface2 : P.surface, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: P.ink2 }}>
+            <Icon name="more" size={16} strokeWidth={1.5} />
+          </span>
           {menuOpen && (
             <div className="tp-pop" style={{ position: "absolute", top: 36, insetInlineStart: 0, zIndex: 10, minWidth: 168, background: P.panel, border: `1px solid ${P.line}`, borderRadius: 14, boxShadow: "0 16px 40px rgba(0,0,0,0.22)", overflow: "hidden" }}>
-              <MenuItem icon="🗺" label="פתיחה" onClick={onOpen} />
-              {onShare && <MenuItem icon="↗" label="שיתוף" onClick={() => onShare(trip)} />}
-              {isOwner && onDelete && <MenuItem icon="🗑" label="מחק מפה" danger onClick={() => onDelete(trip)} />}
+              <MenuItem icon="map" label="פתיחה" onClick={onOpen} />
+              {onShare && <MenuItem icon="share" label="שיתוף" onClick={() => onShare(trip)} />}
+              {isOwner && onDelete && <MenuItem icon="trash" label="מחק מסלול" danger onClick={() => onDelete(trip)} />}
             </div>
           )}
         </div>

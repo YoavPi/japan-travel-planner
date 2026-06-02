@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { QUICK_PICKS, CATEGORY_META, classifyLocation, ratingToBadge } from "../utils/classify";
 import { isPlacesEnabled, autocomplete, getDetails } from "../services/googlePlaces";
+import Icon from "./Icon";
 
 /* ══════════════════════════════════════════════════════════════
    AddStopSheet — manual add-stop dialog (no Google key path).
@@ -87,14 +88,14 @@ const AddStopSheet = ({ pendingCoord, onStartPin, onAdd, onClose }) => {
         </div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
           <div style={{ fontSize: 17, fontWeight: 800, color: "#0D0F11" }}>הוספת תחנה</div>
-          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: "50%", border: "none", background: "#F6F6F4", cursor: "pointer", fontSize: 16, fontFamily: "inherit" }}>✕</button>
+          <button onClick={onClose} aria-label="סגירה" style={{ width: 32, height: 32, borderRadius: "50%", border: "none", background: "#F6F6F4", cursor: "pointer", fontFamily: "inherit", color: "#2A3036", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><Icon name="x" size={14} strokeWidth={2.2} /></button>
         </div>
 
         {/* Google Places live search (key present) OR disabled stub */}
         {placesOn ? (
           <div style={{ position: "relative", marginBottom: 6 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "11px 14px", borderRadius: 16, background: "#F6F6F4", border: "1px solid rgba(20,20,20,0.10)" }}>
-              <span aria-hidden>🔍</span>
+              <span aria-hidden style={{ color: "#6B7178", display: "inline-flex" }}><Icon name="search" size={16} /></span>
               <input value={gQuery} onChange={(e) => setGQuery(e.target.value)} placeholder="חיפוש ב־Google Maps"
                 style={{ flex: 1, border: "none", background: "transparent", fontSize: 16, fontFamily: "inherit", direction: "rtl", textAlign: "right" }} />
               {searching && <span style={{ fontSize: 11, color: "#A4AAB1" }}>מחפש…</span>}
@@ -113,7 +114,7 @@ const AddStopSheet = ({ pendingCoord, onStartPin, onAdd, onClose }) => {
           </div>
         ) : (
           <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "11px 14px", borderRadius: 16, background: "#F6F6F4", border: "1px solid rgba(20,20,20,0.06)", marginBottom: 6, opacity: 0.7 }}>
-            <span aria-hidden>🔍</span>
+            <span aria-hidden style={{ color: "#6B7178", display: "inline-flex" }}><Icon name="search" size={16} /></span>
             <input disabled placeholder="חיפוש ב־Google (דורש מפתח API)"
               style={{ flex: 1, border: "none", background: "transparent", fontSize: 13.5, fontFamily: "inherit", direction: "rtl", textAlign: "right" }} />
           </div>
@@ -151,10 +152,10 @@ const AddStopSheet = ({ pendingCoord, onStartPin, onAdd, onClose }) => {
 
         {/* Pin / location status */}
         <button onClick={onStartPin}
-          style={{ width: "100%", height: 46, borderRadius: 14, border: "1px dashed rgba(20,20,20,0.2)", background: coord ? "#E4EFE5" : "transparent", color: "#2A3036", fontSize: 13.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", marginBottom: 16 }}>
-          {coord
-            ? `📍 ${placeCoord ? "מיקום מ־Google" : "מיקום נבחר"} (${coord.lat.toFixed(4)}, ${coord.lng.toFixed(4)})`
-            : "נעצו סיכה ידנית על המפה"}
+          style={{ width: "100%", height: 46, borderRadius: 14, border: "1px dashed rgba(20,20,20,0.2)", background: coord ? "#E4EFE5" : "transparent", color: "#2A3036", fontSize: 13.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", marginBottom: 16, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+          {coord ? (
+            <><Icon name="pin" size={15} /> {`${placeCoord ? "מיקום מ־Google" : "מיקום נבחר"} (${coord.lat.toFixed(4)}, ${coord.lng.toFixed(4)})`}</>
+          ) : "נעצו סיכה ידנית על המפה"}
         </button>
 
         {/* Commit */}

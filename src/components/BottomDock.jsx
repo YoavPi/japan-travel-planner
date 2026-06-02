@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useDarkMode } from "../utils/theme";
+import Icon from "./Icon";
 
 /* ══════════════════════════════════════════════════════════════
    BottomDock — shared floating bottom navigation.
@@ -34,10 +35,10 @@ const BottomDock = () => {
   /* "My Maps" is the merged Profile+Maps hub. Settings sits at the
      end (it inherits the old Profile-screen slot). */
   const items = [
-    { id: "settings", icon: "⚙",  title: "הגדרות", to: "/settings" },
-    { id: "notif",    icon: "🔔", title: "התראות", to: "/notifications" },
-    { id: "maps",     icon: "🗺", title: "הפרופיל שלי", to: "/dashboard" },
-    { id: "home",     icon: "🏠", title: "בית",     to: "/" },
+    { id: "settings", icon: "settings", title: "הגדרות", to: "/settings" },
+    { id: "notif",    icon: "bell",     title: "התראות", to: "/notifications" },
+    { id: "maps",     icon: "map",      title: "המסלולים שלי", to: "/dashboard" },
+    { id: "home",     icon: "home",     title: "בית", to: "/" },
   ];
 
   return (
@@ -62,13 +63,13 @@ const BottomDock = () => {
             className="tp-press"
             style={{
               width: 48, height: 48, borderRadius: 999, border: "none", cursor: "pointer",
-              fontSize: 20, fontFamily: "inherit",
+              fontFamily: "inherit",
               background: isActive ? P.ink : "transparent",
               color: isActive ? P.panel : P.ink2,
               transition: "background 0.18s, color 0.18s",
               display: "flex", alignItems: "center", justifyContent: "center",
             }}>
-            <span style={{ filter: isActive ? "saturate(0) brightness(2.3)" : "none", opacity: isActive ? 1 : 0.85 }}>{it.icon}</span>
+            <Icon name={it.icon} size={20} strokeWidth={isActive ? 2 : 1.75} />
           </button>
         );
       })}

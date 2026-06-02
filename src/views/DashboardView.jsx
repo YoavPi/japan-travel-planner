@@ -5,6 +5,7 @@ import tripService from "../services/tripService";
 import { useDarkMode } from "../utils/theme";
 import MapCard from "../components/MapCard";
 import BottomDock from "../components/BottomDock";
+import Icon from "../components/Icon";
 
 /* ──────────────────────────────────────────────────────────────
    DashboardView — premium "My Maps" profile dashboard.
@@ -81,8 +82,12 @@ const DashboardView = () => {
         <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px 8px" }}>
           <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color: P.ink }}>המפות שלי</div>
           <div style={{ display: "flex", gap: 8 }}>
-            <Circle P={P} title="מצב תצוגה" onClick={toggleTheme}>{dark ? "☀️" : "🌙"}</Circle>
-            <Circle P={P} title="שיתוף פרופיל" onClick={() => { navigator.clipboard?.writeText(window.location.origin).catch(() => {}); showToast("הקישור הועתק"); }}>↗</Circle>
+            <Circle P={P} title={dark ? "מצב בהיר" : "מצב כהה"} onClick={toggleTheme}>
+              <Icon name={dark ? "sun" : "moon"} size={18} strokeWidth={1.9} />
+            </Circle>
+            <Circle P={P} title="שיתוף פרופיל" onClick={() => { navigator.clipboard?.writeText(window.location.origin).catch(() => {}); showToast("הקישור הועתק"); }}>
+              <Icon name="share" size={17} strokeWidth={1.9} />
+            </Circle>
           </div>
         </header>
 
@@ -92,7 +97,9 @@ const DashboardView = () => {
             <div style={{ width: 76, height: 76, borderRadius: "50%", background: `linear-gradient(145deg, ${ACCENT}, #B83A2B)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, fontWeight: 800, color: "#fff" }}>
               {(user?.name || "?").trim().slice(0, 1)}
             </div>
-            <button title="החלפת תמונה" className="tp-press" style={{ position: "absolute", bottom: -2, insetInlineStart: -2, width: 28, height: 28, borderRadius: "50%", border: `3px solid ${P.panel}`, background: P.ink, color: P.panel, cursor: "pointer", fontSize: 12, fontFamily: "inherit" }}>📷</button>
+            <button title="החלפת תמונה" aria-label="החלפת תמונת פרופיל" className="tp-press" style={{ position: "absolute", bottom: -2, insetInlineStart: -2, width: 28, height: 28, borderRadius: "50%", border: `3px solid ${P.panel}`, background: P.ink, color: P.panel, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Icon name="camera" size={13} strokeWidth={2} />
+            </button>
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -101,7 +108,8 @@ const DashboardView = () => {
             </div>
             <div style={{ fontSize: 13, color: P.ink3, direction: "ltr", textAlign: "right", marginTop: 2 }}>{user?.email}</div>
             <button onClick={() => navigate("/settings")} className="tp-press" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 8, padding: "5px 12px", borderRadius: 999, border: `1px solid ${P.line}`, background: P.surface, fontSize: 12, fontWeight: 700, color: P.ink, cursor: "pointer", fontFamily: "inherit" }}>
-              ✏ ערכו פרופיל
+              <Icon name="edit" size={12} strokeWidth={2} />
+              ערכו פרופיל
             </button>
           </div>
         </section>
@@ -138,7 +146,9 @@ const DashboardView = () => {
         <section style={{ padding: "0 22px 12px" }}>
           <button onClick={() => navigate("/create")} className="tp-press"
             style={{ display: "flex", alignItems: "center", gap: 12, padding: 14, border: `1px dashed ${P.line}`, borderRadius: 18, background: "transparent", cursor: "pointer", width: "100%", fontFamily: "inherit", textAlign: "right" }}>
-            <span style={{ width: 44, height: 44, borderRadius: 14, background: P.ink, color: P.panel, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 22 }}>＋</span>
+            <span style={{ width: 44, height: 44, borderRadius: 14, background: P.ink, color: P.panel, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Icon name="plus" size={22} strokeWidth={2.2} />
+            </span>
             <span style={{ flex: 1 }}>
               <span style={{ display: "block", fontSize: 14.5, fontWeight: 800, color: P.ink }}>מסלול חדש</span>
               <span style={{ display: "block", fontSize: 12, color: P.ink3, marginTop: 2 }}>התחילו מאפס או מתבנית מוכנה</span>
@@ -181,17 +191,21 @@ const DashboardView = () => {
         <section style={{ padding: "0 22px 28px" }}>
           <div style={{ borderRadius: 18, border: `1px solid ${P.line}`, overflow: "hidden" }}>
             {[
-              { icon: "⚙",  label: "הגדרות וניהול",   sub: "שפה, יחידות, התראות, פרטיות" },
-              { icon: "⬇", label: "מפות לא־מקוונות", sub: "זמינות גם בלי רשת" },
+              { icon: "settings", label: "הגדרות וניהול",   sub: "שפה, יחידות, התראות, פרטיות" },
+              { icon: "download", label: "מפות לא־מקוונות", sub: "זמינות גם בלי רשת" },
             ].map((r, i) => (
               <button key={r.label} onClick={() => navigate("/settings")} className="tp-press"
                 style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderTop: i ? `1px solid ${P.line}` : "none", width: "100%", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit", textAlign: "right" }}>
-                <span style={{ width: 34, height: 34, borderRadius: 10, background: P.surface, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>{r.icon}</span>
+                <span style={{ width: 34, height: 34, borderRadius: 10, background: P.surface, display: "flex", alignItems: "center", justifyContent: "center", color: P.ink2 }}>
+                  <Icon name={r.icon} size={17} strokeWidth={1.9} />
+                </span>
                 <span style={{ flex: 1 }}>
                   <span style={{ display: "block", fontSize: 14.5, fontWeight: 600, color: P.ink }}>{r.label}</span>
                   <span style={{ display: "block", fontSize: 12, color: P.ink3, marginTop: 1 }}>{r.sub}</span>
                 </span>
-                <span style={{ color: P.ink4 }}>‹</span>
+                <span style={{ color: P.ink4, display: "inline-flex" }}>
+                  <Icon name="chevronStart" size={16} strokeWidth={2} />
+                </span>
               </button>
             ))}
           </div>

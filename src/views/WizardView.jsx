@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import tripService from "../services/tripService";
+import Icon from "../components/Icon";
 
 /* ──────────────────────────────────────────────────────────────
    WizardView — dynamic global onboarding (3 steps + summary).
@@ -148,8 +149,8 @@ const WizardView = () => {
       <div style={{ maxWidth: 560, margin: "0 auto", background: "#fff", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
         {/* Head */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px 6px" }}>
-          <button onClick={back} style={{ width: 36, height: 36, borderRadius: "50%", border: "none", background: T.surface, cursor: "pointer", fontSize: 17, fontFamily: "inherit" }}>
-            {step === 0 ? "✕" : "›"}
+          <button onClick={back} aria-label={step === 0 ? "סגירה" : "חזרה"} style={{ width: 36, height: 36, borderRadius: "50%", border: "none", background: T.surface, cursor: "pointer", fontFamily: "inherit", color: T.ink2, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+            <Icon name={step === 0 ? "x" : "chevronStart"} size={16} strokeWidth={2} />
           </button>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             {[0, 1, 2].map((i) => <Pip key={i} state={i < Math.min(step, 3) ? "done" : i === step ? "active" : "todo"} />)}
@@ -168,7 +169,7 @@ const WizardView = () => {
               </h1>
               <p style={{ fontSize: 14, color: T.ink3, lineHeight: 1.55, marginBottom: 16 }}>בחרו יעד — נבנה שלד מסלול ונכוון את המפה למדינה.</p>
               <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "11px 14px", borderRadius: 16, background: T.surface, border: `1px solid ${T.line}`, marginBottom: 16 }}>
-                <span aria-hidden>🔍</span>
+                <span aria-hidden style={{ color: T.ink3, display: "inline-flex" }}><Icon name="search" size={16} /></span>
                 <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="חיפוש מדינה או עיר"
                   style={{ flex: 1, border: "none", background: "transparent", fontSize: 16, fontFamily: "inherit", direction: "rtl", textAlign: "right" }} />
               </div>
@@ -182,7 +183,7 @@ const WizardView = () => {
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 16, fontWeight: 800, color: T.ink }}>{c.name}{c.popular && <span style={{ fontSize: 10, fontWeight: 700, color: T.accent, marginInlineStart: 6 }}>פופולרי</span>}</div>
                       </div>
-                      <span style={{ color: on ? T.ink : T.ink4, fontSize: 18 }}>{on ? "✓" : "‹"}</span>
+                      <span style={{ color: on ? T.ink : T.ink4, display: "inline-flex" }}><Icon name={on ? "check" : "chevronStart"} size={16} strokeWidth={2.2} /></span>
                     </button>
                   );
                 })}
@@ -255,7 +256,7 @@ const WizardView = () => {
                 return (
                   <div style={{ position: "relative", marginBottom: 16 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "11px 14px", borderRadius: 16, background: T.surface, border: `1px solid ${T.line}` }}>
-                      <span aria-hidden>🔍</span>
+                      <span aria-hidden style={{ color: T.ink3, display: "inline-flex" }}><Icon name="search" size={16} /></span>
                       <input value={citySearch} onChange={(e) => setCitySearch(e.target.value)} placeholder={`חיפוש עיר ב${dest.name}`}
                         style={{ flex: 1, border: "none", background: "transparent", fontSize: 16, fontFamily: "inherit", direction: "rtl", textAlign: "right" }} />
                     </div>
@@ -321,7 +322,7 @@ const WizardView = () => {
                         <span style={{ minWidth: 54, textAlign: "center", fontSize: 13, fontWeight: 700, color: T.ink }}>{c.days} ימים</span>
                         <button onClick={() => updateCity(i, { days: Math.min(45, c.days + 1) })} style={{ width: 28, height: 28, borderRadius: 8, border: `1px solid ${T.line}`, background: T.surface, cursor: "pointer", fontFamily: "inherit", fontSize: 16, color: T.ink2 }}>＋</button>
                       </div>
-                      <button onClick={() => removeCity(i)} style={{ border: "none", background: "transparent", color: T.ink4, cursor: "pointer", fontSize: 16, fontFamily: "inherit" }}>✕</button>
+                      <button onClick={() => removeCity(i)} aria-label="הסרת עיר" style={{ border: "none", background: "transparent", color: T.ink4, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 4 }}><Icon name="x" size={15} strokeWidth={2} /></button>
                     </div>
                   );
                 })}
@@ -345,7 +346,7 @@ const WizardView = () => {
           {step === 3 && (
             <>
               <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: T.surface, padding: "5px 12px", borderRadius: 999, fontSize: 11.5, fontWeight: 700, letterSpacing: "0.06em", color: T.ink2, marginTop: 4 }}>
-                ✨ המסלול שלכם מוכן
+                <Icon name="sparkle" size={13} strokeWidth={2} /> המסלול שלכם מוכן
               </div>
               <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.022em", color: T.ink, margin: "12px 0 16px" }}>
                 {dest.flag} {dest.name} · <span style={{ color: T.accent }}>{dur} ימים</span>
@@ -374,9 +375,9 @@ const WizardView = () => {
         </div>
 
         {/* Footer CTA */}
-        {step < 2 && <Cta onClick={() => setStep(step + 1)}>המשך{step === 1 ? ` · ${dur} ימים` : ""} <span aria-hidden>←</span></Cta>}
-        {step === 2 && <Cta onClick={() => setStep(3)}>סקירה אחרונה <span aria-hidden>←</span></Cta>}
-        {step === 3 && <Cta onClick={finish} disabled={creating}>{creating ? "יוצר…" : "התחילו לבנות"} <span aria-hidden>←</span></Cta>}
+        {step < 2 && <Cta onClick={() => setStep(step + 1)}>המשך{step === 1 ? ` · ${dur} ימים` : ""} <span aria-hidden style={{ display: "inline-flex" }}><Icon name="chevronStart" size={15} strokeWidth={2.4} /></span></Cta>}
+        {step === 2 && <Cta onClick={() => setStep(3)}>סקירה אחרונה <span aria-hidden style={{ display: "inline-flex" }}><Icon name="chevronStart" size={15} strokeWidth={2.4} /></span></Cta>}
+        {step === 3 && <Cta onClick={finish} disabled={creating}>{creating ? "יוצר…" : "התחילו לבנות"} <span aria-hidden style={{ display: "inline-flex" }}><Icon name="chevronStart" size={15} strokeWidth={2.4} /></span></Cta>}
       </div>
     </div>
   );

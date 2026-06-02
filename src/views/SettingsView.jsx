@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { readPrefs, writePrefs } from "../services/prefsService";
 import { useDarkMode } from "../utils/theme";
 import BottomDock from "../components/BottomDock";
+import Icon from "../components/Icon";
 
 /* ──────────────────────────────────────────────────────────────
    SettingsView — "הגדרות וניהול". Dark-mode aware. The dark
@@ -40,14 +41,16 @@ const SettingsView = () => {
   const Row = ({ icon, title, sub, value, control, onClick, danger, first }) => (
     <div onClick={onClick}
       style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderTop: first ? "none" : `1px solid ${P.line}`, cursor: onClick ? "pointer" : "default" }}>
-      <span style={{ width: 34, height: 34, borderRadius: 10, background: danger ? "rgba(192,57,43,0.12)" : P.surface, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>{icon}</span>
+      <span style={{ width: 34, height: 34, borderRadius: 10, background: danger ? "rgba(192,57,43,0.12)" : P.surface, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: danger ? P.danger : P.ink2 }}>
+        <Icon name={icon} size={17} strokeWidth={1.9} />
+      </span>
       <span style={{ flex: 1, minWidth: 0 }}>
         <span style={{ display: "block", fontSize: 14.5, fontWeight: 600, color: danger ? P.danger : P.ink }}>{title}</span>
         {sub && <span style={{ display: "block", fontSize: 12, color: P.ink3, marginTop: 1 }}>{sub}</span>}
       </span>
       {value && <span style={{ fontSize: 13, fontWeight: 600, color: P.ink3 }}>{value}</span>}
       {control}
-      {onClick && !control && <span style={{ color: P.ink4, fontSize: 18 }}>‹</span>}
+      {onClick && !control && <span style={{ color: P.ink4, display: "inline-flex" }}><Icon name="chevronStart" size={15} strokeWidth={2} /></span>}
     </div>
   );
 
@@ -63,30 +66,30 @@ const SettingsView = () => {
         <div style={{ padding: "16px 16px 96px" /* reserve bottom space for the floating dock */ }}>
           {/* Account */}
           <Group>
-            <Row first icon="👤" title="פרטי חשבון" sub={user?.email || "שם, מייל, תמונת פרופיל"} onClick={soon} />
-            <Row icon="💳" title="מנוי וחיוב" value={user?.plan || "Free"} onClick={soon} />
+            <Row first icon="user" title="פרטי חשבון" sub={user?.email || "שם, מייל, תמונת פרופיל"} onClick={soon} />
+            <Row icon="sparkle" title="מנוי וחיוב" value={user?.plan || "Free"} onClick={soon} />
           </Group>
 
           {/* Preferences */}
           <Group>
-            <Row first icon="🌐" title="שפה" value="עברית" onClick={soon} />
-            <Row icon="📏" title="יחידות מרחק"
+            <Row first icon="globe" title="שפה" value="עברית" onClick={soon} />
+            <Row icon="ruler" title="יחידות מרחק"
               value={prefs.units === "km" ? "קילומטרים" : "מיילים"}
               onClick={() => update({ units: prefs.units === "km" ? "mi" : "km" })} />
-            <Row icon="🌙" title="מצב כהה" control={<Toggle on={dark} onClick={() => setDark(!dark)} />} />
+            <Row icon="moon" title="מצב כהה" control={<Toggle on={dark} onClick={() => setDark(!dark)} />} />
           </Group>
 
           {/* Notifications + sharing */}
           <Group>
-            <Row first icon="🔔" title="התראות" sub="תזכורות ועדכונים מהמסלול" control={<Toggle on={prefs.notifications} onClick={() => update({ notifications: !prefs.notifications })} />} />
-            <Row icon="↗" title="עדכוני שיתוף" sub="כשמישהו עורך מסלול משותף" control={<Toggle on={prefs.shareUpdates} onClick={() => update({ shareUpdates: !prefs.shareUpdates })} />} />
-            <Row icon="🛡" title="פרטיות והרשאות" sub="ברירת מחדל לשיתוף מסלולים" onClick={soon} />
+            <Row first icon="bell" title="התראות" sub="תזכורות ועדכונים מהמסלול" control={<Toggle on={prefs.notifications} onClick={() => update({ notifications: !prefs.notifications })} />} />
+            <Row icon="share" title="עדכוני שיתוף" sub="כשמישהו עורך מסלול משותף" control={<Toggle on={prefs.shareUpdates} onClick={() => update({ shareUpdates: !prefs.shareUpdates })} />} />
+            <Row icon="shield" title="פרטיות והרשאות" sub="ברירת מחדל לשיתוף מסלולים" onClick={soon} />
           </Group>
 
           {/* Support + danger */}
           <Group>
-            <Row first icon="❓" title="עזרה ותמיכה" onClick={soon} />
-            <Row icon="⎋" title="התנתקות" danger onClick={() => { signOut(); navigate("/"); }} />
+            <Row first icon="helpCircle" title="עזרה ותמיכה" onClick={soon} />
+            <Row icon="logOut" title="התנתקות" danger onClick={() => { signOut(); navigate("/"); }} />
           </Group>
 
           <div style={{ textAlign: "center", fontSize: 12, color: P.ink4, marginTop: 18 }}>

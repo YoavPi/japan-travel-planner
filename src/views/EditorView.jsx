@@ -9,6 +9,7 @@ import EditorSearchBar from "../components/EditorSearchBar";
 import { computeTransit } from "../utils/transit";
 import { dedupeDayStops } from "../utils/classify";
 import { readPrefs } from "../services/prefsService";
+import Icon from "../components/Icon";
 
 /* ──────────────────────────────────────────────────────────────
    EditorView — mobile-first trip workspace.
@@ -176,9 +177,10 @@ const DayStopList = ({ stops, color, onReorder, onOpenActions }) => {
               <button
                 onClick={(e) => { e.stopPropagation(); onOpenActions && onOpenActions(i); }}
                 title="פעולות"
-                style={{ width: 30, height: 32, border: "none", background: "transparent", color: T.ink4, cursor: "pointer", fontSize: 18, fontFamily: "inherit", lineHeight: 1 }}
+                aria-label="פעולות"
+                style={{ width: 30, height: 32, border: "none", background: "transparent", color: T.ink4, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
               >
-                ⋯
+                <Icon name="more" size={16} strokeWidth={1.6} />
               </button>
               <button
                 onPointerDown={onHandleDown(i)}
@@ -371,9 +373,9 @@ const EditorView = () => {
         position: "absolute", top: 0, insetInlineStart: 0, insetInlineEnd: 0, zIndex: 40,
         display: "flex", alignItems: "center", gap: 12, padding: "12px 16px",
       }}>
-        <button onClick={() => navigate("/dashboard")} title="חזרה לעמוד הבית"
-          style={{ width: 40, height: 40, borderRadius: "50%", border: `1px solid ${T.line}`, background: "#fff", cursor: "pointer", fontSize: 18, fontFamily: "inherit", boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }}>
-          ←
+        <button onClick={() => navigate("/dashboard")} title="חזרה לעמוד הבית" aria-label="חזרה"
+          style={{ width: 40, height: 40, borderRadius: "50%", border: `1px solid ${T.line}`, background: "#fff", cursor: "pointer", fontFamily: "inherit", boxShadow: "0 2px 8px rgba(0,0,0,0.08)", color: T.ink, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+          <Icon name="chevronStart" size={17} strokeWidth={2.2} />
         </button>
         {trip && (
           <div style={{ background: "#fff", borderRadius: 999, padding: "8px 16px", boxShadow: "0 2px 8px rgba(0,0,0,0.08)", fontSize: 14, fontWeight: 800, color: T.ink, display: "flex", alignItems: "center", gap: 8 }}>

@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import Map from "react-map-gl/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useAuth } from "../context/AuthContext";
+import Icon from "../components/Icon";
 
 const MAP_STYLE = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
 
@@ -82,7 +83,8 @@ const AuthView = () => {
 
       {/* Close → home */}
       <button onClick={() => navigate("/")} title="חזרה לעמוד הבית"
-        style={{ position: "absolute", top: 16, insetInlineEnd: 16, zIndex: 3, width: 38, height: 38, borderRadius: "50%", border: "none", background: "rgba(255,255,255,0.92)", cursor: "pointer", fontSize: 16, fontFamily: "inherit" }}>✕</button>
+        aria-label="סגירה"
+        style={{ position: "absolute", top: 16, insetInlineEnd: 16, zIndex: 3, width: 38, height: 38, borderRadius: "50%", border: "none", background: "rgba(255,255,255,0.92)", cursor: "pointer", fontFamily: "inherit", color: "#2A3036", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><Icon name="x" size={16} strokeWidth={2.2} /></button>
 
       {/* Backdrop tap area (above hero, below sheet) */}
       <div onClick={() => navigate("/")} style={{ position: "absolute", inset: 0, zIndex: 1 }} />

@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDarkMode } from "../utils/theme";
 import BottomDock from "../components/BottomDock";
+import Icon from "../components/Icon";
 
 /* ──────────────────────────────────────────────────────────────
    NotificationsView — "התראות" feed.
@@ -34,10 +35,10 @@ const seed = () => ([
 ]);
 
 const KIND_META = {
-  "share-invite": { icon: "↗", color: "#4A7FB5" },
-  "collab-edit":  { icon: "✏", color: "#5A8C5F" },
-  "trip-saved":   { icon: "✓", color: "#2B7B71" },
-  "feature":      { icon: "✨", color: ACCENT },
+  "share-invite": { icon: "share",   color: "#4A7FB5" },
+  "collab-edit":  { icon: "edit",    color: "#5A8C5F" },
+  "trip-saved":   { icon: "check",   color: "#2B7B71" },
+  "feature":      { icon: "sparkle", color: ACCENT },
 };
 
 const timeAgo = (ts) => {
@@ -79,7 +80,7 @@ const NotificationsView = () => {
         {/* Top bar */}
         <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", borderBottom: `1px solid ${P.line}` }}>
           <button onClick={() => navigate(-1)} title="חזרה" className="tp-press"
-            style={{ width: 40, height: 40, borderRadius: "50%", border: "none", background: P.surface, color: P.ink, cursor: "pointer", fontSize: 17, fontFamily: "inherit" }}>›</button>
+            style={{ width: 40, height: 40, borderRadius: "50%", border: "none", background: P.surface, color: P.ink, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><Icon name="chevronStart" size={16} strokeWidth={2} /></button>
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 17, fontWeight: 800, color: P.ink }}>
             התראות
             {unreadCount > 0 && (
@@ -96,8 +97,10 @@ const NotificationsView = () => {
         <div style={{ padding: "10px 16px 16px" }}>
           {items.length === 0 ? (
             <div style={{ textAlign: "center", color: P.ink3, padding: "60px 0", fontSize: 14 }}>
-              <div style={{ fontSize: 40, marginBottom: 10 }}>🔕</div>
-              אין התראות חדשות
+              <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 56, height: 56, borderRadius: "50%", background: P.surface, color: P.ink3, marginBottom: 12 }}>
+                <Icon name="bell" size={26} strokeWidth={1.6} />
+              </div>
+              <div>אין התראות חדשות</div>
             </div>
           ) : (
             <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 10 }}>
@@ -108,8 +111,8 @@ const NotificationsView = () => {
                     style={{ display: "flex", gap: 12, padding: 14, borderRadius: 16, border: `1px solid ${P.line}`,
                       background: it.read ? P.panel : (it.kind === "share-invite" ? `${meta.color}0F` : P.surface),
                       animationDelay: `${Math.min(i, 8) * 50}ms` }}>
-                    <span aria-hidden style={{ width: 38, height: 38, borderRadius: 12, background: `${meta.color}22`, color: meta.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 800, flexShrink: 0 }}>
-                      {meta.icon}
+                    <span aria-hidden style={{ width: 38, height: 38, borderRadius: 12, background: `${meta.color}22`, color: meta.color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <Icon name={meta.icon} size={18} strokeWidth={2} />
                     </span>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
