@@ -30,17 +30,18 @@ const BottomDock = () => {
     return null;
   }, [pathname]);
 
-  /* "My Maps" is the merged Profile+Maps hub. Settings sits at the
-     end (it inherits the old Profile-screen slot). */
+  /* RTL convention — primary action (Home) anchors the RIGHT edge,
+     secondary settings end on the LEFT. Array order is the visual
+     order under dir="rtl" (right → left). */
   const items = [
-    { id: "settings", icon: "settings", title: "הגדרות", to: "/settings" },
-    { id: "notif",    icon: "bell",     title: "התראות", to: "/notifications" },
-    { id: "maps",     icon: "map",      title: "המסלולים שלי", to: "/dashboard" },
     { id: "home",     icon: "home",     title: "בית", to: "/" },
+    { id: "maps",     icon: "map",      title: "המסלולים שלי", to: "/dashboard" },
+    { id: "notif",    icon: "bell",     title: "התראות", to: "/notifications" },
+    { id: "settings", icon: "settings", title: "הגדרות", to: "/settings" },
   ];
 
   return (
-    <nav aria-label="ניווט תחתון"
+    <nav dir="rtl" aria-label="ניווט תחתון"
       style={{
         position: "fixed", bottom: 18, left: "50%", transform: "translateX(-50%)",
         zIndex: 40, display: "flex", gap: 4, padding: 6, borderRadius: 999,
