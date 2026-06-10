@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import SideMenu from "../components/SideMenu";
+import HeroRouteAnimation from "../components/HeroRouteAnimation";
 
 /* ──────────────────────────────────────────────────────────────
    LandingView — the SaaS platform HOME PAGE ("עמוד הבית הראשי").
@@ -119,6 +120,11 @@ const LandingView = () => {
               צפו בטיול לדוגמה (יפן)
             </button>
           </div>
+
+          {/* Hero animation — a stylised route drawing itself across
+              five pins so the visitor immediately sees what the app
+              produces. Pure presentation, no interaction. */}
+          <HeroRouteAnimation />
         </div>
 
         {/* How it works */}

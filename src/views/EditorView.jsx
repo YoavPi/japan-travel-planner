@@ -56,29 +56,35 @@ const FILTERS = [
 /* ── Transit rail (sits ON the connecting axis between two stops) ──
    Renders the auto-computed mode + minutes + distance. Tapping it
    cycles the manual override walk → transit → car → auto (spec §7). */
-const TransitRail = ({ a, b, override, onCycle, units }) => {
+const TransitRail = ({ a, b, override, onCycle, units, editable = true }) => {
   const seg = computeTransit(a?.coordinates, b?.coordinates, override, units);
   if (!seg) return null;
+  const inner = (
+    <>
+      <span aria-hidden>{seg.emoji}</span>
+      <b style={{ color: T.ink2, fontWeight: 700 }}>{seg.minutesLabel}</b>
+      <span style={{ color: T.ink4 }}>·</span>
+      <span>{seg.he}</span>
+      <span style={{ color: T.ink4 }}>·</span>
+      <span>{seg.distLabel}</span>
+      {seg.overridden && <span style={{ color: T.accent, fontSize: 9 }}>•</span>}
+    </>
+  );
+  const baseStyle = {
+    display: "inline-flex", alignItems: "center", gap: 6,
+    padding: "4px 10px", borderRadius: 999,
+    border: `1px solid ${T.line}`, background: "#fff",
+    fontSize: 11, color: T.ink3, fontFamily: "inherit",
+  };
   return (
     <div style={{ display: "flex", justifyContent: "center", padding: "2px 0" }}>
-      <button
-        onClick={onCycle}
-        title="לחצו לשינוי אופן התחבורה"
-        style={{
-          display: "inline-flex", alignItems: "center", gap: 6,
-          padding: "4px 10px", borderRadius: 999,
-          border: `1px solid ${T.line}`, background: "#fff",
-          fontSize: 11, color: T.ink3, cursor: "pointer", fontFamily: "inherit",
-        }}
-      >
-        <span aria-hidden>{seg.emoji}</span>
-        <b style={{ color: T.ink2, fontWeight: 700 }}>{seg.minutesLabel}</b>
-        <span style={{ color: T.ink4 }}>·</span>
-        <span>{seg.he}</span>
-        <span style={{ color: T.ink4 }}>·</span>
-        <span>{seg.distLabel}</span>
-        {seg.overridden && <span style={{ color: T.accent, fontSize: 9 }}>•</span>}
-      </button>
+      {editable ? (
+        <button onClick={onCycle} title="לחצו לשינוי אופן התחבורה" style={{ ...baseStyle, cursor: "pointer" }}>
+          {inner}
+        </button>
+      ) : (
+        <span style={baseStyle}>{inner}</span>
+      )}
     </div>
   );
 };
@@ -89,7 +95,7 @@ const TransitRail = ({ a, b, override, onCycle, units }) => {
    the transit rails in real time. */
 const OVERRIDE_CYCLE = [null, "walk", "transit", "car"];
 
-const DayStopList = ({ stops, color, onReorder, onOpenActions }) => {
+const DayStopList = ({ stops, color, onReorder, onOpenActions, editable = true }) => {
   const [items, setItems] = useState(stops);
   const [dragIdx, setDragIdx] = useState(-1);
   const [overrides, setOverrides] = useState({}); // segIndex → mode
@@ -100,6 +106,7 @@ const DayStopList = ({ stops, color, onReorder, onOpenActions }) => {
   useEffect(() => { setItems(stops); }, [stops]);
 
   const onHandleDown = (i) => (e) => {
+    if (!editable) return;
     e.preventDefault();
     e.stopPropagation();
     dragRef.current = { active: true };
@@ -172,24 +179,26 @@ const DayStopList = ({ stops, color, onReorder, onOpenActions }) => {
                 </div>
               )}
             </div>
-            {/* Drag handle + 3-dot actions */}
-            <div style={{ alignSelf: "center", display: "flex", alignItems: "center" }}>
-              <button
-                onClick={(e) => { e.stopPropagation(); onOpenActions && onOpenActions(i); }}
-                title="פעולות"
-                aria-label="פעולות"
-                style={{ width: 30, height: 32, border: "none", background: "transparent", color: T.ink4, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
-              >
-                <Icon name="more" size={16} strokeWidth={1.6} />
-              </button>
-              <button
-                onPointerDown={onHandleDown(i)}
-                title="גררו לסידור מחדש"
-                style={{ width: 30, height: 32, border: "none", background: "transparent", color: T.ink4, cursor: "grab", touchAction: "none", fontSize: 16, fontFamily: "inherit" }}
-              >
-                ≡
-              </button>
-            </div>
+            {/* Drag handle + 3-dot actions — hidden in trip (read) mode */}
+            {editable && (
+              <div style={{ alignSelf: "center", display: "flex", alignItems: "center" }}>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onOpenActions && onOpenActions(i); }}
+                  title="פעולות"
+                  aria-label="פעולות"
+                  style={{ width: 30, height: 32, border: "none", background: "transparent", color: T.ink4, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+                >
+                  <Icon name="more" size={16} strokeWidth={1.6} />
+                </button>
+                <button
+                  onPointerDown={onHandleDown(i)}
+                  title="גררו לסידור מחדש"
+                  style={{ width: 30, height: 32, border: "none", background: "transparent", color: T.ink4, cursor: "grab", touchAction: "none", fontSize: 16, fontFamily: "inherit" }}
+                >
+                  ≡
+                </button>
+              </div>
+            )}
           </div>
           {/* Transit rail to the next stop */}
           {i < items.length - 1 && (
@@ -199,6 +208,7 @@ const DayStopList = ({ stops, color, onReorder, onOpenActions }) => {
               override={overrides[i] ?? null}
               onCycle={() => cycleOverride(i)}
               units={units}
+              editable={editable}
             />
           )}
         </React.Fragment>
@@ -214,6 +224,12 @@ const EditorView = () => {
   const [error, setError] = useState(null);
   const [activeDay, setActiveDay] = useState(1);
   const [saving, setSaving] = useState(false);
+  /* Two workspace modes (spec): "design" = full editing (drag, add,
+     transit override, quick-actions); "trip" = clean read-only view
+     for when you're actually traveling. Toggleable any time, so a
+     finished trip can always be re-edited. */
+  const [mode, setMode] = useState("design");
+  const editable = mode === "design";
   const [filter, setFilter] = useState("all");
   const [isPinning, setIsPinning] = useState(false);
   const [pendingCoord, setPendingCoord] = useState(null);
@@ -303,7 +319,7 @@ const EditorView = () => {
     let live = true;
     setTrip(null); setError(null);
     tripService.fetchTripById(tripId)
-      .then((t) => { if (live) { setTrip(t); setActiveDay(t.data?.tripData?.[0]?.day ?? 1); } })
+      .then((t) => { if (live) { setTrip(t); setActiveDay(t.data?.tripData?.[0]?.day ?? 1); setMode(t.readOnly ? "trip" : "design"); } })
       .catch((e) => { if (live) setError(e.message); });
     return () => { live = false; };
   }, [tripId]);
@@ -365,7 +381,7 @@ const EditorView = () => {
           לחצו על המפה כדי לנעוץ סיכה · <button onClick={() => setIsPinning(false)} style={{ background: "none", border: "none", color: "#fff", textDecoration: "underline", cursor: "pointer", fontFamily: "inherit", fontSize: 13 }}>ביטול</button>
         </div>
       ) : (
-        trip && <EditorSearchBar onAddStop={handleAddStop} activeDay={activeDay} />
+        trip && editable && <EditorSearchBar onAddStop={handleAddStop} activeDay={activeDay} />
       )}
 
       {/* Top bar — exit + trip title */}
@@ -381,6 +397,31 @@ const EditorView = () => {
           <div style={{ background: "#fff", borderRadius: 999, padding: "8px 16px", boxShadow: "0 2px 8px rgba(0,0,0,0.08)", fontSize: 14, fontWeight: 800, color: T.ink, display: "flex", alignItems: "center", gap: 8 }}>
             <span>{trip.title}{trip.days ? ` · ${trip.days} ימים` : ""}</span>
             {saving && <span style={{ fontSize: 11, fontWeight: 600, color: T.ink3 }}>נשמר…</span>}
+          </div>
+        )}
+
+        {/* Mode toggle — design (edit) ⇄ trip (clean read view).
+            Sits at the RTL end (left) so it never crowds the title. */}
+        {trip && (
+          <div style={{ marginInlineStart: "auto", display: "flex", background: "#fff", borderRadius: 999, padding: 3, boxShadow: "0 2px 8px rgba(0,0,0,0.08)", gap: 2 }}>
+            {[
+              { id: "design", label: "עיצוב" },
+              { id: "trip", label: "טיול" },
+            ].map((m) => {
+              const on = mode === m.id;
+              return (
+                <button key={m.id} onClick={() => setMode(m.id)}
+                  title={m.id === "design" ? "מצב עיצוב — עריכת המסלול" : "מצב טיול — תצוגה נקייה"}
+                  style={{
+                    border: "none", borderRadius: 999, padding: "6px 14px", cursor: "pointer",
+                    fontFamily: "inherit", fontSize: 12.5, fontWeight: 700,
+                    background: on ? T.ink : "transparent", color: on ? "#fff" : T.ink3,
+                    transition: "background 0.2s ease, color 0.2s ease",
+                  }}>
+                  {m.label}
+                </button>
+              );
+            })}
           </div>
         )}
       </header>
@@ -482,6 +523,7 @@ const EditorView = () => {
                     color={cityColor(activeDayData.city)}
                     onReorder={handleReorder}
                     onOpenActions={(i) => setActionsIdx(i)}
+                    editable={editable}
                   />
                 ) : (
                   <div style={{ textAlign: "center", color: T.ink3, padding: "32px 0", fontSize: 13.5 }}>
@@ -489,18 +531,20 @@ const EditorView = () => {
                   </div>
                 )}
 
-                {/* Add stop */}
-                <button
-                  onClick={() => { setPendingCoord(null); setShowAddStop(true); }}
-                  style={{
-                    width: "100%", marginTop: 16, padding: 14, borderRadius: 16,
-                    border: `2px dashed ${T.line}`, background: "transparent",
-                    color: T.ink2, fontSize: 14, fontWeight: 700, cursor: "pointer",
-                    fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                  }}
-                >
-                  <span style={{ fontSize: 18 }}>＋</span> הוספת תחנה
-                </button>
+                {/* Add stop — only in design mode */}
+                {editable && (
+                  <button
+                    onClick={() => { setPendingCoord(null); setShowAddStop(true); }}
+                    style={{
+                      width: "100%", marginTop: 16, padding: 14, borderRadius: 16,
+                      border: `2px dashed ${T.line}`, background: "transparent",
+                      color: T.ink2, fontSize: 14, fontWeight: 700, cursor: "pointer",
+                      fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                    }}
+                  >
+                    <span style={{ fontSize: 18 }}>＋</span> הוספת תחנה
+                  </button>
+                )}
               </>
             )}
           </div>

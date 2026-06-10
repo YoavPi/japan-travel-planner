@@ -20,7 +20,13 @@ import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef,
 const SNAP_FRACTION = { peek: 0.12, half: 0.5, full: 1.0 };
 const FLING = 0.45; // px/ms
 
-const offsetFor = (snap, vh) => vh - vh * SNAP_FRACTION[snap]; // translateY from top
+/* "full" stops this many px from the top instead of going edge-to-edge,
+   so the sheet never slides under the editor header pill (top:0) and the
+   floating search bar (top:64, 48px tall). Keeps both reachable. */
+const FULL_TOP_INSET = 120;
+
+const offsetFor = (snap, vh) =>
+  snap === "full" ? FULL_TOP_INSET : vh - vh * SNAP_FRACTION[snap]; // translateY from top
 
 const EditorBottomSheet = forwardRef(({ header, children, defaultSnap = "half", onSnapChange }, ref) => {
   const [snap, setSnapState] = useState(defaultSnap);
@@ -125,7 +131,7 @@ const EditorBottomSheet = forwardRef(({ header, children, defaultSnap = "half", 
           {header}
         </div>
         {/* Scroll content */}
-        <div style={{ flex: 1, overflowY: "auto", overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}>
+        <div style={{ flex: 1, overflowY: "auto", overscrollBehavior: "contain", WebkitOverflowScrolling: "touch", paddingBottom: FULL_TOP_INSET + 24 }}>
           {children}
         </div>
       </div>

@@ -1,5 +1,5 @@
 import React from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Analytics } from "@vercel/analytics/react";
 import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -35,10 +35,18 @@ const LandingGate = () => (isOnboarded() ? <LandingView /> : <Navigate to="/welc
 
    Protected routes redirect to /auth when no mock session exists.
    ══════════════════════════════════════════════════════════════ */
-const App = () => (
-  <AuthProvider>
-    <BrowserRouter>
-      <Routes>
+/* AnimatedRoutes — wraps the route table in a per-path fading
+   container so every navigation cross-fades instead of hard-cutting.
+   Keyed on pathname so React remounts the wrapper (re-running the
+   .tp-route opacity animation) on each navigation. The fade is
+   OPACITY-ONLY by design: a transform here would re-root every
+   position:fixed descendant (bottom dock, editor sheet, side drawer)
+   to this wrapper and misplace them mid-animation. */
+const AnimatedRoutes = () => {
+  const location = useLocation();
+  return (
+    <div key={location.pathname} className="tp-route" style={{ minHeight: "100vh" }}>
+      <Routes location={location}>
         <Route path="/" element={<LandingGate />} />
         <Route path="/welcome" element={<OnboardingView />} />
         <Route path="/japan" element={<HomePage />} />
@@ -89,6 +97,14 @@ const App = () => (
         {/* Fallback: anything else lands on the platform home */}
         <Route path="*" element={<LandingView />} />
       </Routes>
+    </div>
+  );
+};
+
+const App = () => (
+  <AuthProvider>
+    <BrowserRouter>
+      <AnimatedRoutes />
       <Analytics />
     </BrowserRouter>
   </AuthProvider>
