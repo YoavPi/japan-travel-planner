@@ -157,10 +157,14 @@ const DayStopList = ({ stops, color, onReorder, onOpenActions, editable = true }
             ref={(el) => (rowRefs.current[i] = el)}
             style={{
               display: "flex", gap: 12, padding: "10px 0",
-              borderBottom: `1px solid ${T.line}`,
-              background: dragIdx === i ? "rgba(224,83,63,0.06)" : "transparent",
-              borderRadius: dragIdx === i ? 12 : 0,
-              transition: "background 0.15s",
+              borderBottom: dragIdx === i ? "none" : `1px solid ${T.line}`,
+              background: dragIdx === i ? "#fff" : "transparent",
+              borderRadius: dragIdx === i ? 14 : 0,
+              transform: dragIdx === i ? "scale(1.025)" : "scale(1)",
+              boxShadow: dragIdx === i ? "0 8px 28px rgba(0,0,0,0.13), 0 2px 6px rgba(0,0,0,0.06)" : "none",
+              zIndex: dragIdx === i ? 2 : "auto",
+              position: "relative",
+              transition: dragIdx === i ? "none" : "transform 0.2s ease, box-shadow 0.2s ease",
             }}
           >
             <div style={{
