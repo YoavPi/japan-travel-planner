@@ -9,8 +9,7 @@ import ExploreView from "./views/ExploreView";
 import AuthView from "./views/AuthView";
 import DashboardView from "./views/DashboardView";
 import WizardView from "./views/WizardView";
-/* ProfileView retired — merged into DashboardView (one premium
-   "המפות שלי / הפרופיל שלי" page). /profile now redirects there. */
+/* /profile redirects to /dashboard (see <Navigate> route below). */
 import SettingsView from "./views/SettingsView";
 import NotificationsView from "./views/NotificationsView";
 import EditorView from "./views/EditorView";

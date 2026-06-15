@@ -7,7 +7,7 @@ import Icon from "./Icon";
    Country-illustrated thumb + dark time badge · standalone overlay
    SHARE button (immediate clipboard copy) · body (title, meta,
    role tag, collaborator avatars) · ellipsis menu (open / delete).
-   Light + dark palettes. Shared by DashboardView & ProfileView.
+   Light + dark palettes. Shared by DashboardView.
 
    Props:
      trip, index

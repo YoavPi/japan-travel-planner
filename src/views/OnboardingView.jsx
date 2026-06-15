@@ -49,7 +49,7 @@ const STEPS = [
 const FONT = "'Noto Sans Hebrew','Inter','Noto Sans JP',system-ui,sans-serif";
 const ACCENT = "#E0533F";
 
-const finish = () => {
+const setOnboarded = () => {
   try { localStorage.setItem(FLAG_KEY, "1"); } catch { /* noop */ }
 };
 
@@ -59,9 +59,17 @@ const OnboardingView = () => {
   const total = STEPS.length;
   const s = STEPS[step];
 
-  const exit = () => { finish(); navigate("/", { replace: true }); };
+  /* "Skip" — user bails out early; land on the platform home. */
+  const skip = () => { setOnboarded(); navigate("/", { replace: true }); };
+
+  /* "Complete" — user finished all 5 steps; send straight to the
+     WizardView so they can start building their first map immediately.
+     /create is a ProtectedRoute so unauthenticated users will see the
+     auth screen first and be redirected back after sign-in. */
+  const complete = () => { setOnboarded(); navigate("/create", { replace: true }); };
+
   const next = () => {
-    if (step >= total - 1) return exit();
+    if (step >= total - 1) return complete();
     setStep((n) => n + 1);
   };
 
@@ -100,13 +108,16 @@ const OnboardingView = () => {
 
         {/* Skip / Next */}
         <div style={{ display: "flex", gap: 12, maxWidth: 420, margin: "0 auto" }}>
-          <button onClick={exit} className="tp-press"
+          {/* On the last step the left button still says "דלגו / סיום"
+              but skips to "/" rather than "/create" — gives the user
+              an opt-out in case they don't want to create a trip yet. */}
+          <button onClick={skip} className="tp-press"
             style={{ flex: 1, height: 52, borderRadius: 999, border: "none", background: "rgba(255,255,255,0.16)", color: "#fff", fontSize: 15.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", backdropFilter: "blur(8px)" }}>
-            {step >= total - 1 ? "סיום" : "דלגו"}
+            {step >= total - 1 ? "אולי מאוחר יותר" : "דלגו"}
           </button>
           <button onClick={next} className="tp-press"
             style={{ flex: 1, height: 52, borderRadius: 999, border: "none", background: "#fff", color: "#0D0F11", fontSize: 15.5, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>
-            {step >= total - 1 ? "בואו נתחיל" : "הבא"}
+            {step >= total - 1 ? "בואו נתחיל ✦" : "הבא"}
           </button>
         </div>
       </div>
@@ -115,7 +126,7 @@ const OnboardingView = () => {
       <div style={{ position: "absolute", top: 18, insetInlineStart: 18, fontSize: 12.5, fontWeight: 700, color: "rgba(255,255,255,0.7)", letterSpacing: "0.06em" }}>
         {step + 1} / {total}
       </div>
-      <button onClick={exit} className="tp-press"
+      <button onClick={skip} className="tp-press"
         style={{ position: "absolute", top: 14, insetInlineEnd: 14, height: 32, padding: "0 14px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.3)", background: "rgba(0,0,0,0.35)", color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", backdropFilter: "blur(6px)" }}>
         דלגו על ההיכרות
       </button>
