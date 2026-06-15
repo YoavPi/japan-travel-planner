@@ -120,7 +120,7 @@ const MapCard = ({ trip, index = 0, dark = false, onOpen, onCopyLink, onShare, o
         background: trip.cover ? `center/cover url(${trip.cover}), linear-gradient(145deg, ${lm.g[0]}, ${lm.g[1]})` : `linear-gradient(145deg, ${lm.g[0]}, ${lm.g[1]})`,
       }}>
         {!trip.cover && (
-          <span aria-hidden style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 38, opacity: 0.45, filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.2))" }}>{lm.e}</span>
+          <span aria-hidden style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 46, opacity: 0.60, filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.25))" }}>{lm.e}</span>
         )}
         {trip.days ? (
           <span style={{ position: "absolute", bottom: 6, insetInlineStart: 6, background: "rgba(13,15,17,0.82)", color: "#fff", fontSize: 10.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999 }}>{trip.days} ימים</span>
@@ -164,7 +164,7 @@ const MapCard = ({ trip, index = 0, dark = false, onOpen, onCopyLink, onShare, o
             <div className="tp-pop" style={{ position: "absolute", top: 36, insetInlineStart: 0, zIndex: 10, minWidth: 168, background: P.panel, border: `1px solid ${P.line}`, borderRadius: 14, boxShadow: "0 16px 40px rgba(0,0,0,0.22)", overflow: "hidden" }}>
               <MenuItem icon="map" label="פתיחה" onClick={onOpen} />
               {onShare && <MenuItem icon="share" label="שיתוף" onClick={() => onShare(trip)} />}
-              {isOwner && onDelete && <MenuItem icon="trash" label="מחק מסלול" danger onClick={() => onDelete(trip)} />}
+              {isOwner && !trip.readOnly && onDelete && <MenuItem icon="trash" label="מחק מפה" danger onClick={() => onDelete(trip)} />}
             </div>
           )}
         </div>
