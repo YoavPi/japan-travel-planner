@@ -15,7 +15,8 @@ import Icon from "../components/Icon";
 
 const T = {
   ink: "#0D0F11", ink2: "#2A3036", ink3: "#6B7178", ink4: "#A4AAB1",
-  line: "rgba(20,20,20,0.08)", surface: "#F6F6F4", accent: "#E0533F",
+  line: "rgba(20,20,20,0.08)", surface: "#F6F6F4", surface2: "#EFEFEC", accent: "#E0533F",
+  accentSoft: "#FDF0EE", green: "#3E7C4A", greenSoft: "#EBF5ED",
   font: "'Noto Sans Hebrew','Inter','Noto Sans JP',system-ui,sans-serif",
 };
 
@@ -138,11 +139,8 @@ const WizardView = () => {
     navigate(`/map/edit/${trip.id}`);
   };
 
-  /* Compact city-timeline string for the summary. */
-  const cityTimeline = useMemo(() => {
-    if (!sequencedCities.length) return null;
-    return sequencedCities.map((c) => `${c.city} (${c.days} ימים)`).join(" ← ");
-  }, [sequencedCities]);
+  /* cityTimeline intentionally removed — summary renders sequencedCities
+     directly as individual SummaryCard rows (see step === 3 block). */
 
   return (
     <div dir="rtl" style={{ minHeight: "100vh", background: "#EDEDEC", fontFamily: T.font }}>
@@ -178,12 +176,16 @@ const WizardView = () => {
                   const on = destId === c.id;
                   return (
                     <button key={c.id} onClick={() => setDestId(c.id)}
-                      style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 16, cursor: "pointer", fontFamily: "inherit", textAlign: "right", border: `1.5px solid ${on ? T.ink : T.line}`, background: on ? "rgba(13,15,17,0.03)" : "#fff" }}>
-                      <div style={{ fontSize: 26 }}>{c.flag}</div>
+                      style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 16, cursor: "pointer", fontFamily: "inherit", textAlign: "right", border: `1.5px solid ${on ? T.ink : T.line}`, background: on ? "rgba(13,15,17,0.03)" : "#fff", transition: "border-color 0.15s, background 0.15s" }}>
+                      <div style={{ fontSize: 26, lineHeight: 1 }}>{c.flag}</div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 16, fontWeight: 800, color: T.ink }}>{c.name}{c.popular && <span style={{ fontSize: 10, fontWeight: 700, color: T.accent, marginInlineStart: 6 }}>פופולרי</span>}</div>
+                        <div style={{ fontSize: 15.5, fontWeight: 800, color: T.ink, display: "flex", alignItems: "center", gap: 6 }}>
+                          {c.name}
+                          {c.popular && <span style={{ fontSize: 9.5, fontWeight: 800, color: T.accent, background: T.accentSoft, borderRadius: 999, padding: "2px 7px", letterSpacing: "0.04em" }}>פופולרי</span>}
+                        </div>
+                        <div style={{ fontSize: 12, color: T.ink3, marginTop: 2 }}>{c.sub}</div>
                       </div>
-                      <span style={{ color: on ? T.ink : T.ink4, display: "inline-flex" }}><Icon name={on ? "check" : "chevronStart"} size={16} strokeWidth={2.2} /></span>
+                      <span style={{ color: on ? T.ink : T.ink4, display: "inline-flex", flexShrink: 0 }}><Icon name={on ? "check" : "chevronStart"} size={16} strokeWidth={2.2} /></span>
                     </button>
                   );
                 })}
@@ -345,28 +347,81 @@ const WizardView = () => {
           {/* SUMMARY */}
           {step === 3 && (
             <>
-              <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: T.surface, padding: "5px 12px", borderRadius: 999, fontSize: 11.5, fontWeight: 700, letterSpacing: "0.06em", color: T.ink2, marginTop: 4 }}>
-                <Icon name="sparkle" size={13} strokeWidth={2} /> המסלול שלכם מוכן
+              {/* Badge */}
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: T.accentSoft, padding: "5px 12px", borderRadius: 999, fontSize: 11.5, fontWeight: 800, letterSpacing: "0.06em", color: T.accent, marginTop: 4 }}>
+                <Icon name="sparkle" size={13} strokeWidth={2} /> ✨ המסלול שלכם מוכן
               </div>
-              <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.022em", color: T.ink, margin: "12px 0 16px" }}>
+              <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-0.022em", color: T.ink, margin: "10px 0 18px", lineHeight: 1.2 }}>
                 {dest.flag} {dest.name} · <span style={{ color: T.accent }}>{dur} ימים</span>
               </h1>
 
-              {/* Summary cards with inline edit */}
-              <SummaryRow label="יעד" value={`${dest.flag} ${dest.name}`} onEdit={() => setStep(0)} />
-              <SummaryRow label="משך" value={`${dur} ימים`} onEdit={() => setStep(1)} />
-              <SummaryRow label="חלוקת ערים" value={cityTimeline || "לא הוגדרה — נבנה תוך כדי"} onEdit={() => setStep(2)} muted={!cityTimeline} />
+              {/* Destination card */}
+              <SummaryCard
+                icon={<span style={{ fontSize: 22, lineHeight: 1 }}>{dest.flag}</span>}
+                label="יעד"
+                onEdit={() => setStep(0)}
+              >
+                <div style={{ fontSize: 16, fontWeight: 800, color: T.ink }}>{dest.name}</div>
+                <div style={{ fontSize: 12, color: T.ink3, marginTop: 2 }}>{dest.sub}</div>
+              </SummaryCard>
 
-              <div style={{ display: "flex", gap: 10, marginTop: 18, alignItems: "flex-start" }}>
+              {/* Duration card */}
+              <SummaryCard
+                icon={<Icon name="calendar" size={18} strokeWidth={1.9} color={T.ink2} />}
+                label="משך הטיול"
+                onEdit={() => setStep(1)}
+              >
+                <div style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
+                  <span style={{ fontSize: 28, fontWeight: 800, color: T.ink, letterSpacing: "-0.03em", fontVariantNumeric: "tabular-nums" }}>{dur}</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: T.ink3 }}>ימים</span>
+                </div>
+              </SummaryCard>
+
+              {/* City timeline card */}
+              <SummaryCard
+                icon={<Icon name="pin" size={18} strokeWidth={1.9} color={T.ink2} />}
+                label="חלוקת ערים לפי ימים"
+                onEdit={() => setStep(2)}
+              >
+                {sequencedCities.length > 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 7, marginTop: 2 }}>
+                    {sequencedCities.map((c, i) => (
+                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        {/* Sequential number */}
+                        <span style={{ width: 22, height: 22, borderRadius: "50%", background: T.ink, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10.5, fontWeight: 800, flexShrink: 0 }}>{i + 1}</span>
+                        {/* City name */}
+                        <span style={{ flex: 1, fontSize: 14, fontWeight: 700, color: T.ink }}>{c.city}</span>
+                        {/* Day range chip */}
+                        <span style={{ fontSize: 11.5, fontWeight: 700, color: T.ink3, background: T.surface2, borderRadius: 999, padding: "3px 10px", whiteSpace: "nowrap" }}>
+                          ימים {c.fromDay}–{c.toDay}
+                        </span>
+                        {/* Duration */}
+                        <span style={{ fontSize: 11, fontWeight: 700, color: T.accent, whiteSpace: "nowrap", minWidth: 40, textAlign: "start" }}>{c.days} ימ׳</span>
+                      </div>
+                    ))}
+                    {/* Coverage status */}
+                    <div style={{ marginTop: 4, fontSize: 12, fontWeight: 700, color: totalAssigned === dur ? T.green : T.ink3, background: totalAssigned === dur ? T.greenSoft : T.surface, borderRadius: 10, padding: "6px 10px", textAlign: "center" }}>
+                      {totalAssigned === dur
+                        ? `✓ ${totalAssigned} ימים משובצים — כיסוי מלא`
+                        : `${totalAssigned} מתוך ${dur} ימים משובצים`}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 13.5, color: T.ink4, fontStyle: "italic" }}>לא הוגדרה — נבנה תוך כדי</div>
+                )}
+              </SummaryCard>
+
+              {/* Feature teasers */}
+              <div style={{ display: "flex", gap: 8, marginTop: 6, alignItems: "flex-start" }}>
                 {[
-                  { ic: "🗺", t: "מפה דינמית", s: `נתכוונן ל${dest.name} אוטומטית` },
-                  { ic: "🔎", t: "הוספת תחנות", s: "חיפוש / פין ידני בכל יום" },
-                  { ic: "🚆", t: "זמנים אוטומטיים", s: "הליכה/תחבורה בין תחנות" },
+                  { ic: "🗺️", t: "מפה דינמית", s: `נתכוונן ל${dest.name}` },
+                  { ic: "📍", t: "הוספת תחנות", s: "חיפוש / פין ידני" },
+                  { ic: "🚆", t: "זמני מעבר", s: "הליכה ותחבורה" },
                 ].map((h, i) => (
-                  <div key={i} style={{ flex: 1, textAlign: "center" }}>
-                    <div style={{ width: 40, height: 40, borderRadius: 12, background: T.surface, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, margin: "0 auto 6px" }}>{h.ic}</div>
-                    <div style={{ fontSize: 12.5, fontWeight: 700, color: T.ink }}>{h.t}</div>
-                    <div style={{ fontSize: 11, color: T.ink3, marginTop: 2, lineHeight: 1.4 }}>{h.s}</div>
+                  <div key={i} style={{ flex: 1, textAlign: "center", padding: "10px 4px 8px", borderRadius: 14, background: T.surface }}>
+                    <div style={{ fontSize: 20, marginBottom: 5, lineHeight: 1 }}>{h.ic}</div>
+                    <div style={{ fontSize: 11.5, fontWeight: 800, color: T.ink }}>{h.t}</div>
+                    <div style={{ fontSize: 10.5, color: T.ink3, marginTop: 3, lineHeight: 1.4 }}>{h.s}</div>
                   </div>
                 ))}
               </div>
@@ -383,16 +438,21 @@ const WizardView = () => {
   );
 };
 
-/* Summary row with an inline edit affordance. */
-const SummaryRow = ({ label, value, onEdit, muted }) => (
-  <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderRadius: 16, border: `1px solid ${T.line}`, background: "#fff", marginBottom: 10 }}>
-    <div style={{ flex: 1, minWidth: 0 }}>
-      <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: T.ink3, marginBottom: 3 }}>{label}</div>
-      <div style={{ fontSize: 15, fontWeight: 700, color: muted ? T.ink4 : T.ink }}>{value}</div>
+/* Premium summary card with icon, label, children, and an inline
+   edit affordance. Replaces the old flat SummaryRow. */
+const SummaryCard = ({ icon, label, children, onEdit }) => (
+  <div style={{ borderRadius: 18, border: `1px solid ${T.line}`, background: "#fff", marginBottom: 10, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+    {/* Card header row */}
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px 8px", borderBottom: `1px solid ${T.line}` }}>
+      <span style={{ width: 32, height: 32, borderRadius: 10, background: T.surface2, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{icon}</span>
+      <span style={{ flex: 1, fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em", color: T.ink3 }}>{label}</span>
+      <button onClick={onEdit}
+        style={{ display: "inline-flex", alignItems: "center", gap: 5, border: `1px solid ${T.line}`, background: T.surface, borderRadius: 999, padding: "5px 12px", fontSize: 12, fontWeight: 700, color: T.ink2, cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>
+        <Icon name="edit" size={12} strokeWidth={2} /> עריכה
+      </button>
     </div>
-    <button onClick={onEdit} style={{ border: `1px solid ${T.line}`, background: T.surface, borderRadius: 999, padding: "6px 14px", fontSize: 12.5, fontWeight: 700, color: T.ink2, cursor: "pointer", fontFamily: "inherit" }}>
-      עריכה
-    </button>
+    {/* Card body */}
+    <div style={{ padding: "12px 14px" }}>{children}</div>
   </div>
 );
 
