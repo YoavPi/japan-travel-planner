@@ -6,6 +6,12 @@ import BottomSheet from "../components/BottomSheet";
 import StoryFlow from "../components/StoryFlow";
 import OmniboxSearch from "../components/OmniboxSearch";
 import { MetaIcon } from "../components/StoryFlowGlyph";
+import tripService from "../services/tripService";
+
+/* FALLBACK_ID is the read-only Japan example trip — loaded when no
+   ?tripId= query param is present or when the requested trip isn't
+   found, so the Japan explorer at /map keeps working as before. */
+const FALLBACK_ID = "japan-demo";
 
 /* ══════════════════════════════════════════════════════════════
    EXPLORE VIEW — Travel-Story v3
@@ -18,6 +24,41 @@ import { MetaIcon } from "../components/StoryFlowGlyph";
    ══════════════════════════════════════════════════════════════ */
 const ExploreView = () => {
   const [searchParams] = useSearchParams();
+
+  /* ── Dynamic trip data from tripService ──────────────────────
+     Reads ?tripId= from the URL. Falls back to "japan-demo" so
+     the Japan explorer at /map (no param) is unchanged. */
+  const tripId = searchParams.get("tripId") || FALLBACK_ID;
+  const [tripPayload, setTripPayload] = useState(null);
+  const [tripLoading, setTripLoading] = useState(true);
+  const [tripError, setTripError] = useState(null);
+
+  useEffect(() => {
+    let live = true;
+    setTripLoading(true);
+    setTripError(null);
+    tripService.fetchTripById(tripId)
+      .then((t) => { if (live) { setTripPayload(t); setTripLoading(false); } })
+      .catch(() => {
+        /* Fallback: if the requested trip isn't found, load japan-demo */
+        if (!live) return;
+        if (tripId !== FALLBACK_ID) {
+          tripService.fetchTripById(FALLBACK_ID)
+            .then((t) => { if (live) { setTripPayload(t); setTripLoading(false); } })
+            .catch((e) => { if (live) { setTripError(e.message); setTripLoading(false); } });
+        } else {
+          setTripError("לא ניתן לטעון את הטיול");
+          setTripLoading(false);
+        }
+      });
+    return () => { live = false; };
+  }, [tripId]);
+
+  /* Unwrap the data sub-object so props read cleanly */
+  const tripData    = tripPayload?.data?.tripData    ?? null;
+  const routePath   = tripPayload?.data?.routePath   ?? null;
+  const hotelCoords = tripPayload?.data?.HOTEL_COORDINATES ?? null;
+  const cityTrans   = tripPayload?.data?.cityTransitions   ?? null;
 
   /* selectedDay drives the map flyTo on day selection. The active
      stop drives the map's pinned-popup and the StoryFlow scroll. */
@@ -120,8 +161,10 @@ const ExploreView = () => {
     /* Walk both story refs and ask them to scroll to the matching
        stop. The refs expose scrollToStop(stopId); we resolve the
        stopId here from the buildStory result. */
-    import("../data/storyBuilder").then(({ buildStory }) => {
-      const story = buildStory();
+    import("../data/storyBuilder").then(({ buildStory, buildStoryFromData }) => {
+      const story = tripData
+        ? buildStoryFromData(tripData, hotelCoords, cityTrans)
+        : buildStory();
       const match = story.find((it) =>
         it.type === "stop" &&
         (!dayHint || it.day === dayHint) &&
@@ -149,7 +192,8 @@ const ExploreView = () => {
         name: data.name,
       });
     }
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tripData, hotelCoords, cityTrans]);
   const handleCloseDetail = useCallback(() => setModalData(null), []);
 
   const handleMacroView = useCallback(() => {
@@ -202,8 +246,10 @@ const ExploreView = () => {
       name: item.name,
     });
     sheetRef.current?.snapTo?.("half");
-    import("../data/storyBuilder").then(({ buildStory }) => {
-      const story = buildStory();
+    import("../data/storyBuilder").then(({ buildStory, buildStoryFromData }) => {
+      const story = tripData
+        ? buildStoryFromData(tripData, hotelCoords, cityTrans)
+        : buildStory();
       const match = story.find((it) =>
         it.type === "stop" &&
         it.day === item.day &&
@@ -217,7 +263,8 @@ const ExploreView = () => {
         }, 80);
       }
     });
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tripData, hotelCoords, cityTrans]);
 
   /* Sheet-gesture callbacks for the mobile StoryFlow scrollspy:
      stepping UP grows the sheet (peek → half → full); stepping
@@ -252,6 +299,29 @@ const ExploreView = () => {
     handleCityChange, handleFilterChange, handleClearFilters,
   ]);
 
+  /* ── Loading / error states ── */
+  if (tripLoading) {
+    return (
+      <div style={{ width: "100vw", height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--paper)" }}>
+        <div style={{ textAlign: "center", color: "var(--ink-3, #6B7178)" }}>
+          <div style={{ width: 44, height: 44, border: "3px solid #E0533F", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 16px" }} />
+          <div style={{ fontSize: 14, fontWeight: 600 }}>טוען מסלול…</div>
+        </div>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
+  if (tripError) {
+    return (
+      <div style={{ width: "100vw", height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--paper)" }}>
+        <div style={{ textAlign: "center", color: "#A03325", fontSize: 14 }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>⚠</div>
+          {tripError}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       style={{
@@ -274,6 +344,9 @@ const ExploreView = () => {
           onFilterChange={handleFilterChange}
           onCityChange={handleCityChange}
           macroSignal={macroSignal}
+          tripDataProp={tripData}
+          routePathProp={routePath}
+          hotelCoordinatesProp={hotelCoords}
         />
 
         {/* Map-overlay buttons — single cluster shown on both mobile
@@ -318,10 +391,10 @@ const ExploreView = () => {
         {/* Omnibox search — circular icon on mobile (top-right),
             permanent pill bar on desktop (top-right). */}
         <div className="lg:hidden">
-          <OmniboxSearch variant="mobile" onSelect={handleSearchSelect} />
+          <OmniboxSearch variant="mobile" onSelect={handleSearchSelect} tripDataProp={tripData} />
         </div>
         <div className="hidden lg:block">
-          <OmniboxSearch variant="desktop" onSelect={handleSearchSelect} />
+          <OmniboxSearch variant="desktop" onSelect={handleSearchSelect} tripDataProp={tripData} />
         </div>
       </div>
 
@@ -350,6 +423,9 @@ const ExploreView = () => {
             /* Desktop: no inline expand, no modal — clicking a stop
                only flies the map + shows the map popup. */
             inlineExpand={false}
+            tripDataProp={tripData}
+            hotelCoordinatesProp={hotelCoords}
+            cityTransitionsProp={cityTrans}
           />
         </div>
       )}
@@ -394,6 +470,9 @@ const ExploreView = () => {
              the sheet; overscrolling at the top shrinks it. */
           onSheetStepUp={handleSheetStepUp}
           onSheetStepDown={handleSheetStepDown}
+          tripDataProp={tripData}
+          hotelCoordinatesProp={hotelCoords}
+          cityTransitionsProp={cityTrans}
         />
       </BottomSheet>
 

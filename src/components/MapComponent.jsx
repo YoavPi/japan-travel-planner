@@ -9,6 +9,7 @@ import Map, {
 import "maplibre-gl/dist/maplibre-gl.css";
 import { tripData, routePath, HOTEL_COORDINATES } from "../data/tripData";
 import { FILTERS, getChronologicalCityPath } from "./ItineraryList";
+import { getChronologicalCityPathFromData } from "../data/storyBuilder";
 import { vibeDescriptions } from "../data/landmarkImages";
 import { CityIllustrations, cityToHeroIllustration, ActivityIcons } from "../data/illustrations";
 import { getLocationPhoto } from "../data/photoMap";
@@ -173,19 +174,19 @@ const getPopupPadding = () => {
     : { top: 280, bottom: 40, left: 40, right: 40 };
 };
 
-const collectFilteredCoords = (filter, cityKey) => {
+/* dataSrc: accepts dynamic tripData prop; falls back to static import */
+const collectFilteredCoords = (filter, cityKey, dataSrc, hotelCoordsSrc) => {
+  const data = dataSrc || tripData;
+  const hotelCoords = hotelCoordsSrc || HOTEL_COORDINATES;
   const coords = [];
   // Accept cityKey as either "Tokyo" or "Tokyo#1" (chronological instance).
-  // For bounds-fitting we match by base city name across all instances —
-  // good enough for a bird's-eye; per-instance day-range filtering only
-  // matters in the sidebar list.
   const baseCityKey = cityKey ? cityKey.split("#")[0] : null;
   const cityMatchesItem = (item, day) =>
     !baseCityKey || resolveCity(item, day) === baseCityKey;
   const cityMatchesHotel = (day) =>
     !baseCityKey || normalizeCityKey(day.city) === baseCityKey;
 
-  tripData.forEach((day) => {
+  data.forEach((day) => {
     // No category filter → collect ALL points (attractions + meals + hotel)
     // so city-only selection still produces a meaningful fit.
     if (!filter) {
@@ -199,7 +200,7 @@ const collectFilteredCoords = (filter, cityKey) => {
         }
       });
       if (day.hotel && day.hotel !== "—" && cityMatchesHotel(day)) {
-        const h = HOTEL_COORDINATES[day.hotel] || day.coordinates;
+        const h = hotelCoords[day.hotel] || day.coordinates;
         if (h) coords.push([h.lng, h.lat]);
       }
       return;
@@ -236,7 +237,7 @@ const collectFilteredCoords = (filter, cityKey) => {
       });
     } else if (filter === "hotels") {
       if (day.hotel && day.hotel !== "—" && cityMatchesHotel(day)) {
-        const h = HOTEL_COORDINATES[day.hotel] || day.coordinates;
+        const h = hotelCoords[day.hotel] || day.coordinates;
         if (h) coords.push([h.lng, h.lat]);
       }
     }
@@ -252,17 +253,19 @@ const collectFilteredCoords = (filter, cityKey) => {
    delegate to App-level state via onFilterChange / onCityChange
    so the sidebar Trip Roadmap stays in perfect sync.
    ══════════════════════════════════════════════ */
-const MobileMapFilters = ({ activeFilter, activeCity, onFilterChange, onCityChange }) => {
+const MobileMapFilters = ({ activeFilter, activeCity, onFilterChange, onCityChange, tripDataProp }) => {
   // Consolidated city list (unique names, chronological order)
   const cities = useMemo(() => {
-    const chrono = getChronologicalCityPath();
+    const chrono = tripDataProp
+      ? getChronologicalCityPathFromData(tripDataProp)
+      : getChronologicalCityPath();
     const seen = new Set();
     const out = [];
     chrono.forEach((cp) => {
       if (!seen.has(cp.city)) { seen.add(cp.city); out.push(cp); }
     });
     return out;
-  }, []);
+  }, [tripDataProp]);
 
   return (
     <div className="lg:hidden absolute top-2 left-2 right-2 z-[5] pointer-events-none">
@@ -333,7 +336,16 @@ const MobileMapFilters = ({ activeFilter, activeCity, onFilterChange, onCityChan
   );
 };
 
-const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail, activeFilter, activeCity, onFilterChange, onCityChange, macroSignal }) => {
+/* tripDataProp / routePathProp / hotelCoordinatesProp:
+   When ExploreView loads a trip dynamically from tripService it passes
+   the live data here.  Omitting any prop falls back to the static Japan
+   import so the Japan explorer (/map, no ?tripId) is unchanged. */
+const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail, activeFilter, activeCity, onFilterChange, onCityChange, macroSignal, tripDataProp, routePathProp, hotelCoordinatesProp }) => {
+  /* Local aliases — component body always uses these, never the bare module-level vars */
+  const data        = tripDataProp    || tripData;
+  const route       = routePathProp   || routePath;
+  const hotelCoords = hotelCoordinatesProp || HOTEL_COORDINATES;
+
   const mapRef = useRef(null);
   const [hoveredDay, setHoveredDay] = useState(null);
   const [mapLoaded, setMapLoaded] = useState(false);
@@ -342,7 +354,7 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
   /* ─── Fly to selected day (city-level zoom ~11) ─── */
   useEffect(() => {
     if (selectedDay !== null && mapRef.current && !selectedLocation) {
-      const dayData = tripData.find((d) => d.day === selectedDay);
+      const dayData = data.find((d) => d.day === selectedDay);
       if (dayData) {
         mapRef.current.flyTo({
           center: [dayData.coordinates.lng, dayData.coordinates.lat],
@@ -353,7 +365,7 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
         setActivePopupDay(selectedDay);
       }
     }
-  }, [selectedDay, selectedLocation]);
+  }, [selectedDay, selectedLocation, data]);
 
   /* ─── Dynamic Map Focus: fit bounds to active filter results ─── */
   /* ══════════════════════════════════════════════
@@ -378,7 +390,7 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
        a city is a clear "take me there" gesture. */
     if (activeFilter) return;
 
-    const coords = collectFilteredCoords(activeFilter, activeCity);
+    const coords = collectFilteredCoords(activeFilter, activeCity, data, hotelCoords);
     if (coords.length === 0) return;
 
     if (coords.length === 1) {
@@ -445,7 +457,7 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
   useEffect(() => {
     if (!mapLoaded || !mapRef.current || !macroSignal) return;
     let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
-    tripData.forEach((d) => {
+    data.forEach((d) => {
       if (!d.coordinates) return;
       const { lng, lat } = d.coordinates;
       if (lng < minLng) minLng = lng;
@@ -484,7 +496,7 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
       !baseCityKey || normalizeCityKey(day.city) === baseCityKey;
 
     const items = [];
-    tripData.forEach((day) => {
+    data.forEach((day) => {
       if (activeFilter === "food") {
         /* Scan the FULL attractions[] (the chronological order
            list) and emit one marker per food-keyword match. Then
@@ -568,7 +580,7 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
         });
       } else if (activeFilter === "hotels") {
         if (day.hotel && day.hotel !== "—" && hotelCityMatches(day)) {
-          const h = HOTEL_COORDINATES[day.hotel] || day.coordinates;
+          const h = hotelCoords[day.hotel] || day.coordinates;
           if (h) {
             items.push({
               key: `${day.day}-h`,
@@ -605,10 +617,10 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
       properties: {},
       geometry: {
         type: "LineString",
-        coordinates: routePath.map((r) => r.coordinates),
+        coordinates: route.map((r) => r.coordinates),
       },
     }),
-    []
+    [route]
   );
 
   /* ─── GeoJSON: Day-to-day dashed path ─── */
@@ -618,16 +630,16 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
       properties: {},
       geometry: {
         type: "LineString",
-        coordinates: tripData.map((d) => [d.coordinates.lng, d.coordinates.lat]),
+        coordinates: data.filter((d) => d.coordinates).map((d) => [d.coordinates.lng, d.coordinates.lat]),
       },
     }),
-    []
+    [data]
   );
 
   /* ─── GeoJSON: Intra-day dashed path (when day selected) ─── */
   const intraDayPathGeoJSON = useMemo(() => {
     if (!selectedDay) return null;
-    const dayData = tripData.find((d) => d.day === selectedDay);
+    const dayData = data.find((d) => d.day === selectedDay);
     if (!dayData) return null;
 
     const coords = [];
@@ -651,12 +663,12 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
       properties: {},
       geometry: { type: "LineString", coordinates: coords },
     };
-  }, [selectedDay]);
+  }, [selectedDay, data]);
 
   /* ─── All sub-location markers for selected day ─── */
   const subLocations = useMemo(() => {
     if (!selectedDay) return [];
-    const dayData = tripData.find((d) => d.day === selectedDay);
+    const dayData = data.find((d) => d.day === selectedDay);
     if (!dayData) return [];
 
     const locs = [];
@@ -700,7 +712,7 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
       });
     }
     return locs;
-  }, [selectedDay]);
+  }, [selectedDay, data]);
 
   /* ─── Popup state — pinned (click) takes precedence over hovered ─── */
   const [hoveredSubLoc, setHoveredSubLoc] = useState(null);
@@ -757,7 +769,7 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
   );
 
   const popupData = activePopupDay
-    ? tripData.find((d) => d.day === activePopupDay)
+    ? data.find((d) => d.day === activePopupDay)
     : null;
 
   return (
@@ -856,7 +868,7 @@ const MapComponent = ({ selectedDay, onSelectDay, selectedLocation, onOpenDetail
                 • otherwise → render all 31 dots (macro view).
               The map effectively "filters by day" automatically once
               the user picks a day from any source. */}
-        {!activeFilter && tripData
+        {!activeFilter && data
           .filter((d) => !selectedDay || selectedDay === d.day)
           .map((d) => {
             const isSelected = selectedDay === d.day;
@@ -1221,7 +1233,7 @@ const getPopupIcon = (name) => {
   return ActivityIcons.walk;
 };
 
-const DayInfoCard = ({ data, onSelectBullet }) => {
+const DayInfoCard = ({ data, onSelectBullet, hotelCoordsProp }) => {
   const colors = getCityColor(data.city);
   const cityBase = data.city.replace(/ \d+$/, "");
   const illustrationKey = cityToHeroIllustration[cityBase] || cityToHeroIllustration[data.city] || "Tokyo";
@@ -1369,7 +1381,7 @@ const DayInfoCard = ({ data, onSelectBullet }) => {
         {data.hotel && data.hotel !== "—" && (
           <Bullet
             onClick={onSelectBullet ? () => {
-              const h = HOTEL_COORDINATES[data.hotel] || data.coordinates;
+              const h = (hotelCoordsProp || HOTEL_COORDINATES)[data.hotel] || data.coordinates;
               onSelectBullet({
                 name: data.hotel,
                 type: "hotel",

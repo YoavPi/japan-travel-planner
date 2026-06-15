@@ -18,9 +18,12 @@ import { tripData } from "../data/tripData";
    category text. Up to 8 results render at once.
    ══════════════════════════════════════════════════════════════ */
 
-const buildIndex = () => {
+/* Build a searchable flat index from any trip-data array.
+   Accepts dynamic data (from tripService) or falls back to the
+   static Japan import so the component is backward-compatible. */
+const buildIndexFromData = (src) => {
   const rows = [];
-  tripData.forEach((day) => {
+  (src || []).forEach((day) => {
     (day.attractions || []).forEach((a) => {
       if (!a.coordinates) return;
       rows.push({
@@ -34,6 +37,9 @@ const buildIndex = () => {
   });
   return rows;
 };
+
+/* Backward-compat: static index built from the Japan data file. */
+const buildIndex = () => buildIndexFromData(tripData);
 
 const SearchIcon = ({ size = 16, color = "currentColor" }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -101,8 +107,13 @@ const SuggestionList = ({ items, onPick, accent = "#1C2333" }) => (
   </ul>
 );
 
-const OmniboxSearch = ({ onSelect, variant = "desktop" }) => {
-  const index = useMemo(buildIndex, []);
+/* tripDataProp: when provided (by ExploreView loading a dynamic trip)
+   the search indexes that trip's stops instead of the static Japan data. */
+const OmniboxSearch = ({ onSelect, variant = "desktop", tripDataProp }) => {
+  const index = useMemo(
+    () => tripDataProp ? buildIndexFromData(tripDataProp) : buildIndex(),
+    [tripDataProp]
+  );
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const inputRef = useRef(null);

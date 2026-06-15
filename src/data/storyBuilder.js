@@ -706,3 +706,228 @@ export const distanceBetweenStopIds = (story, idA, idB) => {
   if (!a || !b) return null;
   return haversineKm(a.coordinates, b.coordinates);
 };
+
+/* ══════════════════════════════════════════════════════════════
+   DYNAMIC DATA API
+   ─────────────────────────────────────────────────────────────
+   These functions mirror their static twins above but accept
+   trip data as explicit parameters instead of reading from the
+   module-level static imports.  Used by ExploreView when it
+   loads a trip dynamically from tripService (the SaaS layer).
+
+   The original buildStory() / getChronologicalCityPath() are
+   left untouched — the Japan explorer at /map (no ?tripId) still
+   calls them and gets the exact same result as before.
+   ══════════════════════════════════════════════════════════════ */
+
+/* Factory that closes over the three data sources and returns
+   scoped copies of every private helper + the two public APIs. */
+const _makeBuilders = (tripSrc, hotelCoordsSrc, cityTransSrc) => {
+  /* ── scoped copies of helpers that read from data sources ── */
+  const _getChronologicalCityPath = () => {
+    const seen = new Map();
+    const addDay = (norm, dayNum) => {
+      if (!norm) return;
+      if (!seen.has(norm)) {
+        seen.set(norm, {
+          norm,
+          cityIdx: STORY_CITIES.findIndex((c) => c.nameEn === norm) + 1 || 1,
+          days: new Set([dayNum]),
+          firstDay: dayNum,
+          visits: 1,
+          _lastDay: dayNum,
+        });
+      } else {
+        const e = seen.get(norm);
+        if (!e.days.has(dayNum)) {
+          if (dayNum - e._lastDay > 1) e.visits += 1;
+          e.days.add(dayNum);
+          e._lastDay = dayNum;
+        }
+      }
+    };
+    (tripSrc || []).forEach((day) => {
+      addDay(normalizedCityName(day.city), day.day);
+      (day.attractions || []).forEach((a) => {
+        if (a.city && a.city !== day.city) addDay(normalizedCityName(a.city), day.day);
+      });
+    });
+    return Array.from(seen.values())
+      .sort((a, b) => a.firstDay - b.firstDay)
+      .map((e) => {
+        const rec = STORY_CITIES[e.cityIdx - 1] || STORY_CITIES[0];
+        return {
+          key: e.norm, norm: e.norm, cityIdx: e.cityIdx,
+          label: rec.nameEn, labelHe: rec.nameHe, color: rec.color,
+          days: e.days, firstDay: e.firstDay, visits: e.visits,
+        };
+      });
+  };
+
+  const _daysInCity = (cityKey) => {
+    if (!cityKey) return null;
+    const path = _getChronologicalCityPath();
+    const baseName = cityKey.split("#")[0];
+    const entry = path.find((p) => p.key === cityKey) || path.find((p) => p.norm === baseName);
+    return entry ? entry.days : null;
+  };
+
+  const _buildHotelStreaks = () => {
+    const streaks = [];
+    let current = null;
+    (tripSrc || []).forEach((day) => {
+      if (!day.hotel || day.hotel === "—") { current = null; return; }
+      if (!current || current.name !== day.hotel) {
+        current = { name: day.hotel, days: [day.day] };
+        streaks.push(current);
+      } else {
+        current.days.push(day.day);
+      }
+    });
+    return streaks;
+  };
+
+  const _findHotelMeta = (hotelName) => {
+    const p = (tripSrc || []).find((d) => d.hotel === hotelName && (d.hotelRating || d.hotelDesc));
+    return p ? { rating: p.hotelRating || null, desc: p.hotelDesc || "" } : { rating: null, desc: "" };
+  };
+
+  const _findHotelExtras = (hotelName) => {
+    const pLink = (tripSrc || []).find((d) => d.hotel === hotelName && d.hotelLink);
+    const pImg  = (tripSrc || []).find((d) => d.hotel === hotelName && d.hotelImage);
+    return { link: pLink ? pLink.hotelLink : null, image: pImg ? pImg.hotelImage : null };
+  };
+
+  const _buildHotel = (day, dayIdx, sameHotelStreak) => {
+    if (!day.hotel || day.hotel === "—") return null;
+    const coords = (hotelCoordsSrc || {})[day.hotel] || day.coordinates;
+    const cityIdx = cityIndexByName(day.city);
+    const meta    = _findHotelMeta(day.hotel);
+    const extras  = _findHotelExtras(day.hotel);
+    return {
+      type: "hotel",
+      city: cityIdx,
+      nameHe: day.hotel, nameEn: day.hotel,
+      neighborhoodHe: day.cityHe || day.city,
+      nightsLabel: sameHotelStreak.total > 1
+        ? `לילה ${sameHotelStreak.index} מתוך ${sameHotelStreak.total}`
+        : "לילה אחד",
+      rating: day.hotelRating || meta.rating,
+      descHe: day.hotelDesc  || meta.desc,
+      link:   day.hotelLink  || extras.link,
+      image:  day.hotelImage || extras.image,
+      coordinates: coords ? { lng: coords.lng, lat: coords.lat } : null,
+    };
+  };
+
+  /* ── Scoped buildStory (accepts same cityKey/category filters) ── */
+  const _buildStory = ({ cityKey = null, category = null } = {}) => {
+    const items = [];
+    const streaks   = _buildHotelStreaks();
+    const streakInfo = (hotelName, dayNum) => {
+      const s = streaks.find((x) => x.name === hotelName && x.days.includes(dayNum));
+      if (!s) return { index: 1, total: 1 };
+      return { index: s.days.indexOf(dayNum) + 1, total: s.days.length };
+    };
+    const citySet    = _daysInCity(cityKey);
+    const isFiltered = !!(cityKey || category);
+
+    const ctByDay = new Map();
+    (cityTransSrc || []).forEach((t) => {
+      const a = t.anchor || {};
+      if (!a.day) return;
+      const bucket = ctByDay.get(a.day) || { afterHeader: [], afterStop: [], afterDayEnd: [] };
+      if (a.kind === "afterStop") bucket.afterStop.push(t);
+      else if (a.kind === "afterDayEnd") bucket.afterDayEnd.push(t);
+      else bucket.afterHeader.push(t);
+      ctByDay.set(a.day, bucket);
+    });
+
+    (tripSrc || []).forEach((day, dayIdx) => {
+      if (citySet && !citySet.has(day.day)) return;
+
+      const districts = districtsFor(day);
+      const cityIdx   = cityIndexByName(day.city);
+      const cityRec   = STORY_CITIES[cityIdx - 1];
+
+      const rawStops     = stopsForDay(day);
+      const visibleStops = rawStops
+        .map((rawStop, i) => buildStop({ city: day.city, ...rawStop }, day.day, i + 1))
+        .filter((stop) => stopMatchesCategory(stop, category));
+
+      const showHotelOnly = category === "hotels";
+      const wantHotel = !!day.hotel && day.hotel !== "—" &&
+        (!citySet || citySet.has(day.day));
+
+      if (category && !showHotelOnly && visibleStops.length === 0) return;
+      if (showHotelOnly && !wantHotel) return;
+
+      items.push({
+        type: "day-header",
+        day: day.day,
+        cityHe: day.cityHe || (cityRec ? cityRec.nameHe : day.city),
+        cityEn: cityRec ? cityRec.nameEn : day.city,
+        city: cityIdx,
+        subtitleHe: districts.join(" · "),
+        meta: `${cityAbbreviation(day.city)} · יום ${day.day}`,
+        date: dateLabelHe(day.day),
+      });
+
+      const ctBucket = ctByDay.get(day.day) || { afterHeader: [], afterStop: [], afterDayEnd: [] };
+
+      if (!isFiltered) {
+        ctBucket.afterHeader.forEach((t) => {
+          const ct = buildCityTransit(t);
+          if (ct) items.push(ct);
+        });
+      }
+
+      if (!showHotelOnly) {
+        visibleStops.forEach((stop, i) => {
+          items.push({ ...stop, stopNum: i + 1 });
+          if (!isFiltered) {
+            ctBucket.afterStop.forEach((t) => {
+              if (t.anchor.stopName && t.anchor.stopName === stop.titleEn) {
+                const ct = buildCityTransit(t);
+                if (ct) items.push(ct);
+              }
+            });
+          }
+          if (!category) {
+            const next = visibleStops[i + 1];
+            if (next && stop.coordinates && next.coordinates) {
+              const transit = buildTransit(
+                { coordinates: stop.coordinates, category: stop.category },
+                { coordinates: next.coordinates, category: next.category }
+              );
+              if (transit) items.push(transit);
+            }
+          }
+        });
+      }
+
+      if (wantHotel && (!category || category === "hotels")) {
+        const hotel = _buildHotel(day, dayIdx, streakInfo(day.hotel, day.day));
+        if (hotel) items.push(hotel);
+      }
+
+      if (!isFiltered) {
+        ctBucket.afterDayEnd.forEach((t) => {
+          const ct = buildCityTransit(t);
+          if (ct) items.push(ct);
+        });
+      }
+    });
+
+    return items;
+  };
+
+  return { buildStory: _buildStory, getChronologicalCityPath: _getChronologicalCityPath };
+};
+
+/* Public dynamic-data exports */
+export const buildStoryFromData = (tripDataParam, hotelCoordsParam, cityTransitionsParam, opts) =>
+  _makeBuilders(tripDataParam || [], hotelCoordsParam || {}, cityTransitionsParam || []).buildStory(opts);
+
+export const getChronologicalCityPathFromData = (tripDataParam) =>
+  _makeBuilders(tripDataParam || [], {}, []).getChronologicalCityPath();

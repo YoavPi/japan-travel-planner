@@ -1,5 +1,5 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
-import { buildStory, STORY_CITIES, getChronologicalCityPath } from "../data/storyBuilder";
+import { buildStory, buildStoryFromData, STORY_CITIES, getChronologicalCityPath, getChronologicalCityPathFromData } from "../data/storyBuilder";
 import { Glyph, MetaIcon, TRANSIT_LABEL_HE } from "./StoryFlowGlyph";
 import { atmospherePhotoFor } from "../data/tripHelpers";
 import { STOP_PHOTO } from "../data/stopPhotos";
@@ -60,7 +60,9 @@ const CATEGORIES = [
    changes — driven by both explicit clicks and by the scrollspy
    in the parent. block:'nearest' constrains the scroll to the
    row's horizontal axis only. */
-const DayPillRow = ({ activeDay, onSelectDay }) => {
+/* storyProp: when StoryFlow is driven by dynamic data it passes its
+   already-computed story down so DayPillRow doesn't re-run buildStory() */
+const DayPillRow = ({ activeDay, onSelectDay, storyProp }) => {
   const rowRef = useRef(null);
   const pillRefs = useRef({});
 
@@ -74,7 +76,7 @@ const DayPillRow = ({ activeDay, onSelectDay }) => {
 
   /* Build the day list from STORY (one entry per day-header) */
   const days = useMemo(() => {
-    const story = buildStory();
+    const story = storyProp || buildStory();
     const seen = new Set();
     const list = [];
     story.forEach((it) => {
@@ -89,7 +91,7 @@ const DayPillRow = ({ activeDay, onSelectDay }) => {
       }
     });
     return list;
-  }, []);
+  }, [storyProp]);
 
   return (
     <div
@@ -931,8 +933,9 @@ const CityTransit = ({ item }) => {
             sub-category pills (Attractions / Food / Shopping /
             Hotels). Tapping one toggles activeCategory.
    ══════════════════════════════════════════════════════════════ */
-const InfoBar = ({ activeCityKey, activeCategory, onCityChange, onCategoryChange, onClearAll }) => {
-  const path = useMemo(() => getChronologicalCityPath(), []);
+/* cityPathProp: pre-computed path from StoryFlow's dynamic data */
+const InfoBar = ({ activeCityKey, activeCategory, onCityChange, onCategoryChange, onClearAll, cityPathProp }) => {
+  const path = useMemo(() => cityPathProp || getChronologicalCityPath(), [cityPathProp]);
   const activeCity = path.find((p) => p.key === activeCityKey);
   const phase = activeCityKey ? "B" : "A";
 
@@ -1153,7 +1156,11 @@ const InfoBar = ({ activeCityKey, activeCategory, onCityChange, onCategoryChange
 /* ══════════════════════════════════════════════════════════════
    MAIN COMPONENT
    ══════════════════════════════════════════════════════════════ */
-const StoryFlow = forwardRef(({ activeStopId, onSelectStop, onOpenDetail, onClose, activeDay, onSelectDay, activeCityKey = null, activeCategory = null, onCityChange, onCategoryChange, onClearFilters, compact = false, inlineExpand = false, onSheetStepUp, onSheetStepDown }, ref) => {
+/* tripDataProp / hotelCoordinatesProp / cityTransitionsProp:
+   When ExploreView loads a trip dynamically from tripService it
+   passes the live data here. Omitting them falls back to the static
+   Japan import so the Japan explorer (/map, no ?tripId) is unchanged. */
+const StoryFlow = forwardRef(({ activeStopId, onSelectStop, onOpenDetail, onClose, activeDay, onSelectDay, activeCityKey = null, activeCategory = null, onCityChange, onCategoryChange, onClearFilters, compact = false, inlineExpand = false, onSheetStepUp, onSheetStepDown, tripDataProp, hotelCoordinatesProp, cityTransitionsProp }, ref) => {
   const scrollerRef = useRef(null);
   const stopRefs = useRef({});
   const dayRefs = useRef({});
@@ -1170,8 +1177,18 @@ const StoryFlow = forwardRef(({ activeStopId, onSelectStop, onOpenDetail, onClos
   const scrollspyLockRef = useRef(0);
 
   const story = useMemo(
-    () => buildStory({ cityKey: activeCityKey, category: activeCategory }),
-    [activeCityKey, activeCategory]
+    () => tripDataProp
+      ? buildStoryFromData(tripDataProp, hotelCoordinatesProp, cityTransitionsProp, { cityKey: activeCityKey, category: activeCategory })
+      : buildStory({ cityKey: activeCityKey, category: activeCategory }),
+    [tripDataProp, hotelCoordinatesProp, cityTransitionsProp, activeCityKey, activeCategory]
+  );
+
+  /* City path for the InfoBar and DayPillRow.
+     When dynamic data is provided we compute it from that data;
+     otherwise the static Japan export is used inside InfoBar/DayPillRow. */
+  const cityPath = useMemo(
+    () => tripDataProp ? getChronologicalCityPathFromData(tripDataProp) : null,
+    [tripDataProp]
   );
 
   /* Auto-scroll to the active stop / day.
@@ -1413,7 +1430,7 @@ const StoryFlow = forwardRef(({ activeStopId, onSelectStop, onOpenDetail, onClos
           when present so the active dot mirrors where the user is
           actually reading. Falls back to activeDay (the click-
           driven scroll target) on initial render. */}
-      <DayPillRow activeDay={visibleDay ?? activeDay} onSelectDay={onSelectDay} />
+      <DayPillRow activeDay={visibleDay ?? activeDay} onSelectDay={onSelectDay} storyProp={tripDataProp ? story : null} />
 
       {/* InfoBar — secondary filter (Phase A city → Phase B
           category). Lives BELOW the day grid so the hierarchy reads
@@ -1424,6 +1441,7 @@ const StoryFlow = forwardRef(({ activeStopId, onSelectStop, onOpenDetail, onClos
         onCityChange={onCityChange}
         onCategoryChange={onCategoryChange}
         onClearAll={onClearFilters}
+        cityPathProp={cityPath}
       />
 
       {/* Scroller */}
