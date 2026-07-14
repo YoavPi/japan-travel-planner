@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDarkMode } from "../utils/theme";
-import BottomDock from "../components/BottomDock";
 import Icon from "../components/Icon";
 
 /* ──────────────────────────────────────────────────────────────
@@ -146,8 +145,6 @@ const NotificationsView = () => {
           )}
         </div>
       </div>
-
-      <BottomDock />
     </div>
   );
 };

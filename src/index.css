@@ -129,6 +129,8 @@ body {
 @keyframes tpFade   { from { opacity: 0; } to { opacity: 1; } }
 @keyframes tpScaleIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
 @keyframes tpSlideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes tpSkeleton { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@keyframes tpLivePulse { 0% { box-shadow: 0 0 0 0 rgba(224,83,63,0.55); } 70% { box-shadow: 0 0 0 6px rgba(224,83,63,0); } 100% { box-shadow: 0 0 0 0 rgba(224,83,63,0); } }
 
 .tp-fade-up { animation: tpFadeUp 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
 .tp-fade    { animation: tpFade 0.4s ease both; }

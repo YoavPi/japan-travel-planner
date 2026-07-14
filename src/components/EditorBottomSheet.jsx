@@ -20,10 +20,10 @@ import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef,
 const SNAP_FRACTION = { peek: 0.12, half: 0.5, full: 1.0 };
 const FLING = 0.45; // px/ms
 
-/* "full" stops this many px from the top instead of going edge-to-edge,
-   so the sheet never slides under the editor header pill (top:0) and the
-   floating search bar (top:64, 48px tall). Keeps both reachable. */
-const FULL_TOP_INSET = 120;
+/* "full" stops right below the floating search omnibox (top:64, 48px tall
+   → bottom ≈ 112) so an expanded sheet covers the ENTIRE map while leaving
+   the search bar + header pill reachable. Sprint 21 #1 — maximize. */
+const FULL_TOP_INSET = 112;
 
 const offsetFor = (snap, vh) =>
   snap === "full" ? FULL_TOP_INSET : vh - vh * SNAP_FRACTION[snap]; // translateY from top
@@ -35,12 +35,19 @@ const EditorBottomSheet = forwardRef(({ header, children, defaultSnap = "half", 
   const drag = useRef({ active: false, startY: 0, startT: 0, hist: [] });
   const vhRef = useRef(typeof window !== "undefined" ? window.innerHeight : 800);
 
+  /* NB: notify the parent of snap changes from an EFFECT (below), never
+     from inside the setState updater — calling a parent setter while
+     React is computing this component's next state is a "setState during
+     render" violation and logs a console error. */
   const setSnap = useCallback((next) => {
-    setSnapState((prev) => {
-      if (prev !== next && onSnapChange) onSnapChange(next);
-      return next;
-    });
-  }, [onSnapChange]);
+    if (SNAP_FRACTION[next]) setSnapState(next);
+  }, []);
+
+  /* Report the active snap to the parent after each committed change so
+     the editor can collapse/expand the omnibox + schedule in lock-step. */
+  useEffect(() => {
+    if (onSnapChange) onSnapChange(snap);
+  }, [snap, onSnapChange]);
 
   useEffect(() => {
     const apply = () => {

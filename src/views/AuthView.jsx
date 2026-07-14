@@ -2,10 +2,17 @@ import React from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Map from "react-map-gl/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
+import { GoogleLogin } from "@react-oauth/google";
 import { useAuth } from "../context/AuthContext";
 import Icon from "../components/Icon";
 
 const MAP_STYLE = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
+
+/* Real Google SSO is active only when a client id is configured. With
+   an empty key the GoogleOAuthProvider isn't mounted (see App.jsx), so
+   we keep the mock buttons instead of rendering <GoogleLogin> (which
+   would throw outside a provider). */
+const GOOGLE_SSO_ON = !!(process.env.REACT_APP_GOOGLE_CLIENT_ID || "");
 
 /* ──────────────────────────────────────────────────────────────
    AuthView — premium sign-in bottom sheet (home-auth blueprint).
@@ -52,18 +59,47 @@ const AuthBtn = ({ children, onClick, disabled, variant }) => {
 };
 
 const AuthView = () => {
-  const { signIn, signingIn, isAuthenticated } = useAuth();
+  const { signIn, signInWithSupabase, supabaseEnabled, signInWithGoogleToken, signingIn, isAuthenticated, initializing } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const dest = location.state?.from || "/dashboard";
 
+  /* Surface a provider error handed back on the redirect
+     (…/auth#error_description=…) instead of failing silently. */
+  const [oauthError] = React.useState(() => {
+    const m = (window.location.hash + window.location.search).match(/error_description=([^&]+)/);
+    return m ? decodeURIComponent(m[1].replace(/\+/g, " ")) : "";
+  });
+
+  /* OAuth-loop fix — only navigate once hydration has settled. During
+     `initializing` the Supabase client is still consuming the callback
+     tokens; deciding early is what bounced users back here. */
   React.useEffect(() => {
-    if (isAuthenticated) navigate(dest, { replace: true });
-  }, [isAuthenticated, dest, navigate]);
+    if (!initializing && isAuthenticated) navigate(dest, { replace: true });
+  }, [initializing, isAuthenticated, dest, navigate]);
 
   const doSignIn = async () => {
     await signIn();
     navigate(dest, { replace: true });
+  };
+
+  /* Sprint 26 — Supabase NATIVE Google OAuth is the primary path when
+     the backend is configured: signInWithOAuth redirects to Google and
+     back to /auth, where the isAuthenticated effect routes onward. The
+     GIS-widget / mock paths remain as graceful fallbacks. */
+  const doSupabaseGoogle = async () => {
+    try {
+      await signInWithSupabase(); // browser navigates away on success
+    } catch {
+      await doSignIn(); // backend misconfigured → mock fallback keeps the demo usable
+    }
+  };
+
+  /* Real Google onSuccess — the callback payload carries an ID token
+     (credential). Hydrate the profile from it; the isAuthenticated
+     effect above then routes to the intended destination. */
+  const onGoogleSuccess = (resp) => {
+    if (resp?.credential) signInWithGoogleToken(resp.credential);
   };
 
   return (
@@ -107,10 +143,48 @@ const AuthView = () => {
             שמרו תחנות, סנכרנו בין מכשירים, וחזרו בכל זמן לערוך.
           </p>
 
+          {/* Post-redirect hydration state — the callback tokens are being
+              consumed; show progress instead of a clickable login that is
+              about to auto-navigate. */}
+          {initializing && (
+            <div role="status" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "10px 12px", marginBottom: 12, borderRadius: 12, background: T.surface, color: T.ink2, fontSize: 13, fontWeight: 700 }}>
+              <span aria-hidden style={{ width: 16, height: 16, borderRadius: "50%", border: `2.5px solid ${T.line}`, borderTopColor: T.ink, display: "inline-block", animation: "tpAuthSpin 0.8s linear infinite" }} />
+              מאמת התחברות…
+              <style>{`@keyframes tpAuthSpin{to{transform:rotate(360deg)}}`}</style>
+            </div>
+          )}
+
+          {/* Provider error from the OAuth redirect (if any). */}
+          {oauthError && !initializing && (
+            <div role="alert" style={{ padding: "10px 12px", marginBottom: 12, borderRadius: 12, background: "rgba(192,57,43,0.08)", border: "1px solid rgba(192,57,43,0.35)", color: "#A03325", fontSize: 12.5, fontWeight: 700, lineHeight: 1.5 }}>
+              ההתחברות נכשלה: {oauthError}
+            </div>
+          )}
+
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <AuthBtn variant="google" onClick={doSignIn} disabled={signingIn}>
-              {signingIn ? <span>מתחבר…</span> : <><GoogleGlyph /><span>המשך עם Google</span></>}
-            </AuthBtn>
+            {supabaseEnabled ? (
+              /* Sprint 26 — Supabase native Google OAuth (primary). */
+              <AuthBtn variant="google" onClick={doSupabaseGoogle} disabled={signingIn}>
+                {signingIn ? <span>מתחבר…</span> : <><GoogleGlyph /><span>המשך עם Google</span></>}
+              </AuthBtn>
+            ) : GOOGLE_SSO_ON ? (
+              /* Real Google Identity Services button (official modal /
+                 popup loop). Rendered only when a client id is set so the
+                 provider is mounted. */
+              <div style={{ display: "flex", justifyContent: "center" }}>
+                <GoogleLogin
+                  onSuccess={onGoogleSuccess}
+                  onError={() => { /* swallow — user can retry or use another method */ }}
+                  text="continue_with"
+                  shape="pill"
+                  width="320"
+                />
+              </div>
+            ) : (
+              <AuthBtn variant="google" onClick={doSignIn} disabled={signingIn}>
+                {signingIn ? <span>מתחבר…</span> : <><GoogleGlyph /><span>המשך עם Google</span></>}
+              </AuthBtn>
+            )}
             <AuthBtn variant="apple" onClick={doSignIn} disabled={signingIn}>
               <AppleGlyph /><span style={{ color: "#fff" }}>המשך עם Apple</span>
             </AuthBtn>

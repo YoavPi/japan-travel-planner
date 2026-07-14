@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { isPlacesEnabled, autocomplete, getDetails } from "../services/googlePlaces";
+import { isSearchEnabled, autocomplete, getDetails, RateLimitError } from "../services/googlePlaces";
 import { classifyLocation, ratingToBadge, CATEGORY_META } from "../utils/classify";
 
 /* ══════════════════════════════════════════════════════════════
@@ -12,8 +12,17 @@ import { classifyLocation, ratingToBadge, CATEGORY_META } from "../utils/classif
    rating. Without a key it falls back to a free-text quick-add
    (no coordinates — the user can pin it afterward).
 
+   Sprint 15.6 — Map Discovery Invariant: a search pick must NEVER
+   commit a stop directly. When `onPreview` is supplied the pick only
+   hands the live Place details up to the editor, which flies the map,
+   drops the pulsing pin, and opens the PlaceInfoCard — the stop is
+   committed solely from that card's "הוספה לטיול שלי" CTA. Pressing
+   Enter is intentionally inert so a raw, unverified query can never
+   become a stop.
+
    Props:
-     onAddStop(stop)  — commit a new stop to the active day
+     onAddStop(stop)  — legacy direct commit (used only if no onPreview)
+     onPreview(d)     — hand live Place details to the editor preview flow
      activeDay        — number, shown on the add affordance
    ══════════════════════════════════════════════════════════════ */
 
@@ -23,24 +32,30 @@ const T = {
   font: "'Noto Sans Hebrew','Inter','Noto Sans JP',system-ui,sans-serif",
 };
 
-const EditorSearchBar = ({ onAddStop, activeDay }) => {
-  const placesOn = isPlacesEnabled();
+const EditorSearchBar = ({ onAddStop, onPreview, activeDay }) => {
+  const placesOn = isSearchEnabled();
   const [query, setQuery] = useState("");
   const [preds, setPreds] = useState([]);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
+  const [rlError, setRlError] = useState(""); // rate-limit notification
   const debRef = useRef(null);
   const wrapRef = useRef(null);
 
-  /* Debounced autocomplete (Places only). */
+  /* Debounced autocomplete (live or simulated). */
   useEffect(() => {
     if (!placesOn) return;
     if (debRef.current) clearTimeout(debRef.current);
-    if (query.trim().length < 2) { setPreds([]); return; }
+    if (query.trim().length < 2) { setPreds([]); setRlError(""); return; }
     setBusy(true);
     debRef.current = setTimeout(async () => {
-      const res = await autocomplete(query);
-      setPreds(res); setBusy(false); setOpen(true);
+      try {
+        const res = await autocomplete(query);
+        setPreds(res); setRlError(""); setBusy(false); setOpen(true);
+      } catch (err) {
+        setBusy(false); setPreds([]); setOpen(true);
+        setRlError(err instanceof RateLimitError ? err.message : "החיפוש נכשל, נסו שוב");
+      }
     }, 250);
     return () => debRef.current && clearTimeout(debRef.current);
   }, [query, placesOn]);
@@ -52,10 +67,16 @@ const EditorSearchBar = ({ onAddStop, activeDay }) => {
     return () => document.removeEventListener("mousedown", onDown);
   }, []);
 
+  /* Pick a prediction → fetch live details.
+     • Map Discovery Invariant (Sprint 15.6): when onPreview is set we
+       hand the raw details to the editor preview flow (fly + pin +
+       PlaceInfoCard) and DO NOT commit a stop here.
+     • Legacy fallback (no onPreview): classify + commit directly. */
   const addFromPlace = async (p) => {
     setOpen(false); setQuery(""); setPreds([]);
     const d = await getDetails(p.placeId);
     if (!d) return;
+    if (onPreview) { onPreview(d); return; }
     const { category, he } = classifyLocation(d.types);
     onAddStop({
       name: d.name || p.primary,
@@ -66,7 +87,11 @@ const EditorSearchBar = ({ onAddStop, activeDay }) => {
     });
   };
 
+  /* Legacy free-text quick-add — only reachable when running without a
+     live key AND without the preview flow (onPreview unset). Never wired
+     to Enter, so a bare query can never auto-commit a stop. */
   const addFreeText = () => {
+    if (onPreview) return;
     const q = query.trim();
     if (!q) return;
     setOpen(false); setQuery(""); setPreds([]);
@@ -81,7 +106,15 @@ const EditorSearchBar = ({ onAddStop, activeDay }) => {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => setOpen(true)}
-          onKeyDown={(e) => { if (e.key === "Enter") (placesOn && preds[0] ? addFromPlace(preds[0]) : addFreeText()); }}
+          onKeyDown={(e) => {
+            /* Map Discovery Invariant: Enter must NOT commit a stop.
+               Pick a place from the list (which opens the preview card)
+               or do nothing — never auto-add the raw typed text. */
+            if (e.key === "Enter") {
+              e.preventDefault();
+              if (placesOn && preds[0]) addFromPlace(preds[0]);
+            }
+          }}
           placeholder="חיפוש מקום והוספה למסלול…"
           style={{ flex: 1, border: "none", outline: "none", background: "transparent", fontSize: 16, fontFamily: "inherit", direction: "rtl", textAlign: "right", color: T.ink }}
         />
@@ -93,7 +126,11 @@ const EditorSearchBar = ({ onAddStop, activeDay }) => {
 
       {open && query.trim().length >= 2 && (
         <div style={{ marginTop: 6, background: "#fff", border: `1px solid ${T.line}`, borderRadius: 16, boxShadow: "0 16px 40px rgba(0,0,0,0.16)", overflow: "hidden" }}>
-          {placesOn ? (
+          {rlError ? (
+            <div style={{ padding: "12px 14px", fontSize: 13, fontWeight: 700, color: T.accent, display: "flex", alignItems: "center", gap: 8 }}>
+              <span aria-hidden>⏳</span>{rlError}
+            </div>
+          ) : placesOn ? (
             preds.length > 0 ? (
               preds.map((p) => (
                 <button key={p.placeId} onClick={() => addFromPlace(p)}

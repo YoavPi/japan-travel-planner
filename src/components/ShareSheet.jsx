@@ -146,7 +146,7 @@ const ShareSheet = ({ trip, onClose }) => {
               {ROLE_HE[inviteRole]} ▾
             </button>
           </div>
-          <button onClick={sendInvite} aria-label="שליחת הזמנה" style={{ width: 50, height: 50, borderRadius: 16, border: "none", background: T.ink, color: "#fff", cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><Icon name="chevronStart" size={18} strokeWidth={2.2} /></button>
+          <button onClick={sendInvite} aria-label="שליחת הזמנה" style={{ width: 50, height: 50, borderRadius: 16, border: "none", background: T.ink, color: "#fff", cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><Icon name="chevronEnd" size={18} strokeWidth={2.2} /></button>
 
           {showPop && (
             <div style={{ position: "absolute", insetInlineEnd: 58, top: 54, zIndex: 5, background: "#fff", border: `1px solid ${T.line}`, borderRadius: 14, boxShadow: "0 24px 60px rgba(0,0,0,0.16)", width: 260, overflow: "hidden" }}>

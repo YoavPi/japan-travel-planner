@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { readPrefs, writePrefs } from "../services/prefsService";
 import { useDarkMode } from "../utils/theme";
-import BottomDock from "../components/BottomDock";
 import Icon from "../components/Icon";
 
 /* ──────────────────────────────────────────────────────────────
@@ -53,7 +52,7 @@ const SettingsView = () => {
       )}
       {value && <span style={{ fontSize: 13, fontWeight: 600, color: P.ink3 }}>{value}</span>}
       {control}
-      {onClick && !control && !soonBadge && <span style={{ color: P.ink4, display: "inline-flex" }}><Icon name="chevronStart" size={15} strokeWidth={2} /></span>}
+      {onClick && !control && !soonBadge && <span style={{ color: P.ink4, display: "inline-flex" }}><Icon name="chevronEnd" size={15} strokeWidth={2} /></span>}
     </div>
   );
 
@@ -106,7 +105,6 @@ const SettingsView = () => {
           {toast}
         </div>
       )}
-      <BottomDock />
     </div>
   );
 };

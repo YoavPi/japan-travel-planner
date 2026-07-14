@@ -28,7 +28,7 @@ const SideMenu = ({ open, onClose }) => {
         <Icon name={icon} size={17} strokeWidth={1.9} />
       </span>
       <span style={{ flex: 1 }}>{label}</span>
-      <span style={{ color: P.ink4, display: "inline-flex" }}><Icon name="chevronStart" size={15} strokeWidth={2} /></span>
+      <span style={{ color: P.ink4, display: "inline-flex" }}><Icon name="chevronEnd" size={15} strokeWidth={2} /></span>
     </button>
   );
 

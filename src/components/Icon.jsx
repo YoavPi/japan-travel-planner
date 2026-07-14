@@ -27,8 +27,14 @@ const PATHS = {
   share: <><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" /><polyline points="16 6 12 2 8 6" /><line x1="12" y1="2" x2="12" y2="15" /></>,
   arrowUpRight: <><line x1="7" y1="17" x2="17" y2="7" /><polyline points="7 7 17 7 17 17" /></>,
   link: <><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></>,
-  chevronStart: <><polyline points="15 18 9 12 15 6" /></>,
-  chevronEnd: <><polyline points="9 18 15 12 9 6" /></>,
+  /* Sprint 22 #1 — RTL logical chevrons. The app is RTL-only, so the
+     glyphs are drawn to match the logical direction they name:
+       chevronStart → points RIGHT (inline-start) — back/return actions
+       chevronEnd   → points LEFT  (inline-end)   — forward/next actions
+     SVG does not auto-mirror under dir="rtl"; encoding the direction
+     here keeps every call site semantic instead of visual. */
+  chevronStart: <><polyline points="9 18 15 12 9 6" /></>,
+  chevronEnd: <><polyline points="15 18 9 12 15 6" /></>,
   chevronDown: <><polyline points="6 9 12 15 18 9" /></>,
   plus: <><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></>,
   x: <><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></>,
@@ -52,6 +58,14 @@ const PATHS = {
   sparkle: <><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z" /><path d="M5 17l.7 2.3L8 20l-2.3.7L5 23l-.7-2.3L2 20l2.3-.7L5 17z" /></>,
   calendar: <><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></>,
   menu: <><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" /></>,
+  users: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></>,
+  crown: <><path d="M3 7l4 4 5-7 5 7 4-4-2 12H5L3 7z" /><line x1="5" y1="21" x2="19" y2="21" /></>,
+  plane: <><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z" /></>,
+  train: <><rect x="4" y="3" width="16" height="16" rx="2" /><path d="M4 11h16" /><path d="M12 3v8" /><path d="M8 19l-2 3" /><path d="M16 19l2 3" /><circle cx="8" cy="15" r="1" fill="currentColor" stroke="none" /><circle cx="16" cy="15" r="1" fill="currentColor" stroke="none" /></>,
+  car: <><path d="M5 13l1.5-4.5A2 2 0 0 1 8.4 7h7.2a2 2 0 0 1 1.9 1.5L19 13" /><path d="M3 13h18v4a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1H6v1a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4z" /><circle cx="7.5" cy="16" r="1" fill="currentColor" stroke="none" /><circle cx="16.5" cy="16" r="1" fill="currentColor" stroke="none" /></>,
+  ferry: <><path d="M3 18l1.5-5h15L21 18" /><path d="M3 18c1.5 1 3 1 4.5 0s3-1 4.5 0 3 1 4.5 0 3-1 4.5 0" /><path d="M12 3v10" /><path d="M8 8h8" /></>,
+  bus: <><rect x="4" y="4" width="16" height="13" rx="2" /><path d="M4 11h16" /><path d="M7 17v2" /><path d="M17 17v2" /><circle cx="8" cy="14" r="1" fill="currentColor" stroke="none" /><circle cx="16" cy="14" r="1" fill="currentColor" stroke="none" /></>,
+  clock: <><circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15 14" /></>,
 };
 
 const Icon = ({ name, size = 18, color = "currentColor", strokeWidth = 1.75, style, className, ...rest }) => {

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { QUICK_PICKS, CATEGORY_META, classifyLocation, ratingToBadge } from "../utils/classify";
-import { isPlacesEnabled, autocomplete, getDetails } from "../services/googlePlaces";
+import { isSearchEnabled, autocomplete, getDetails, RateLimitError } from "../services/googlePlaces";
 import Icon from "./Icon";
 
 /* ══════════════════════════════════════════════════════════════
@@ -17,16 +17,21 @@ import Icon from "./Icon";
      onStartPin    ()              — switch parent into pinning mode
      onAdd         (stop)          — commit the new stop
      onClose       ()
+     onPreview     (details)       — optional; when set, a prediction
+                                     click calls this instead of filling
+                                     the inline form (Sprint 7 preview flow)
    ══════════════════════════════════════════════════════════════ */
-const AddStopSheet = ({ pendingCoord, onStartPin, onAdd, onClose }) => {
+const AddStopSheet = ({ pendingCoord, onStartPin, onAdd, onClose, onPreview }) => {
   const [name, setName] = useState("");
   const [cat, setCat] = useState("attraction");
 
-  /* Google Places live search (only when an API key is configured). */
-  const placesOn = isPlacesEnabled();
+  /* Place search — live Google Places when keyed + under budget,
+     otherwise the geometric simulation fallback. */
+  const placesOn = isSearchEnabled();
   const [gQuery, setGQuery] = useState("");
   const [preds, setPreds] = useState([]);
   const [searching, setSearching] = useState(false);
+  const [rlError, setRlError] = useState(""); // rate-limit notification
   const [placeCoord, setPlaceCoord] = useState(null);
   const [placeRating, setPlaceRating] = useState(null);
   const debRef = useRef(null);
@@ -35,22 +40,36 @@ const AddStopSheet = ({ pendingCoord, onStartPin, onAdd, onClose }) => {
   useEffect(() => {
     if (!placesOn) return;
     if (debRef.current) clearTimeout(debRef.current);
-    if (gQuery.trim().length < 2) { setPreds([]); return; }
+    if (gQuery.trim().length < 2) { setPreds([]); setRlError(""); return; }
     setSearching(true);
     debRef.current = setTimeout(async () => {
-      const res = await autocomplete(gQuery);
-      setPreds(res);
-      setSearching(false);
+      try {
+        const res = await autocomplete(gQuery);
+        setPreds(res); setRlError(""); setSearching(false);
+      } catch (err) {
+        setSearching(false); setPreds([]);
+        setRlError(err instanceof RateLimitError ? err.message : "החיפוש נכשל, נסו שוב");
+      }
     }, 250);
     return () => debRef.current && clearTimeout(debRef.current);
   }, [gQuery, placesOn]);
 
-  /* Pick a prediction → fetch details → classify + prefill. */
+  /* Pick a prediction → fetch details.
+     • When onPreview is provided (Sprint 7): call it with the raw
+       details object — the parent minimises the sheet, flies the map,
+       and shows the PlaceInfoCard.
+     • Otherwise: classify + prefill the inline manual form as before. */
   const pickPrediction = async (p) => {
     setPreds([]);
     setGQuery(p.primary);
     const d = await getDetails(p.placeId);
     if (!d) return;
+
+    if (onPreview) {
+      onPreview(d);   // hand off to EditorView preview flow
+      return;
+    }
+
     const { category } = classifyLocation(d.types);
     setName(d.name || p.primary);
     setCat(category === "unknown" ? "attraction" : category);
@@ -97,9 +116,15 @@ const AddStopSheet = ({ pendingCoord, onStartPin, onAdd, onClose }) => {
             <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "11px 14px", borderRadius: 16, background: "#F6F6F4", border: "1px solid rgba(20,20,20,0.10)" }}>
               <span aria-hidden style={{ color: "#6B7178", display: "inline-flex" }}><Icon name="search" size={16} /></span>
               <input value={gQuery} onChange={(e) => setGQuery(e.target.value)} placeholder="חיפוש ב־Google Maps"
+                onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); /* Invariant: Enter never adds an unverified stop — choose a result card */ }}
                 style={{ flex: 1, border: "none", background: "transparent", fontSize: 16, fontFamily: "inherit", direction: "rtl", textAlign: "right" }} />
               {searching && <span style={{ fontSize: 11, color: "#A4AAB1" }}>מחפש…</span>}
             </div>
+            {rlError && (
+              <div style={{ marginTop: 6, padding: "9px 12px", borderRadius: 12, background: "#FCEEEA", color: "#B83A2B", fontSize: 12.5, fontWeight: 700, display: "flex", alignItems: "center", gap: 7 }}>
+                <span aria-hidden>⏳</span>{rlError}
+              </div>
+            )}
             {preds.length > 0 && (
               <ul style={{ listStyle: "none", margin: "6px 0 0", padding: 0, background: "#fff", border: "1px solid rgba(20,20,20,0.10)", borderRadius: 14, boxShadow: "0 12px 32px rgba(0,0,0,0.12)", maxHeight: 240, overflowY: "auto", position: "absolute", left: 0, right: 0, zIndex: 5 }}>
                 {preds.map((p) => (

@@ -32,3 +32,6 @@ yarn-error.log*
 
 # claude code
 .claude/
+
+# design-skill scratch output
+.skillui-out/

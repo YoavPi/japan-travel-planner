@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import tripService from "../services/tripService";
+import tripService, { MAX_ACTIVE_TRIPS } from "../services/tripService";
 import { useDarkMode } from "../utils/theme";
 import MapCard from "../components/MapCard";
-import BottomDock from "../components/BottomDock";
 import Icon from "../components/Icon";
+import SharePermissionsModal from "../components/SharePermissionsModal";
+import SwipeBackContainer from "../components/SwipeBackContainer";
+import useActiveTrip from "../utils/useActiveTrip";
 
 /* ──────────────────────────────────────────────────────────────
    DashboardView — premium "My Maps" profile dashboard.
@@ -33,6 +35,9 @@ const DashboardView = () => {
   const { dark, toggle: toggleTheme, P } = useDarkMode();
   const [confirmTrip, setConfirmTrip] = useState(null);
   const [toast, setToast] = useState("");
+  /* Which trip's share/permissions modal is open (null = closed). */
+  const [permissionModalTripId, setPermissionModalTripId] = useState(null);
+  const activeId = useActiveTrip();
 
   useEffect(() => {
     let live = true;
@@ -53,6 +58,12 @@ const DashboardView = () => {
     return { trips: list.length, countries: countries.size, days: list.reduce((s, t) => s + (t.days || 0), 0) };
   }, [trips]);
 
+  /* SaaS tier gate — once the account holds MAX_ACTIVE_TRIPS maps the
+     "create" flow locks until a trip is deleted (which updates `trips`
+     and re-evaluates this immediately). */
+  const tripCount = (trips || []).length;
+  const atTripCap = tripCount >= MAX_ACTIVE_TRIPS;
+
   const filtered = useMemo(() => {
     if (!trips) return null;
     if (filter === "mine") return trips.filter((t) => t.role === "owner");
@@ -60,12 +71,19 @@ const DashboardView = () => {
     return trips;
   }, [trips, filter]);
 
-  const openTrip = (t) => navigate(t.readOnly ? "/map?demo=1" : `/map/edit/${t.id}`);
+  const openTrip = (t) => navigate(`/trip/overview/${t.id}`);
   const confirmDelete = () => {
     const t = confirmTrip; setConfirmTrip(null);
     if (!t) return;
     setTrips((prev) => (prev || []).filter((x) => x.id !== t.id));
     tripService.deleteTrip(t.id).catch(() => {});
+  };
+
+  /* Sprint 19.3 — persist a per-trip sticky memo (optimistic update). */
+  const saveTripMemo = (t, memo) => {
+    const clean = (memo || "").trim();
+    setTrips((prev) => (prev || []).map((x) => (x.id === t.id ? { ...x, tripMemo: clean || undefined } : x)));
+    tripService.saveTripMemo(t.id, clean).catch(() => {});
   };
 
   const FILTERS = [
@@ -75,6 +93,7 @@ const DashboardView = () => {
   ];
 
   return (
+    <SwipeBackContainer>
     <div dir="rtl" style={{ minHeight: "100vh", background: P.page, fontFamily: FONT, transition: "background 0.25s" }}>
       <div className="tp-fade" style={{ maxWidth: 560, margin: "0 auto", background: P.panel, minHeight: "100vh", paddingBottom: 96, transition: "background 0.25s" }}>
 
@@ -142,16 +161,39 @@ const DashboardView = () => {
           </div>
         </section>
 
-        {/* New map CTA */}
+        {/* New map CTA — Sprint 22 #2: at the SaaS tier ceiling the card
+            itself flips to a destructive-red warning state (disabled click,
+            red border/surface/text + an explicit quota sub-label) instead of
+            being swapped out for a separate banner. */}
         <section style={{ padding: "0 22px 12px" }}>
-          <button onClick={() => navigate("/create")} className="tp-press"
-            style={{ display: "flex", alignItems: "center", gap: 12, padding: 14, border: `1px dashed ${P.line}`, borderRadius: 18, background: "transparent", cursor: "pointer", width: "100%", fontFamily: "inherit", textAlign: "right" }}>
-            <span style={{ width: 44, height: 44, borderRadius: 14, background: P.ink, color: P.panel, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <Icon name="plus" size={22} strokeWidth={2.2} />
+          <button
+            onClick={atTripCap ? undefined : () => navigate("/create")}
+            disabled={atTripCap}
+            aria-disabled={atTripCap}
+            title={atTripCap ? "הגעת למכסת המפות המקסימלית לחשבון חינמי" : "יצירת מסלול חדש"}
+            className={atTripCap ? undefined : "tp-press"}
+            style={{
+              display: "flex", alignItems: "center", gap: 12, padding: 14,
+              border: atTripCap ? "1.5px solid #C0392B" : `1px dashed ${P.line}`,
+              borderRadius: 18,
+              background: atTripCap ? "rgba(192,57,43,0.07)" : "transparent",
+              cursor: atTripCap ? "not-allowed" : "pointer",
+              width: "100%", fontFamily: "inherit", textAlign: "right",
+            }}>
+            <span style={{ width: 44, height: 44, borderRadius: 14, background: atTripCap ? "rgba(192,57,43,0.14)" : P.ink, color: atTripCap ? "#C0392B" : P.panel, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Icon name={atTripCap ? "shield" : "plus"} size={atTripCap ? 20 : 22} strokeWidth={2.2} />
             </span>
-            <span style={{ flex: 1 }}>
-              <span style={{ display: "block", fontSize: 14.5, fontWeight: 800, color: P.ink }}>מסלול חדש</span>
-              <span style={{ display: "block", fontSize: 12, color: P.ink3, marginTop: 2 }}>התחילו מאפס או מתבנית מוכנה</span>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14.5, fontWeight: 800, color: atTripCap ? "#C0392B" : P.ink }}>
+                מסלול חדש
+                <span style={{ fontSize: 11, fontWeight: 800, color: atTripCap ? "#C0392B" : P.ink3, background: atTripCap ? "rgba(192,57,43,0.14)" : P.surface, borderRadius: 999, padding: "2px 9px", fontVariantNumeric: "tabular-nums" }}>{tripCount}/{MAX_ACTIVE_TRIPS}</span>
+              </span>
+              <span role={atTripCap ? "status" : undefined} aria-live={atTripCap ? "polite" : undefined}
+                style={{ display: "block", fontSize: 12, color: atTripCap ? "#A03325" : P.ink3, marginTop: 2, lineHeight: 1.5 }}>
+                {atTripCap
+                  ? "הגעת למכסת המפות המקסימלית לחשבון חינמי. יש למחוק מפה קיימת כדי ליצור חדשה."
+                  : "התחילו מאפס או מתבנית מוכנה"}
+              </span>
             </span>
           </button>
         </section>
@@ -182,8 +224,12 @@ const DashboardView = () => {
                   trip={t}
                   index={i}
                   dark={dark}
+                  active={t.id === activeId}
                   onOpen={() => openTrip(t)}
-                  onCopyLink={() => showToast("הקישור הועתק")}
+                  /* Sprint 18.1: only owners may share — collaborators get no
+                     share handler, so the affordance never renders for them. */
+                  onShare={t.role === "owner" ? () => setPermissionModalTripId(t.id) : undefined}
+                  onSaveMemo={saveTripMemo}
                   onDelete={() => setConfirmTrip(t)}
                 />
               ))}
@@ -214,16 +260,13 @@ const DashboardView = () => {
                   <span style={{ display: "block", fontSize: 12, color: P.ink3, marginTop: 1 }}>{r.sub}</span>
                 </span>
                 <span style={{ color: P.ink4, display: "inline-flex" }}>
-                  <Icon name="chevronStart" size={16} strokeWidth={2} />
+                  <Icon name="chevronEnd" size={16} strokeWidth={2} />
                 </span>
               </button>
             ))}
           </div>
         </section>
       </div>
-
-      {/* Shared floating bottom dock — auto-detects active route */}
-      <BottomDock />
 
       {/* Delete confirm modal */}
       {confirmTrip && (
@@ -250,8 +293,22 @@ const DashboardView = () => {
         </div>
       )}
 
+      {/* Share / permissions modal — Google-Sheets-style invite sheet.
+          Mounted once at the render-tree root, driven by which card's
+          share button was tapped. */}
+      {permissionModalTripId && (
+        <SharePermissionsModal
+          tripId={permissionModalTripId}
+          onClose={() => setPermissionModalTripId(null)}
+          onChanged={(updated) =>
+            setTrips((prev) => (prev || []).map((t) => (t.id === updated.id ? { ...t, ...updated } : t)))
+          }
+        />
+      )}
+
       <style>{`@keyframes tpSkeleton{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
     </div>
+    </SwipeBackContainer>
   );
 };
 
