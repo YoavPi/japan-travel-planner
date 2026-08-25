@@ -38,7 +38,7 @@ import { track } from "../analytics/posthog";
    yet) the legacy localStorage engine below keeps working
    unchanged. Row ⇄ app-record mapping is centralised here. */
 
-const rowToTrip = (r) => r && ({
+export const rowToTrip = (r) => r && ({
   id: r.id,
   title: r.title,
   cover: r.cover || null,
@@ -53,6 +53,11 @@ const rowToTrip = (r) => r && ({
   center: r.settings?.center || null,
   settings: r.settings || {},
   data: r.data || { tripData: [], cityTransitions: [], lodgingOverrides: {} },
+  isPublic: !!r.is_public,
+  galleryCategory: r.gallery_category || null,
+  galleryDescription: r.gallery_description || null,
+  publishedAt: r.published_at || null,
+  favoritesCount: r.favorites_count || 0,
 });
 
 const tripPatchToRow = (patch = {}) => {
@@ -66,6 +71,10 @@ const tripPatchToRow = (patch = {}) => {
   if ("tripMemo" in patch) row.trip_memo = patch.tripMemo ?? null;
   if ("settings" in patch) row.settings = patch.settings;
   if ("data" in patch) row.data = patch.data;
+  if ("isPublic" in patch) row.is_public = patch.isPublic;
+  if ("galleryCategory" in patch) row.gallery_category = patch.galleryCategory;
+  if ("galleryDescription" in patch) row.gallery_description = patch.galleryDescription;
+  if ("publishedAt" in patch) row.published_at = patch.publishedAt;
   row.last_edited = nowISO();
   return row;
 };
@@ -396,6 +405,15 @@ export const tripService = {
     trips[idx] = { ...trips[idx], ...patch, lastEdited: nowISO() };
     writeStore(trips);
     return trips[idx];
+  },
+
+  /* Rename a trip (owner via saveTrip's owner-scoped update + collab fallback). */
+  async renameTrip(tripId, title) {
+    return this.saveTrip(tripId, { title: (title || "").trim() || "מסלול חדש" });
+  },
+  /* Set the cover — an image URL or an `emoji:<x>` string. */
+  async setCover(tripId, cover) {
+    return this.saveTrip(tripId, { cover });
   },
 
   /* Update a trip's sharing/permissions (collaborator list).
