@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import tripService, { MAX_ACTIVE_TRIPS } from "../services/tripService";
+import { listFavoriteTrips } from "../services/favoritesService";
 import isAdminEmail from "../utils/isAdmin";
 import { useDarkMode } from "../utils/theme";
 import MapCard from "../components/MapCard";
@@ -38,6 +39,9 @@ const DashboardView = () => {
   const navigate = useNavigate();
   const [trips, setTrips] = useState(null);
   const [filter, setFilter] = useState("mine"); // default to the user's OWN maps
+  /* "מועדפים" tab — Supabase-backed favorites (distinct from the device-local
+     star toggle below), fetched lazily only while that tab is active. */
+  const [favoriteTrips, setFavoriteTrips] = useState(null);
   /* Favorite maps — a personal quick-access flag (device-local). Favorites
      float to the top of the list and show a gold star. */
   const [favorites, setFavorites] = useState(() => {
@@ -100,6 +104,18 @@ const DashboardView = () => {
     return () => { live = false; };
   }, [user, reloadKey]);
 
+  /* "מועדפים" tab data — fetched only when that tab is selected, and
+     re-fetched whenever the dashboard reload key bumps. */
+  useEffect(() => {
+    if (filter !== "favorites") return;
+    let live = true;
+    setFavoriteTrips(null); // show the skeleton while (re)loading
+    listFavoriteTrips()
+      .then((list) => { if (live) setFavoriteTrips(list); })
+      .catch(() => { if (live) setFavoriteTrips([]); });
+    return () => { live = false; };
+  }, [filter, reloadKey]);
+
   const showToast = (m) => { setToast(m); setTimeout(() => setToast(""), 1500); };
 
   const counts = useMemo(() => {
@@ -122,13 +138,16 @@ const DashboardView = () => {
   const atTripCap = !admin && tripCount >= MAX_ACTIVE_TRIPS;
 
   const filtered = useMemo(() => {
+    // "מועדפים" tab — its own async-loaded list (may be null while loading,
+    // which correctly falls through to the existing skeleton state below).
+    if (filter === "favorites") return favoriteTrips;
     if (!trips) return null;
     const scoped = filter === "mine" ? trips.filter((t) => t.role === "owner")
       : filter === "shared" ? trips.filter((t) => t.role !== "owner")
       : trips;
     // Favorites float to the top (stable within each group).
     return scoped.slice().sort((a, b) => (favorites.has(b.id) ? 1 : 0) - (favorites.has(a.id) ? 1 : 0));
-  }, [trips, filter, favorites]);
+  }, [trips, filter, favorites, favoriteTrips]);
 
   const openTrip = (t) => navigate(`/trip/overview/${t.id}`);
   const confirmDelete = () => {
@@ -157,6 +176,7 @@ const DashboardView = () => {
     { id: "mine", label: "המפות שלי", n: counts.mine },
     { id: "shared", label: "שותפו איתי", n: counts.shared },
     { id: "all", label: "הכל", n: counts.all },
+    { id: "favorites", label: "מועדפים ⭐" },
   ];
 
   return (
@@ -357,12 +377,18 @@ const DashboardView = () => {
               <div style={{ width: 64, height: 64, borderRadius: "50%", background: P.surface, color: P.ink3, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
                 <Icon name="map" size={28} strokeWidth={1.6} />
               </div>
-              <div style={{ fontSize: 15, fontWeight: 800, color: P.ink }}>אין כאן מסלולים עדיין</div>
-              <div style={{ fontSize: 13, color: P.ink3, lineHeight: 1.55, maxWidth: 280 }}>בנו את המסלול הראשון שלכם — נמלא יעדים, ימים וערים תוך דקה.</div>
-              <button onClick={() => navigate("/create")} className="tp-press"
-                style={{ marginTop: 4, padding: "11px 22px", borderRadius: 999, border: "none", background: P.ink, color: P.panel, fontSize: 13.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 8 }}>
-                <Icon name="plus" size={15} strokeWidth={2.2} /> מסלול חדש
-              </button>
+              <div style={{ fontSize: 15, fontWeight: 800, color: P.ink }}>
+                {filter === "favorites" ? "עדיין אין מועדפים — סמנו מפות בגלריה ⭐" : "אין כאן מסלולים עדיין"}
+              </div>
+              {filter !== "favorites" && (
+                <>
+                  <div style={{ fontSize: 13, color: P.ink3, lineHeight: 1.55, maxWidth: 280 }}>בנו את המסלול הראשון שלכם — נמלא יעדים, ימים וערים תוך דקה.</div>
+                  <button onClick={() => navigate("/create")} className="tp-press"
+                    style={{ marginTop: 4, padding: "11px 22px", borderRadius: 999, border: "none", background: P.ink, color: P.panel, fontSize: 13.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 8 }}>
+                    <Icon name="plus" size={15} strokeWidth={2.2} /> מסלול חדש
+                  </button>
+                </>
+              )}
             </div>
           ) : (
             <div style={isDesktop

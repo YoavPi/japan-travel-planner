@@ -81,6 +81,7 @@ const SiteFooter = () => {
           <Col
             title="גלו"
             links={[
+              { label: "מפות של אחרים", onClick: () => navigate("/gallery") },
               { label: "תכנון טיול", onClick: () => navigate(isAuthenticated ? "/create" : "/auth") },
               { label: "טיול לדוגמה (יפן)", onClick: () => navigate("/japan") },
               { label: isAuthenticated ? "המפות שלי" : "התחברות", onClick: () => navigate(isAuthenticated ? "/dashboard" : "/auth") },

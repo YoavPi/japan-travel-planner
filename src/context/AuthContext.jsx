@@ -46,8 +46,14 @@ export const AuthProvider = ({ children }) => {
      product events like map_created are tied to a person. No-op if PostHog
      isn't configured. */
   useEffect(() => {
-    if (user) identifyUser(user);
-    else resetAnalytics();
+    if (user) {
+      identifyUser(user);
+      /* One-time: push any device-local favorites into Supabase now that
+         we have a signed-in identity. Lazy import avoids an import cycle. */
+      import("../services/favoritesService").then((m) => m.migrateLocalFavorites()).catch(() => {});
+    } else {
+      resetAnalytics();
+    }
   }, [user]);
 
   /* Sprint 26 — Supabase-native session. Hydrate from an existing
