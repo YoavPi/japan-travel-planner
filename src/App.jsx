@@ -14,6 +14,7 @@ import useIsDesktop from "./utils/useIsDesktop";
 import LandingView from "./views/LandingView";
 import HomePage from "./views/HomePage";
 import ExploreView from "./views/ExploreView";
+import GalleryView from "./views/GalleryView";
 import AuthView from "./views/AuthView";
 import DashboardView from "./views/DashboardView";
 import WizardView from "./views/WizardView";
@@ -73,6 +74,7 @@ const AnimatedRoutes = () => {
         <Route path="/welcome" element={<OnboardingView />} />
         <Route path="/japan" element={<HomePage />} />
         <Route path="/map" element={<ExploreView />} />
+        <Route path="/gallery" element={<GalleryView />} />
         <Route path="/auth" element={<AuthView />} />
         {/* Static legal / info pages (public). */}
         <Route path="/privacy" element={<PrivacyPage />} />
