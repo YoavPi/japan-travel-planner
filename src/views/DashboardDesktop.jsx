@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
 import MapCard from "../components/MapCard";
 import Icon from "../components/Icon";
+import PublishToGalleryModal from "../components/PublishToGalleryModal";
 import isAdminEmail from "../utils/isAdmin";
 
 /* ══════════════════════════════════════════════════════════════
@@ -35,6 +36,9 @@ const DashboardDesktop = ({
   openTrip, onShare, onSaveMemo, onDelete, showToast, onCreateAi, favorites, onToggleFavorite,
 }) => {
   const frost = dark ? "rgba(20,19,23,0.72)" : "rgba(255,255,255,0.72)";
+  /* Which trip's publish-to-gallery modal is open (also doubles as the
+     rename / cover-change sheet — it already surfaces both fields). */
+  const [publishTrip, setPublishTrip] = useState(null);
 
   return (
     <div dir="rtl" style={{ minHeight: "100vh", background: P.page, fontFamily: FONT, transition: "background 0.25s" }}>
@@ -232,6 +236,9 @@ const DashboardDesktop = ({
                     onDelete={() => onDelete(t)}
                     favorite={favorites && favorites.has(t.id)}
                     onToggleFavorite={onToggleFavorite}
+                    onPublish={() => setPublishTrip(t)}
+                    onRename={() => setPublishTrip(t)}
+                    onEditCover={() => setPublishTrip(t)}
                   />
                 ))
               )}
@@ -239,6 +246,16 @@ const DashboardDesktop = ({
           )}
         </main>
       </div>
+
+      {/* Publish-to-gallery modal — also doubles as the rename / cover
+          editor (opened from the card's ellipsis menu). */}
+      {publishTrip && (
+        <PublishToGalleryModal
+          trip={publishTrip}
+          onClose={() => setPublishTrip(null)}
+          onDone={() => { setPublishTrip(null); }}
+        />
+      )}
     </div>
   );
 };

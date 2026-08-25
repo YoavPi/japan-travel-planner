@@ -7,6 +7,7 @@ import { useDarkMode } from "../utils/theme";
 import MapCard from "../components/MapCard";
 import Icon from "../components/Icon";
 import SharePermissionsModal from "../components/SharePermissionsModal";
+import PublishToGalleryModal from "../components/PublishToGalleryModal";
 import SwipeBackContainer from "../components/SwipeBackContainer";
 import ProductUpdatesModal from "../components/ProductUpdatesModal";
 import AiTripModal from "../components/AiTripModal";
@@ -64,6 +65,9 @@ const DashboardView = () => {
   const [toast, setToast] = useState("");
   /* Which trip's share/permissions modal is open (null = closed). */
   const [permissionModalTripId, setPermissionModalTripId] = useState(null);
+  /* Which trip's publish-to-gallery modal is open (also doubles as the
+     rename / cover-change sheet — it already surfaces both fields). */
+  const [publishTrip, setPublishTrip] = useState(null);
   /* Sprint 40 — dashboard load state. `loadError` surfaces a clean retry
      block instead of an endless skeleton; `reloadKey` re-runs the fetch. */
   const [loadError, setLoadError] = useState(false);
@@ -170,6 +174,7 @@ const DashboardView = () => {
           onSaveMemo={saveTripMemo} onDelete={(t) => setConfirmTrip(t)} showToast={showToast}
           onCreateAi={() => setAiOpen(true)}
           favorites={favorites} onToggleFavorite={toggleFavorite}
+          onPublish={(t) => setPublishTrip(t)}
         />
       ) : (
       <div className="tp-fade" style={{ maxWidth: 560, margin: "0 auto", background: P.panel, minHeight: "100vh", paddingBottom: 96, paddingInline: 0, transition: "background 0.25s, max-width 0.2s" }}>
@@ -378,6 +383,9 @@ const DashboardView = () => {
                   onDelete={() => setConfirmTrip(t)}
                   favorite={favorites.has(t.id)}
                   onToggleFavorite={toggleFavorite}
+                  onPublish={() => setPublishTrip(t)}
+                  onRename={() => setPublishTrip(t)}
+                  onEditCover={() => setPublishTrip(t)}
                 />
               ))}
             </div>
@@ -451,6 +459,16 @@ const DashboardView = () => {
           onChanged={(updated) =>
             setTrips((prev) => (prev || []).map((t) => (t.id === updated.id ? { ...t, ...updated } : t)))
           }
+        />
+      )}
+
+      {/* Publish-to-gallery modal — also doubles as the rename / cover
+          editor (opened from the card's ellipsis menu). */}
+      {publishTrip && (
+        <PublishToGalleryModal
+          trip={publishTrip}
+          onClose={() => setPublishTrip(null)}
+          onDone={() => { setPublishTrip(null); }}
         />
       )}
 

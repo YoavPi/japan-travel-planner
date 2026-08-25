@@ -69,7 +69,7 @@ const Initial = ({ name, i }) => (
   </span>
 );
 
-const MapCard = ({ trip, index = 0, dark = false, active = false, onOpen, onCopyLink, onShare, onDelete, onSaveMemo, favorite = false, onToggleFavorite }) => {
+const MapCard = ({ trip, index = 0, dark = false, active = false, onOpen, onCopyLink, onShare, onDelete, onSaveMemo, favorite = false, onToggleFavorite, onPublish = () => {}, onRename = () => {}, onEditCover = () => {} }) => {
   const P = dark ? DARK : LIGHT;
   const role = ROLE[trip.role] || ROLE.view;
   const lm = landmarkFor(trip);
@@ -305,6 +305,9 @@ const MapCard = ({ trip, index = 0, dark = false, active = false, onOpen, onCopy
           {menuOpen && menuPos && createPortal(
             <div ref={popRef} className="tp-pop" dir="rtl" style={{ position: "fixed", top: menuPos.top, left: menuPos.left, zIndex: 1000, minWidth: 168, background: P.panel, border: `1px solid ${P.line}`, borderRadius: 14, boxShadow: "0 16px 40px rgba(0,0,0,0.22)", overflow: "hidden", fontFamily: FONT }}>
               <MenuItem icon="map" label="פתיחה" onClick={onOpen} />
+              {isOwner && <MenuItem icon="map" label={trip.isPublic ? "נהל פרסום" : "פרסם לגלריה"} onClick={onPublish} />}
+              {isOwner && <MenuItem icon="edit" label="שנה שם" onClick={onRename} />}
+              {isOwner && <MenuItem icon="camera" label="שנה תמונה" onClick={onEditCover} />}
               {isOwner && onShare && <MenuItem icon="share" label="שיתוף" onClick={() => onShare(trip)} />}
               {isOwner && !trip.readOnly && onDelete && <MenuItem icon="trash" label="מחק מפה" danger onClick={() => onDelete(trip)} />}
             </div>,
