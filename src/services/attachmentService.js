@@ -21,8 +21,10 @@ export function isAttachmentPersistenceEnabled() {
   return isSupabaseEnabled();
 }
 
-/* Upload a picked File. `tripId` scopes the storage path. Never throws
-   for the caller — on any failure it degrades to a session object URL. */
+/* Upload a picked File. `tripId` scopes the storage path. When Supabase is
+   enabled, any upload failure THROWS — callers must not persist a dead
+   blob URL. Only in local/demo mode (no Supabase) do we degrade to a
+   session object URL. */
 export async function uploadAttachment(tripId, file) {
   if (!file) throw new Error("no file");
   if (file.size > MAX_BYTES) throw new Error("file too large");
@@ -37,19 +39,16 @@ export async function uploadAttachment(tripId, file) {
         upsert: false,
         contentType: file.type || undefined,
       });
-      if (!error) {
-        const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
-        if (data?.publicUrl) {
-          return { name: safeName, type: file.type || "", url: data.publicUrl, size: file.size, path, persisted: true };
-        }
-      }
-      /* fall through to the local fallback on any storage error */
+      if (error) throw error;
+      const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
+      if (!data?.publicUrl) throw new Error("no-public-url");
+      return { name: safeName, type: file.type || "", url: data.publicUrl, size: file.size, path, persisted: true };
     } catch {
-      /* ignore — fall back below */
+      throw new Error("upload-failed");
     }
   }
 
-  /* Fallback: an in-session object URL (not persisted across reloads). */
+  /* local/demo only (no Supabase): a session object URL, clearly not persisted. */
   const url = URL.createObjectURL(file);
   return { name: safeName, type: file.type || "", url, size: file.size, persisted: false };
 }

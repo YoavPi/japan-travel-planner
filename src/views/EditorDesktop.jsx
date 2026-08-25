@@ -312,6 +312,12 @@ export default function EditorDesktop() {
   const fileInputRef = useRef(null);
   const attachTargetRef = useRef(null); // REAL attractions index awaiting a file
   const [attachBusy, setAttachBusy] = useState(false);
+  const [attachToast, setAttachToast] = useState(""); // upload-failure micro-toast
+  useEffect(() => {
+    if (!attachToast) return;
+    const t = setTimeout(() => setAttachToast(""), 2400);
+    return () => clearTimeout(t);
+  }, [attachToast]);
 
   const promptAttach = (idx) => { attachTargetRef.current = idx; if (fileInputRef.current) fileInputRef.current.click(); };
   const onFilePicked = async (e) => {
@@ -323,7 +329,11 @@ export default function EditorDesktop() {
     try {
       const meta = await uploadAttachment(trip?.id, file);
       if (meta) addAttachmentToStop(activeDay, idx, meta);
-    } catch { /* upload degrades to a session URL inside the service; a hard throw (e.g. too large) is swallowed */ }
+    } catch (err) {
+      /* A real Supabase-backed upload failure (or an oversized file) — do NOT
+         persist anything onto the stop; surface it instead. */
+      setAttachToast(/too large/.test(err?.message || "") ? "הקובץ גדול מדי (מקס' 15MB)" : "העלאת הקובץ נכשלה, נסו שוב");
+    }
     finally { setAttachBusy(false); attachTargetRef.current = null; }
   };
   /* Mouse-first editing: a right-click / ⋯ context menu at a cursor position,
@@ -1214,6 +1224,19 @@ export default function EditorDesktop() {
           onPick={(target, includeNotes) => { addOverlayPoints(addChoice, target, includeNotes); setAddChoice(null); }}
           onClose={() => setAddChoice(null)}
         />
+      )}
+
+      {/* Attachment-upload failure micro-toast (auto-dismiss ~2.4s). */}
+      {attachToast && (
+        <div dir="rtl" role="status" aria-live="polite" style={{
+          position: "fixed", top: "calc(env(safe-area-inset-top, 0px) + 70px)", left: "50%", transform: "translateX(-50%)",
+          zIndex: 260, maxWidth: "min(90vw, 360px)", background: "#C0392B", color: "#fff",
+          borderRadius: 999, padding: "8px 16px", fontFamily: T.font, fontSize: 13, fontWeight: 700,
+          boxShadow: "0 8px 24px rgba(0,0,0,0.28)", display: "inline-flex", alignItems: "center", gap: 8,
+          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+        }}>
+          <span aria-hidden>⚠️</span>{attachToast}
+        </div>
       )}
 
       <style>{`
