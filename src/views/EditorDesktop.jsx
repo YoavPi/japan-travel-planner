@@ -653,7 +653,7 @@ export default function EditorDesktop() {
               borderRadius: 10, border: `1px solid ${refMapsOpen ? "#0C8B94" : T.line}`, cursor: "pointer", fontFamily: "inherit",
               background: refMapsOpen ? "#0C8B94" : "#fff", color: refMapsOpen ? "#fff" : T.ink2, fontSize: 13, fontWeight: 800,
             }}>
-            <span aria-hidden style={{ fontSize: 13 }}>◆</span>
+            <Icon name="layers" size={15} strokeWidth={2} />
             <span>מפות נוספות</span>
           </button>
         )}

@@ -4,7 +4,6 @@ import EditorMap from "../components/EditorMap";
 import FavoriteButton from "../components/FavoriteButton";
 import { useAuth } from "../context/AuthContext";
 import { fetchPublicTripById } from "../services/galleryService";
-import { listFavoriteIds } from "../services/favoritesService";
 import { visibleDayCount } from "../utils/gallery";
 import { track } from "../analytics/posthog";
 
@@ -33,18 +32,24 @@ const PublicMapView = () => {
   const [loading, setLoading] = useState(true);
   const [fav, setFav] = useState(false);
 
+  /* Signed-in visitors get the FULL, real editor in view-only mode (the
+     polished "צפייה בלבד" experience) — not this lean preview. RLS + the
+     public-read branch in fetchTripById make /map/edit/:id load a public map
+     read-only for any signed-in user. Only LOGGED-OUT visitors stay here and
+     see the 30% teaser + login gate. */
   useEffect(() => {
+    if (isAuthenticated) navigate(`/map/edit/${tripId}`, { replace: true });
+  }, [isAuthenticated, tripId, navigate]);
+
+  useEffect(() => {
+    if (isAuthenticated) return; // authed users are being redirected to the editor
     let live = true;
     setLoading(true);
     fetchPublicTripById(tripId)
       .then((t) => { if (live) setTrip(t); })
       .finally(() => { if (live) setLoading(false); });
     return () => { live = false; };
-  }, [tripId]);
-
-  useEffect(() => {
-    if (isAuthenticated) listFavoriteIds().then((ids) => setFav(ids.has(tripId))).catch(() => {});
-  }, [isAuthenticated, tripId]);
+  }, [tripId, isAuthenticated]);
 
   const days = trip?.data?.tripData || [];
   const total = days.length;
@@ -69,6 +74,8 @@ const PublicMapView = () => {
     track("gate_login_clicked");
     navigate("/auth", { state: { from: `/g/${tripId}` } });
   };
+
+  if (isAuthenticated) return null; // redirecting to the real editor (view-only)
 
   if (loading) {
     return (

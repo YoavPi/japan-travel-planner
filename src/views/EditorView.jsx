@@ -2716,7 +2716,7 @@ const EditorView = () => {
             fontSize: 16, fontWeight: 800, transition: "background 0.2s ease, color 0.2s ease",
           }}
         >
-          <span aria-hidden>◆</span>
+          <Icon name="layers" size={20} strokeWidth={2} />
         </button>
       )}
 

@@ -359,11 +359,27 @@ export const tripService = {
         const collab = Array.isArray(data.collaborators)
           ? data.collaborators.find((c) => (c.email || "").toLowerCase() === email)
           : null;
-        const canEdit = collab?.role === "edit";
-        trip.role = canEdit ? "edit" : "view";
-        trip.readOnly = !canEdit;             // 'edit' collaborators → editor access
-        trip.shared = true;
-        trip.sharedBy = data.owner_name || trip.owner?.name || undefined;
+        if (collab) {
+          /* A real person-to-person share (view/edit). */
+          const canEdit = collab.role === "edit";
+          trip.role = canEdit ? "edit" : "view";
+          trip.readOnly = !canEdit;
+          trip.shared = true;
+          trip.sharedBy = data.owner_name || trip.owner?.name || undefined;
+          return trip;
+        }
+        /* Not owner, not a collaborator — RLS still let us read it, so it must be
+           a PUBLIC gallery map. Open it read-only ("צפייה בלבד"), WITHOUT a false
+           "שותף ע״י" (nobody shared it with this user; it's public). */
+        if (data.is_public) {
+          trip.role = "view";
+          trip.readOnly = true;
+          trip.public = true;
+          return trip;
+        }
+        /* Fallthrough (shouldn't happen — RLS would have blocked it). */
+        trip.role = "view";
+        trip.readOnly = true;
         return trip;
       }
       throw new Error(`Trip not found: ${tripId}`);

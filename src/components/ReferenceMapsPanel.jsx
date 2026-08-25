@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import tripService from "../services/tripService";
+import Icon from "./Icon";
 import usePlacePhotos, { photoKey } from "../utils/usePlacePhotos";
 import { photoStrict, onPhotoErrorStrict } from "../utils/placePhoto";
 
@@ -143,7 +144,7 @@ const ReferenceMapsPanel = ({ open, onClose, dark = false, desktop = false, curr
           {view === "points" && (
             <button onClick={backToPicker} aria-label="חזרה" style={{ width: 30, height: 30, borderRadius: 8, border: "none", background: T.surface, color: T.ink2, cursor: "pointer", fontFamily: "inherit", fontSize: 15 }}>›</button>
           )}
-          <span aria-hidden style={{ width: 24, height: 24, borderRadius: 6, background: OVERLAY_COLOR, display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 12 }}>◆</span>
+          <span aria-hidden style={{ width: 24, height: 24, borderRadius: 6, background: OVERLAY_COLOR, display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 12 }}><Icon name="layers" size={13} strokeWidth={2} /></span>
           <span style={{ fontSize: 15, fontWeight: 800 }}>{view === "picker" ? "מפות נוספות" : (selMap?.title || "נקודות")}</span>
           <div style={{ flex: 1 }} />
           <button onClick={close} aria-label="סגירה" style={{ width: 30, height: 30, borderRadius: 8, border: "none", background: T.surface, color: T.ink2, cursor: "pointer", fontFamily: "inherit", fontSize: 15, fontWeight: 800 }}>✕</button>

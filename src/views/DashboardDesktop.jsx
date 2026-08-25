@@ -79,10 +79,11 @@ const DashboardDesktop = ({
             style={{ height: 40, padding: "0 18px", borderRadius: 999, border: "none", cursor: atTripCap ? "not-allowed" : "pointer", fontFamily: "inherit", fontSize: 13.5, fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 7, background: atTripCap ? P.surface : P.ink, color: atTripCap ? P.ink4 : P.panel }}>
             <Icon name={atTripCap ? "shield" : "plus"} size={16} strokeWidth={2.3} /> מסלול חדש
           </button>
-          {/* Public gallery — discover maps others published ("market"). */}
+          {/* Public gallery — discover maps others published ("market").
+              Accent-tinted so it reads as a distinct discovery entry point. */}
           <button onClick={() => navigate("/gallery")} className="tp-press"
             title="מפות של אחרים — גלריית מסלולים"
-            style={{ height: 40, padding: "0 16px", borderRadius: 999, border: `1px solid ${P.line}`, cursor: "pointer", fontFamily: "inherit", fontSize: 13.5, fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 7, background: P.panel, color: P.ink2 }}>
+            style={{ height: 40, padding: "0 16px", borderRadius: 999, border: `1.5px solid ${ACCENT}`, cursor: "pointer", fontFamily: "inherit", fontSize: 13.5, fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 7, background: "#E0533F14", color: ACCENT }}>
             <Icon name="globe" size={16} strokeWidth={1.9} /> מפות של אחרים
           </button>
           {/* Example trip — an itinerary to explore beyond the user's own maps. */}
