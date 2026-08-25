@@ -15,6 +15,7 @@ import LandingView from "./views/LandingView";
 import HomePage from "./views/HomePage";
 import ExploreView from "./views/ExploreView";
 import GalleryView from "./views/GalleryView";
+import PublicMapView from "./views/PublicMapView";
 import AuthView from "./views/AuthView";
 import DashboardView from "./views/DashboardView";
 import WizardView from "./views/WizardView";
@@ -75,6 +76,7 @@ const AnimatedRoutes = () => {
         <Route path="/japan" element={<HomePage />} />
         <Route path="/map" element={<ExploreView />} />
         <Route path="/gallery" element={<GalleryView />} />
+        <Route path="/g/:tripId" element={<PublicMapView />} />
         <Route path="/auth" element={<AuthView />} />
         {/* Static legal / info pages (public). */}
         <Route path="/privacy" element={<PrivacyPage />} />
