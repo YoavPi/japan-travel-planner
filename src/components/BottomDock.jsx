@@ -27,6 +27,7 @@ const BottomDock = () => {
   const active = useMemo(() => {
     if (pathname.startsWith("/settings")) return "settings";
     if (pathname.startsWith("/notifications")) return "notif";
+    if (pathname.startsWith("/gallery") || pathname.startsWith("/g/")) return "gallery";
     if (pathname.startsWith("/profile") || pathname.startsWith("/dashboard") || pathname.startsWith("/map/edit")) return "maps";
     if (pathname === "/" || pathname.startsWith("/japan")) return "home";
     return null;
@@ -41,6 +42,9 @@ const BottomDock = () => {
   const items = [
     ...(!isAuthenticated ? [{ id: "home", icon: "home", title: "בית", to: "/" }] : []),
     { id: "maps",     icon: "map",      title: "המסלולים שלי", to: "/dashboard" },
+    /* Public gallery — discover maps others published. Shown to everyone
+       (the gallery itself is public); it's the app's "market" entry point. */
+    { id: "gallery",  icon: "globe",    title: "מפות של אחרים", to: "/gallery" },
     { id: "notif",    icon: "bell",     title: "התראות", to: "/notifications" },
     { id: "settings", icon: "settings", title: "הגדרות", to: "/settings" },
   ];

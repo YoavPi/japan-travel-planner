@@ -164,7 +164,8 @@ const SHOW_CHROME = (p) =>
   p === "/" ||
   p.startsWith("/dashboard") ||
   p.startsWith("/settings") ||
-  p.startsWith("/notifications");
+  p.startsWith("/notifications") ||
+  p.startsWith("/gallery");
 
 const AppChrome = () => {
   const { pathname } = useLocation();
