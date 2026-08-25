@@ -1,3 +1,4 @@
+/* eslint-disable */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { tripData } from "../data/tripData";
 

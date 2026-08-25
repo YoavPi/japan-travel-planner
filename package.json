@@ -11,6 +11,8 @@
     "@testing-library/user-event": "^13.5.0",
     "@vercel/analytics": "^2.0.1",
     "maplibre-gl": "^3.6.2",
+    "motion": "^13.1.0",
+    "posthog-js": "^1.418.10",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-icons": "^5.6.0",
@@ -23,7 +25,10 @@
     "start": "react-scripts start",
     "build": "CI=false react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "critical": "node scripts/critical-checks.js",
+    "verify:prod": "node scripts/verify-prod.js",
+    "preflight": "node scripts/critical-checks.js && CI=true react-scripts build"
   },
   "eslintConfig": {
     "extends": [

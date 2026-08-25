@@ -6,6 +6,9 @@ import useActiveTrip from "../utils/useActiveTrip";
 import tripService from "../services/tripService";
 import HeroRouteAnimation from "../components/HeroRouteAnimation";
 import SwipeBackContainer from "../components/SwipeBackContainer";
+import useIsDesktop from "../utils/useIsDesktop";
+import LandingDesktop from "./LandingDesktop";
+import SiteFooter from "../components/SiteFooter";
 
 /* ──────────────────────────────────────────────────────────────
    LandingView — the SaaS platform HOME PAGE ("עמוד הבית הראשי").
@@ -78,6 +81,7 @@ const PILLARS = [
 const LandingView = () => {
   const navigate = useNavigate();
   const { isAuthenticated, user } = useAuth();
+  const isDesktop = useIsDesktop(); // widens the marketing column on desktop (additive)
   const activeId = useActiveTrip();
 
   /* Hydrate the active trip's title + read-only flag so the live
@@ -103,14 +107,18 @@ const LandingView = () => {
   const [aiEmail, setAiEmail] = useState("");
   const [aiDone, setAiDone] = useState(false);
 
+  /* The AI feature is LIVE now (Sprint 67+). This CTA no longer collects an
+     email — it takes the user into the real flow: sign in via SSO if needed,
+     then the dashboard opens the actual AI trip-planning form (`tp_open_ai`
+     survives the OAuth redirect, so it fires after login too). */
   const openAi = () => {
     try {
       const n = parseInt(localStorage.getItem("tp_metrics_ai_clicks") || "0", 10) || 0;
       localStorage.setItem("tp_metrics_ai_clicks", String(n + 1));
     } catch { /* storage unavailable — noop */ }
-    setAiDone(false);
-    setAiEmail("");
-    setAiOpen(true);
+    try { sessionStorage.setItem("tp_open_ai", "1"); } catch { /* noop */ }
+    if (isAuthenticated) navigate("/dashboard");
+    else navigate("/auth", { state: { from: "/dashboard" } });
   };
   const closeAi = () => setAiOpen(false);
   const submitAi = (e) => {
@@ -141,6 +149,11 @@ const LandingView = () => {
         }
         .lv-inspo { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 6px; scrollbar-width: none; }
         .lv-inspo::-webkit-scrollbar { display: none; }
+        /* Desktop: the destination carousel wraps into a full-width grid so
+           every option shows at once (no horizontal scroll on a wide screen). */
+        @media (min-width: 1024px) {
+          .lv-inspo { flex-wrap: wrap; overflow-x: visible; gap: 18px; }
+        }
         /* Buttery hover zoom on the country photo, frame stays bounded. */
         .lv-inspo-img { transition: transform 0.5s ease; will-change: transform; }
         .lv-inspo-card:hover .lv-inspo-img { transform: scale(1.05); }
@@ -161,12 +174,31 @@ const LandingView = () => {
         }
       `}</style>
 
+      {isDesktop ? (
+        <LandingDesktop
+          navigate={navigate} isAuthenticated={isAuthenticated} user={user}
+          activeId={activeId} activeTrip={activeTrip} activeRoute={activeRoute} openAi={openAi}
+        />
+      ) : (
       <div style={{ maxWidth: 760, margin: "0 auto", background: T.bg, minHeight: "100vh", paddingBottom: 128 /* clear the global floating BottomDock */ }}>
 
-        {/* ── Header ───────────────────────────────────────────── */}
-        <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "22px 24px 8px" }}>
-          <div style={{ fontSize: 14, color: T.ink3 }}>
-            {isAuthenticated ? <>שלום, <b style={{ color: T.ink }}>{user?.name?.split(" ")[0]}</b></> : "מתכננים טיול?"}
+        {/* ── Header — sticky frosted top nav on desktop (Apple material) ── */}
+        <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: isDesktop ? "16px 24px" : "22px 24px 8px",
+          ...(isDesktop ? {
+            position: "sticky", top: 0, zIndex: 30,
+            background: "rgba(255,255,255,0.72)", backdropFilter: "blur(20px) saturate(180%)", WebkitBackdropFilter: "blur(20px) saturate(180%)",
+            borderBottom: `1px solid ${T.line}`,
+          } : null) }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {isDesktop && (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 16, fontWeight: 800, letterSpacing: "-0.02em", color: T.ink }}>
+                <span aria-hidden style={{ width: 26, height: 26, borderRadius: 8, background: T.ink, color: T.bg, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>◈</span>
+                מסלול
+              </span>
+            )}
+            <div style={{ fontSize: 14, color: T.ink3 }}>
+              {isAuthenticated ? <>שלום, <b style={{ color: T.ink }}>{user?.name?.split(" ")[0]}</b></> : "מתכננים טיול?"}
+            </div>
           </div>
           <button
             onClick={() => navigate(isAuthenticated ? "/dashboard" : "/auth")}
@@ -193,20 +225,22 @@ const LandingView = () => {
             <div style={{ position: "absolute", inset: 0, background: `linear-gradient(to bottom, ${T.bg}00 55%, ${T.bg} 100%)` }} />
           </div>
 
-          {/* Content layer — sits above the backdrop. */}
-          <div style={{ position: "relative", zIndex: 1 }}>
+          {/* Content layer — sits above the backdrop. On desktop it becomes a
+              CENTERED, spacious hero (Base44-style) rather than a right-crammed
+              column, so the wide screen reads as a real web hero. */}
+          <div style={{ position: "relative", zIndex: 1, ...(isDesktop ? { textAlign: "center", maxWidth: 820, margin: "0 auto", padding: "56px 0 28px" } : null) }}>
           <div className="tp-fade-up" style={{ fontSize: 12.5, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: T.accent, marginBottom: 18 }}>
             פלטפורמת תכנון טיולים
           </div>
 
           {/* Mixed-weight headline: heavy + light contrast = editorial. */}
-          <h1 className="tp-fade-up" style={{ margin: 0, color: T.ink, lineHeight: 1.04, letterSpacing: "-0.03em", fontSize: "clamp(40px, 11vw, 60px)", animationDelay: "60ms" }}>
+          <h1 className="tp-fade-up" style={{ margin: 0, color: T.ink, lineHeight: 1.03, letterSpacing: "-0.035em", fontSize: isDesktop ? "clamp(56px, 6vw, 82px)" : "clamp(40px, 11vw, 60px)", animationDelay: "60ms" }}>
             <span style={{ display: "block", fontWeight: 300 }}>תכננו את</span>
             <span style={{ display: "block", fontWeight: 800 }}>הטיול הבא</span>
             <span style={{ display: "block", fontWeight: 800, color: T.accent }}>שלכם.</span>
           </h1>
 
-          <p className="tp-fade-up" style={{ fontSize: 17, color: T.ink2, lineHeight: 1.65, marginTop: 22, maxWidth: 520, animationDelay: "120ms" }}>
+          <p className="tp-fade-up" style={{ fontSize: isDesktop ? 19 : 17, color: T.ink2, lineHeight: 1.65, marginTop: 22, maxWidth: isDesktop ? 640 : 520, marginInline: isDesktop ? "auto" : 0, animationDelay: "120ms" }}>
             כלי לבניית מסלולי נסיעה אישיים. מוסיפים מקומות יום אחר יום עם חיפוש מ־Google Maps,
             רואים את המסלול על מפה חיה ומקבלים זמני הליכה אוטומטיים בין תחנות.
           </p>
@@ -242,7 +276,7 @@ const LandingView = () => {
               </button>
             </div>
           ) : (
-            <div className="tp-fade-up" style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 26, animationDelay: "160ms" }}>
+            <div className="tp-fade-up" style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 26, justifyContent: isDesktop ? "center" : "flex-start", animationDelay: "160ms" }}>
               {/* Slim solid primary pill — elegant, not blocky. */}
               <button
                 onClick={() => navigate(isAuthenticated ? "/create" : "/auth")}
@@ -380,7 +414,10 @@ const LandingView = () => {
             <span style={{ display: "inline-flex", color: T.ink }}><ArrowL size={18} sw={2} /></span>
           </button>
         </section>
+
+        <SiteFooter />
       </div>
+      )}
 
       {/* ── AI Planner waitlist modal (fake-door) ─────────────────
           Portaled to <body> so it escapes the .tp-route stacking

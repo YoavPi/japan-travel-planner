@@ -96,7 +96,12 @@ const SideMenu = ({ open, onClose }) => {
         {/* Footer */}
         {isAuthenticated && (
           <div style={{ borderTop: `1px solid ${P.line}` }}>
-            <Item icon="logOut" label="התנתקות" danger onClick={() => { onClose(); signOut(); navigate("/"); }} />
+            {/* Sprint 60 #4 — FORCEFUL sign-out: clear the session, then hard
+                window.location.replace to the public marketing home. A full
+                document reload guarantees the interactive editor canvas is torn
+                down and the user can never be dropped onto a cold SSO overlay
+                over a stale protected view. */}
+            <Item icon="logOut" label="התנתקות" danger onClick={() => { onClose(); signOut(); window.location.replace(window.location.origin + "/"); }} />
           </div>
         )}
       </div>

@@ -35,3 +35,4 @@ yarn-error.log*
 
 # design-skill scratch output
 .skillui-out/
+.env*

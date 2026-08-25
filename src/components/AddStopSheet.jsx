@@ -21,9 +21,26 @@ import Icon from "./Icon";
                                      click calls this instead of filling
                                      the inline form (Sprint 7 preview flow)
    ══════════════════════════════════════════════════════════════ */
-const AddStopSheet = ({ pendingCoord, onStartPin, onAdd, onClose, onPreview }) => {
+const AddStopSheet = ({ pendingCoord, onStartPin, onAdd, onClose, onPreview, onAddToDays, days = [], activeDay }) => {
   const [name, setName] = useState("");
   const [cat, setCat] = useState("attraction");
+  /* Sprint 42 #7 — a lodging stop can be added to MANY days at once. When the
+     🏨 category is selected we surface a multi-day checkbox list (default: the
+     current day) and clone the stop into every checked day. */
+  const [lodgingDays, setLodgingDays] = useState(() => (activeDay != null ? [activeDay] : []));
+  const isLodging = cat === "hotel";
+  const toggleLodgingDay = (dn) =>
+    setLodgingDays((prev) => (prev.includes(dn) ? prev.filter((x) => x !== dn) : [...prev, dn]));
+  /* Sprint 44 #8 — a "מיום … עד יום …" range: pick a start/end day and every
+     day in between is selected at once (still fine-tunable via the checklist). */
+  const dayNums = days.map((d) => d.day);
+  const [rangeFrom, setRangeFrom] = useState(() => (activeDay != null ? activeDay : (dayNums[0] || 1)));
+  const [rangeTo, setRangeTo] = useState(() => (activeDay != null ? activeDay : (dayNums[0] || 1)));
+  const applyRange = (from, to) => {
+    const lo = Math.min(from, to), hi = Math.max(from, to);
+    setRangeFrom(from); setRangeTo(to);
+    setLodgingDays(dayNums.filter((dn) => dn >= lo && dn <= hi));
+  };
 
   /* Place search — live Google Places when keyed + under budget,
      otherwise the geometric simulation fallback. */
@@ -83,15 +100,22 @@ const AddStopSheet = ({ pendingCoord, onStartPin, onAdd, onClose, onPreview }) =
   const commit = () => {
     if (!canAdd) return;
     const meta = CATEGORY_META[cat];
-    onAdd({
+    const stop = {
       name: name.trim(),
       nameHe: name.trim(),
       category: meta.he,
       rating: placeRating || undefined,
       coordinates: coord,
       _customPin: !!coord && !placeCoord,
-    });
+    };
+    /* Sprint 42 #7 — lodging can fan out to every selected day. */
+    if (isLodging && onAddToDays) {
+      onAddToDays(stop, lodgingDays.length ? lodgingDays : (activeDay != null ? [activeDay] : []));
+      return;
+    }
+    onAdd(stop);
   };
+  const commitDisabled = !canAdd || (isLodging && lodgingDays.length === 0);
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 60, display: "flex", alignItems: "flex-end" }}>
@@ -175,6 +199,50 @@ const AddStopSheet = ({ pendingCoord, onStartPin, onAdd, onClose, onPreview }) =
           })}
         </div>
 
+        {/* Sprint 42 #7 — multi-day picker, shown only for a lodging stop. */}
+        {isLodging && days.length > 0 && (
+          <div style={{ marginBottom: 16, padding: "12px 14px", borderRadius: 16, background: "#F6F6F4", border: "1px solid rgba(20,20,20,0.08)" }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#0D0F11", marginBottom: 2 }}>🏨 לאילו ימים להוסיף?</div>
+            <div style={{ fontSize: 11.5, color: "#6B7178", marginBottom: 10 }}>המלון יתווסף כעותק עצמאי לכל יום בטווח שנבחר.</div>
+            {/* Sprint 44 #8 — quick "מיום … עד יום …" range selector. */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              <label style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: "block", fontSize: 10.5, fontWeight: 800, color: "#6B7178", marginBottom: 4 }}>מיום</span>
+                <select value={rangeFrom} onChange={(e) => applyRange(Number(e.target.value), rangeTo)}
+                  style={{ width: "100%", boxSizing: "border-box", height: 40, borderRadius: 10, border: "1px solid rgba(20,20,20,0.14)", background: "#fff", fontFamily: "inherit", fontSize: 14, padding: "0 8px", direction: "rtl" }}>
+                  {days.map((d) => <option key={d.day} value={d.day}>יום {d.day}{d.cityHe || d.city ? ` · ${d.cityHe || d.city}` : ""}</option>)}
+                </select>
+              </label>
+              <span aria-hidden style={{ color: "#A4AAB1", fontSize: 16, marginTop: 16 }}>→</span>
+              <label style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: "block", fontSize: 10.5, fontWeight: 800, color: "#6B7178", marginBottom: 4 }}>עד יום</span>
+                <select value={rangeTo} onChange={(e) => applyRange(rangeFrom, Number(e.target.value))}
+                  style={{ width: "100%", boxSizing: "border-box", height: 40, borderRadius: 10, border: "1px solid rgba(20,20,20,0.14)", background: "#fff", fontFamily: "inherit", fontSize: 14, padding: "0 8px", direction: "rtl" }}>
+                  {days.map((d) => <option key={d.day} value={d.day}>יום {d.day}{d.cityHe || d.city ? ` · ${d.cityHe || d.city}` : ""}</option>)}
+                </select>
+              </label>
+            </div>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: "#6B7178", marginBottom: 8 }}>או בחירה ידנית:</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, maxHeight: 150, overflowY: "auto" }}>
+              {days.map((d) => {
+                const on = lodgingDays.includes(d.day);
+                return (
+                  <button key={d.day} onClick={() => toggleLodgingDay(d.day)} aria-pressed={on}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 7, padding: "8px 12px", borderRadius: 12, cursor: "pointer", fontFamily: "inherit",
+                      border: `1.5px solid ${on ? "#6E59C7" : "rgba(20,20,20,0.14)"}`,
+                      background: on ? "rgba(110,89,199,0.10)" : "#fff", color: "#0D0F11",
+                    }}>
+                    <span aria-hidden style={{ width: 18, height: 18, borderRadius: 5, flexShrink: 0, border: `1.5px solid ${on ? "#6E59C7" : "rgba(20,20,20,0.3)"}`, background: on ? "#6E59C7" : "transparent", color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}>{on ? "✓" : ""}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700 }}>יום {d.day}</span>
+                    {(d.cityHe || d.city) && <span style={{ fontSize: 10.5, color: "#6B7178" }}>· {d.cityHe || d.city}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Pin / location status */}
         <button onClick={onStartPin}
           style={{ width: "100%", height: 46, borderRadius: 14, border: "1px dashed rgba(20,20,20,0.2)", background: coord ? "#E4EFE5" : "transparent", color: "#2A3036", fontSize: 13.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", marginBottom: 16, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
@@ -184,9 +252,9 @@ const AddStopSheet = ({ pendingCoord, onStartPin, onAdd, onClose, onPreview }) =
         </button>
 
         {/* Commit */}
-        <button onClick={commit} disabled={!canAdd}
-          style={{ width: "100%", height: 52, borderRadius: 999, border: "none", background: canAdd ? "#0D0F11" : "#D1CCC5", color: "#fff", fontSize: 15.5, fontWeight: 700, cursor: canAdd ? "pointer" : "default", fontFamily: "inherit" }}>
-          הוספה למסלול
+        <button onClick={commit} disabled={commitDisabled}
+          style={{ width: "100%", height: 52, borderRadius: 999, border: "none", background: commitDisabled ? "#D1CCC5" : "#0D0F11", color: "#fff", fontSize: 15.5, fontWeight: 700, cursor: commitDisabled ? "default" : "pointer", fontFamily: "inherit" }}>
+          {isLodging && lodgingDays.length > 1 ? `הוספה ל-${lodgingDays.length} ימים` : "הוספה למסלול"}
         </button>
       </div>
     </div>

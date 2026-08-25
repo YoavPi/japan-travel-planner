@@ -13,7 +13,8 @@ import Icon from "../components/Icon";
      • collab-edit     — collaborator added/changed a stop
      • trip-saved      — auto-save heartbeat (system)
      • feature         — product announcement
-   Empty-state seeds three sample notifications the first time.
+   No seed data yet — the feed stays EMPTY until a real notifications
+   source is wired (roadmap). Any previously-seeded mock items are cleared.
    ────────────────────────────────────────────────────────────── */
 
 const ACCENT = "#E0533F";
@@ -27,11 +28,8 @@ const writeStore = (arr) => {
   try { localStorage.setItem(STORE, JSON.stringify(arr)); } catch { /* noop */ }
 };
 
-const seed = () => ([
-  { id: "n1", kind: "share-invite", title: "מסלול שותף איתכם", body: "יותם לוי הזמין אתכם לערוך \"איטליה · ירח דבש\".", ts: Date.now() - 1000 * 60 * 12, read: false },
-  { id: "n2", kind: "collab-edit",  title: "עדכון במסלול", body: "נועה כהן הוסיפה תחנה חדשה ליום 3 ב\"פורטוגל עם המשפחה\".", ts: Date.now() - 1000 * 60 * 60 * 3, read: false },
-  { id: "n3", kind: "trip-saved",   title: "המסלול נשמר אוטומטית", body: "כל השינויים בדובאי מסונכרנים בענן.", ts: Date.now() - 1000 * 60 * 60 * 24 * 2, read: true },
-]);
+/* Ids of the old mock seed — cleared on load so no fake items ever show. */
+const MOCK_SEED_IDS = new Set(["n1", "n2", "n3"]);
 
 const KIND_META = {
   "share-invite": { icon: "share",   color: "#4A7FB5" },
@@ -56,11 +54,10 @@ const NotificationsView = () => {
   const navigate = useNavigate();
   const { P } = useDarkMode();
   const [items, setItems] = useState(() => {
-    const existing = readStore();
-    if (existing.length) return existing;
-    const fresh = seed();
-    writeStore(fresh);
-    return fresh;
+    // No fake seed — start empty, and purge any previously-seeded mock items.
+    const cleaned = readStore().filter((it) => !MOCK_SEED_IDS.has(it.id));
+    writeStore(cleaned);
+    return cleaned;
   });
 
   const persist = (next) => { setItems(next); writeStore(next); };

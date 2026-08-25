@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { CATEGORY_META, classifyLocation, ratingToBadge } from "../utils/classify";
 import Icon from "./Icon";
+import usePlacePhotos, { photoKey } from "../utils/usePlacePhotos";
+import mapsUrlFor from "../utils/mapsUrl";
 
 /* ══════════════════════════════════════════════════════════════
    PlaceInfoCard — floating overlay shown after a Google Places
@@ -52,6 +54,17 @@ const CAT_GRADIENT = {
 
 const PlaceInfoCard = ({ place, days = [], activeDay = 0, onAdd, onSaveToInbox, onClose }) => {
   const [selDay, setSelDay] = useState(activeDay);
+  /* A personal note the user can jot BEFORE adding — carried onto the stop and
+     into the points bank so it shows everywhere the place appears. */
+  const [note, setNote] = useState("");
+  /* Collapse the card to a slim bar so the map (with the searched pin) is
+     revealed and pannable — the user can confirm it's the right point BEFORE
+     adding it, then expand again. */
+  const [min, setMin] = useState(false);
+  /* Real imagery only: the place's OWN Google Maps photo (already fetched
+     with getDetails → place.photoUrl), else Street View of its coordinates.
+     Hook must run before any early return (rules-of-hooks). */
+  const freshPhotos = usePlacePhotos(place ? [place] : []);
 
   if (!place) return null;
 
@@ -61,11 +74,21 @@ const PlaceInfoCard = ({ place, days = [], activeDay = 0, onAdd, onSaveToInbox, 
   const grad    = CAT_GRADIENT[cat] || CAT_GRADIENT.unknown;
   const badge   = ratingToBadge(place.rating);
 
+  /* If there's genuinely no real photo we fall back to the category emoji on
+     the gradient — never a misleading stock image. */
+  const k = photoKey(place);
+  const realPhoto = place.photoUrl || (k && freshPhotos[k]) || null;
+
   const toStop = () => ({
     name: place.name,
     nameHe: place.name,
+    /* Keep the Google place_id so the place's OWN Maps photo can be re-fetched
+       and its real listing opened (mapsUrlFor) wherever it later appears. */
+    place_id: place.place_id || place.placeId || undefined,
     category: meta.he,
     rating: badge || undefined,
+    /* The personal note typed here, so it's attached from the very first add. */
+    note: note.trim() || undefined,
     /* Sprint 28 #2 — carry the official Google address so the timeline
        can render the muted metadata block under the user's notes. */
     address: place.address || undefined,
@@ -97,14 +120,39 @@ const PlaceInfoCard = ({ place, days = [], activeDay = 0, onAdd, onSaveToInbox, 
         fontFamily: FONT, overflow: "hidden",
       }}
     >
+      {/* Grab handle — tap to collapse the card and reveal the map so the
+          searched point can be verified, then tap again to expand. */}
+      <button onClick={() => setMin((m) => !m)}
+        aria-label={min ? "הצגת הפרטים" : "כיווץ להצגת הנקודה במפה"}
+        style={{ width: "100%", border: "none", background: "#fff", cursor: "pointer", padding: "9px 0 5px", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, fontFamily: FONT }}>
+        <span style={{ width: 44, height: 5, borderRadius: 999, background: "rgba(20,20,20,0.18)" }} />
+        <span style={{ fontSize: 10.5, fontWeight: 700, color: "#A4AAB1" }}>
+          {min ? "הקישו להצגת הפרטים" : "כיווץ · הצגת הנקודה על המפה"}
+        </span>
+      </button>
+
+      {/* Collapsed: a slim identity bar so the place stays in context while the
+          user pans the revealed map. */}
+      {min && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 18px 16px" }}>
+          <span aria-hidden style={{ flexShrink: 0, width: 40, height: 40, borderRadius: 10, background: realPhoto ? `center/cover url(${realPhoto})` : grad[0], display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>{!realPhoto && meta.emoji}</span>
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <span dir="auto" style={{ display: "block", fontSize: 15, fontWeight: 800, color: "#0D0F11", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{place.name}</span>
+            <span style={{ display: "block", fontSize: 11.5, color: "#8B9198" }}>הזיזו את המפה לאישור הנקודה</span>
+          </span>
+        </div>
+      )}
+
+      {/* Everything below collapses together so the map is revealed in one move. */}
+      <div style={{ display: min ? "none" : "block" }}>
       {/* ── Photo / fallback header ─────────────────────────── */}
       <div style={{
         position: "relative", height: 180, flexShrink: 0,
-        background: place.photoUrl
-          ? `center/cover url(${place.photoUrl}), linear-gradient(145deg, ${grad[0]}, ${grad[1]})`
+        background: realPhoto
+          ? `center/cover url(${realPhoto}), linear-gradient(145deg, ${grad[0]}, ${grad[1]})`
           : `linear-gradient(145deg, ${grad[0]}, ${grad[1]})`,
       }}>
-        {!place.photoUrl && (
+        {!realPhoto && (
           <span aria-hidden style={{
             position: "absolute", inset: 0, display: "flex",
             alignItems: "center", justifyContent: "center",
@@ -189,6 +237,30 @@ const PlaceInfoCard = ({ place, days = [], activeDay = 0, onAdd, onSaveToInbox, 
             )}
           </div>
         )}
+
+        {/* Inspect on Google Maps BEFORE adding — confirm it's the right place. */}
+        {mapsUrlFor(place) && (
+          <a href={mapsUrlFor(place)} target="_blank" rel="noopener noreferrer"
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700, color: ACCENT, textDecoration: "none", marginBottom: 14 }}>
+            <Icon name="map" size={15} strokeWidth={2} color={ACCENT} />
+            פתח ב-Google Maps
+          </a>
+        )}
+
+        {/* Personal note — travels with the place onto the day and into the bank. */}
+        <textarea
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="הוסיפו הערה אישית (לא חובה)…"
+          rows={2}
+          style={{
+            width: "100%", boxSizing: "border-box", padding: "10px 12px",
+            borderRadius: 12, border: `1px solid ${note ? "#0D0F11" : "rgba(20,20,20,0.14)"}`,
+            background: "#F6F6F4", fontSize: 14, fontFamily: FONT, color: "#0D0F11",
+            direction: "rtl", textAlign: "right", resize: "none", lineHeight: 1.5,
+            marginBottom: 4, transition: "border-color 0.15s",
+          }}
+        />
       </div>
 
       {/* ── Day selector ────────────────────────────────────── */}
@@ -230,9 +302,10 @@ const PlaceInfoCard = ({ place, days = [], activeDay = 0, onAdd, onSaveToInbox, 
           </div>
         </div>
       )}
+      </div>{/* end collapsible block */}
 
       {/* ── CTA ─────────────────────────────────────────────── */}
-      <div style={{ padding: "0 18px 28px" }}>
+      <div style={{ padding: min ? "4px 18px 24px" : "0 18px 28px" }}>
         <button
           onClick={commit}
           className="tp-press"

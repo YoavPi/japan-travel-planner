@@ -19,6 +19,33 @@ export const CATEGORY_META = {
 /* Quick-pick pills shown for ambiguous / manual pins. */
 export const QUICK_PICKS = ["attraction", "food", "hotel", "cafe"];
 
+/* Sprint 50 — resolve a stored Hebrew category label to a single leading
+   emoji for the ultra-compact list rows (timeline + Places Inbox). Matched by
+   substring so specific labels ("טירה", "מוזיאון", "ראמן") map cleanly to a
+   family glyph, falling back to a neutral pin. */
+export const categoryEmoji = (cat = "") => {
+  const s = String(cat);
+  if (/שדה תעופה|נמל תעופה|טיסה|מטוס/.test(s)) return "✈️";
+  if (/מלון|לינה|אכסניה|צימר|הוסטל/.test(s)) return "🏨";
+  if (/קפה/.test(s)) return "☕";
+  if (/בר\b|פאב/.test(s)) return "🍺";
+  if (/ראמן|סושי|אודון|סובה|גיוזה|מסעד|אוכל|המבורגר|פיצה|פנקייק|קינוח|קונביני|מאפייה|שוק אוכל|דוכן/.test(s)) return "🍜";
+  if (/אגם|נהר|מפל|חוף|ים|טבע|הר|גן לאומי|יער/.test(s)) return "🏞️";
+  if (/פארק|גן /.test(s)) return "🌳";
+  if (/מקדש|מנזר|טורי|קדוש|כנסייה/.test(s)) return "⛩️";
+  if (/טירה|ארמון/.test(s)) return "🏯";
+  if (/מוזיאון|גלריה|אמנות/.test(s)) return "🏛️";
+  if (/אקווריום/.test(s)) return "🐠";
+  if (/זו|ספארי|חיות/.test(s)) return "🦁";
+  if (/אונסן|מרחצאות|ספא/.test(s)) return "♨️";
+  if (/קניות|חנות|קניון|שוק|יד שנייה/.test(s)) return "🛍️";
+  if (/משחקים|ארקיד|אנימה|בידור|לונה/.test(s)) return "🎮";
+  if (/סקי/.test(s)) return "🎿";
+  if (/תחנת רכבת|רכבת|מטרו/.test(s)) return "🚉";
+  if (/נקודה אישית|אישי/.test(s)) return "📌";
+  return "📍";
+};
+
 const FOOD_TYPES = new Set([
   "restaurant", "food", "meal_takeaway", "meal_delivery", "bar", "bakery",
 ]);

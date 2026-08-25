@@ -28,6 +28,12 @@ const rowToPlace = (r) => ({
   rating: r.rating || "",
   lat: r.lat,
   lng: r.lng,
+  /* Extended fields (present once the places_inbox migration adds the columns;
+     harmlessly undefined before then). Let the saved point keep its personal
+     note, open its real Google listing, and show its own photo. */
+  note: r.note || "",
+  place_id: r.place_id || undefined,
+  photoUrl: r.photo_url || undefined,
 });
 
 /* ── Sprint 27 #5 — local Places-Inbox persistence ──────────────
@@ -35,6 +41,10 @@ const rowToPlace = (r) => ({
    localStorage, so orphaned places (skeleton updates) and "save for
    later" additions survive reloads in demo/local mode too. */
 const LOCAL_INBOX_KEY = "tp_places_inbox_v1";
+/* Monotonic sequence so ids stay UNIQUE even when several places are saved in
+   the same millisecond (e.g. a "מפות נוספות" batch transfer to the bank) —
+   `Date.now()` alone collided and produced duplicate React keys. */
+let _locSeq = 0;
 
 const readLocalInbox = () => {
   try { return JSON.parse(localStorage.getItem(LOCAL_INBOX_KEY) || "[]"); } catch { return []; }
@@ -66,7 +76,7 @@ export async function addInboxPlaces(places) {
   if (!clean.length) return [];
   const sbUser = await getSupabaseUser();
   if (sbUser) {
-    const rows = clean.map((p) => ({
+    const baseRow = (p) => ({
       owner_id: sbUser.id,
       name: p.name,
       name_he: p.nameHe || p.name,
@@ -74,12 +84,25 @@ export async function addInboxPlaces(places) {
       rating: p.rating || null,
       lat: p.lat, lng: p.lng,
       source: p.source || "manual",
+    });
+    /* Preferred insert carries the extended columns (note / place_id /
+       photo_url). If the DB hasn't been migrated yet it errors with an
+       undefined-column code (PostgREST PGRST204 / Postgres 42703) — we then
+       retry with just the base columns so saving never breaks. */
+    const richRows = clean.map((p) => ({
+      ...baseRow(p),
+      note: p.note || null,
+      place_id: p.place_id || null,
+      photo_url: p.photoUrl || null,
     }));
-    const { data, error } = await supabase.from("places_inbox").insert(rows).select();
+    let { data, error } = await supabase.from("places_inbox").insert(richRows).select();
+    if (error && /42703|PGRST204|column|schema cache/i.test(`${error.code || ""} ${error.message || ""}`)) {
+      ({ data, error } = await supabase.from("places_inbox").insert(clean.map(baseRow)).select());
+    }
     if (error) throw new Error(error.message);
     return (data || []).map(rowToPlace);
   }
-  const stamped = clean.map((p, i) => ({ ...p, id: p.id || `loc_${Date.now()}_${i}` }));
+  const stamped = clean.map((p) => ({ ...p, id: p.id || `loc_${Date.now()}_${_locSeq++}` }));
   writeLocalInbox([...stamped, ...readLocalInbox()]);
   return stamped;
 }
@@ -101,6 +124,27 @@ export async function removeInboxPlace(id) {
     return;
   }
   writeLocalInbox(readLocalInbox().filter((p) => p.id !== id));
+}
+
+/* Update editable fields (currently the personal note) on a saved bank point.
+   Supabase for real UUID rows; localStorage otherwise. Resilient to a missing
+   `note` column (pre-migration) — the update just no-ops then. */
+export async function updateInboxPlace(id, patch = {}) {
+  if (!id) return;
+  const clean = {};
+  if ("note" in patch) clean.note = (patch.note || "").trim() || null;
+  if (!Object.keys(clean).length) return;
+  const sbUser = await getSupabaseUser();
+  if (sbUser) {
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(String(id))) {
+      const { error } = await supabase.from("places_inbox").update(clean).eq("id", id).eq("owner_id", sbUser.id);
+      if (error && !/42703|PGRST204|column|schema cache/i.test(`${error.code || ""} ${error.message || ""}`)) {
+        console.warn("places_inbox update failed:", error.message);
+      }
+    }
+    return;
+  }
+  writeLocalInbox(readLocalInbox().map((p) => (p.id === id ? { ...p, note: clean.note || undefined } : p)));
 }
 
 /* Deterministic offsets (≈ a few hundred meters – a few km) spread

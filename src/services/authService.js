@@ -89,9 +89,19 @@ export const authService = {
     }
   },
 
-  /* Fake Google SSO — resolves the mock user after a delay so the
-     sign-in button can show a loading/skeleton state. */
+  /* Fake Google SSO — the DEMO-ONLY mock identity, for local/preview builds
+     that have no backend.
+
+     🔒 SECURITY: this must NEVER run when a real backend (Supabase) is
+     configured. Otherwise every Apple/Email button (and any OAuth-failure
+     fallback) would sign the visitor in as the SAME hardcoded person —
+     i.e. one user logging in and receiving someone else's account. When
+     Supabase is enabled, real auth is Supabase OAuth ONLY; this throws so a
+     shared identity can never be minted in production. */
   async signInWithGoogle() {
+    if (isSupabaseEnabled()) {
+      throw new Error("mock-auth-disabled: real Google sign-in is required");
+    }
     await delay(1200);
     const token = `mock-jwt.${btoa(MOCK_USER.email)}.${Date.now()}`;
     sessionStorage.setItem(TOKEN_KEY, token);
@@ -119,6 +129,26 @@ export const authService = {
     return user;
   },
 
+  /* Update the signed-in user's editable profile (display name for now).
+     Real backend → Supabase `auth.updateUser` writes user_metadata.full_name,
+     which mapSupabaseUser reads, so the new name flows everywhere. Demo/local
+     → patch the persisted session user. Returns the mapped, updated user. */
+  async updateProfile({ name } = {}) {
+    const clean = (name || "").trim();
+    if (!clean) throw new Error("empty-name");
+    if (isSupabaseEnabled()) {
+      const { data, error } = await supabase.auth.updateUser({ data: { full_name: clean, name: clean } });
+      if (error) throw new Error(error.message);
+      return mapSupabaseUser(data?.user || null);
+    }
+    try {
+      const raw = sessionStorage.getItem(USER_KEY);
+      const u = raw ? { ...JSON.parse(raw), name: clean } : null;
+      if (u) sessionStorage.setItem(USER_KEY, JSON.stringify(u));
+      return u;
+    } catch { return null; }
+  },
+
   /* Synchronous read of the persisted session (used on mount to
      re-hydrate auth state without a network round-trip). */
   getCurrentUser() {
@@ -138,11 +168,29 @@ export const authService = {
     return !!sessionStorage.getItem(TOKEN_KEY);
   },
 
+  /* Sprint 66 #2 — ROBUST HARD SIGN-OUT. Tear down the Supabase session AND
+     purge every client storage key (Supabase persists its own auth token in
+     localStorage as `sb-<ref>-auth-token`, which the previous session-only
+     clear left behind — leaving the user effectively still signed in). We call
+     supabase.auth.signOut(), then wipe our own keys plus any Supabase key, and
+     finally clear both storages so no token survives the redirect. */
   signOut() {
-    sessionStorage.removeItem(TOKEN_KEY);
-    sessionStorage.removeItem(USER_KEY);
-    /* Also tear down any Supabase session (fire-and-forget). */
-    if (isSupabaseEnabled()) supabase.auth.signOut().catch(() => {});
+    try { if (isSupabaseEnabled()) supabase.auth.signOut().catch(() => {}); } catch { /* ignore */ }
+    try {
+      sessionStorage.removeItem(TOKEN_KEY);
+      sessionStorage.removeItem(USER_KEY);
+      /* Remove Supabase's own persisted auth tokens (sb-*-auth-token) first,
+         then clear both storages entirely as a belt-and-braces purge. */
+      for (const store of [localStorage, sessionStorage]) {
+        try {
+          const keys = [];
+          for (let i = 0; i < store.length; i++) { const k = store.key(i); if (k) keys.push(k); }
+          keys.forEach((k) => { if (/^sb-|supabase|^tp_/.test(k)) store.removeItem(k); });
+        } catch { /* storage unavailable */ }
+      }
+      try { localStorage.clear(); } catch { /* ignore */ }
+      try { sessionStorage.clear(); } catch { /* ignore */ }
+    } catch { /* storage unavailable — the redirect below still logs the user out */ }
   },
 };
 

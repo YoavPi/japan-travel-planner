@@ -59,8 +59,12 @@ const liveAvailable = () => {
 };
 
 /* ── Client-side rate limiter (flood protection) ─────────────────── */
+/* Sprint 42 #6 — greatly relaxed. The old 15/min cap made a normal typist
+   hit "אנא המתינו דקה" mid-search. With a 300ms debounce upstream, a high
+   ceiling here still guards against a pathological flood while never
+   interrupting ordinary searching. */
 const RL_WINDOW = 60000; // 60-second rolling window
-const RL_MAX = 15;       // max search requests per window
+const RL_MAX = 240;      // effectively unrestrictive for real typing
 let rlHits = [];
 
 export class RateLimitError extends Error {
@@ -166,6 +170,44 @@ const simDetails = (placeId) => {
 };
 
 /* ── Public query surface ────────────────────────────────────────── */
+/* Sprint 47 #3 — coarse country bounding boxes ({west,south,east,north}) for
+   location-biased search when the live map viewport isn't available. Matched
+   loosely against the trip's destination string (city or country). */
+export const COUNTRY_BOUNDS = {
+  japan: { west: 129.4, south: 31.0, east: 145.9, north: 45.6 },
+  italy: { west: 6.6, south: 36.6, east: 18.6, north: 47.1 },
+  france: { west: -5.2, south: 41.3, east: 9.6, north: 51.1 },
+  spain: { west: -9.4, south: 36.0, east: 3.4, north: 43.8 },
+  greece: { west: 19.3, south: 34.8, east: 28.3, north: 41.8 },
+  israel: { west: 34.2, south: 29.4, east: 35.9, north: 33.4 },
+  uae: { west: 51.5, south: 22.6, east: 56.4, north: 26.1 },
+  dubai: { west: 54.9, south: 24.7, east: 55.6, north: 25.4 },
+  thailand: { west: 97.3, south: 5.6, east: 105.6, north: 20.5 },
+  usa: { west: -125.0, south: 24.5, east: -66.9, north: 49.4 },
+  uk: { west: -8.6, south: 49.9, east: 1.8, north: 59.4 },
+  london: { west: -0.51, south: 51.28, east: 0.33, north: 51.69 },
+  paris: { west: 2.22, south: 48.81, east: 2.47, north: 48.90 },
+  rome: { west: 12.35, south: 41.79, east: 12.62, north: 41.99 },
+  tokyo: { west: 139.56, south: 35.53, east: 139.92, north: 35.82 },
+};
+
+/* Resolve a destination string (e.g. "Japan", "Dubai", "יפן") to a bias box. */
+export const boundsForDestination = (dest = "") => {
+  const s = String(dest).toLowerCase();
+  if (/japan|יפן|tokyo|kyoto|osaka/.test(s)) return COUNTRY_BOUNDS.japan;
+  if (/ital|רומא|rome|italy|איטל/.test(s)) return COUNTRY_BOUNDS.italy;
+  if (/paris|france|צרפת|פריז/.test(s)) return COUNTRY_BOUNDS.france;
+  if (/spain|ספרד|barcelona|madrid/.test(s)) return COUNTRY_BOUNDS.spain;
+  if (/greece|יוון|athens/.test(s)) return COUNTRY_BOUNDS.greece;
+  if (/israel|ישראל|tel aviv|jerusalem/.test(s)) return COUNTRY_BOUNDS.israel;
+  if (/dubai|דובאי|uae|abu dhabi|emirat/.test(s)) return COUNTRY_BOUNDS.dubai;
+  if (/thai|תאיל|bangkok/.test(s)) return COUNTRY_BOUNDS.thailand;
+  if (/london|לונדון|uk|england|britain/.test(s)) return COUNTRY_BOUNDS.uk;
+  if (/usa|united states|new york|ארה"ב|america/.test(s)) return COUNTRY_BOUNDS.usa;
+  const key = Object.keys(COUNTRY_BOUNDS).find((k) => s.includes(k));
+  return key ? COUNTRY_BOUNDS[key] : null;
+};
+
 export const autocomplete = async (query, opts = {}) => {
   if (!query || query.trim().length < 2) return [];
   enforceRateLimit(); // throws RateLimitError on flood
@@ -177,12 +219,24 @@ export const autocomplete = async (query, opts = {}) => {
      search only ever returns locality / administrative-area results,
      never POIs or addresses. */
   const types = Array.isArray(opts.types) && opts.types.length ? opts.types : null;
+  /* Sprint 47 #3 — `bias` = {west,south,east,north} biases predictions toward
+     that box (Google still returns global matches if nothing local fits). */
+  const bias = opts.bias && Number.isFinite(opts.bias.west) ? opts.bias : null;
 
   try {
-    await ensureServices();
+    const google = await ensureServices();
+    let bounds = null;
+    if (bias) {
+      try {
+        bounds = new google.maps.LatLngBounds(
+          new google.maps.LatLng(bias.south, bias.west),
+          new google.maps.LatLng(bias.north, bias.east)
+        );
+      } catch { /* bounds unavailable — proceed unbiased */ }
+    }
     return await new Promise((resolve) => {
       autoSvc.getPlacePredictions(
-        { input: query.trim(), sessionToken, ...(types ? { types } : {}) },
+        { input: query.trim(), sessionToken, ...(types ? { types } : {}), ...(bounds ? { bounds } : {}) },
         (predictions, status) => {
           if (status !== "OK" || !predictions) { resolve([]); return; }
           resolve(predictions.map((p) => ({
@@ -244,6 +298,7 @@ export const getDetails = async (placeId) => {
 
           resolve({
             name: place.name,
+            place_id: place.place_id || placeId,
             lat: place.geometry?.location?.lat?.() ?? null,
             lng: place.geometry?.location?.lng?.() ?? null,
             rating: place.rating ?? null,

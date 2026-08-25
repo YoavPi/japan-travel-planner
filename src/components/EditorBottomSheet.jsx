@@ -20,13 +20,19 @@ import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef,
 const SNAP_FRACTION = { peek: 0.12, half: 0.5, full: 1.0 };
 const FLING = 0.45; // px/ms
 
+/* Sprint 38 #5 — the collapsed ("peek") state is now a fixed ~80px sliver
+   showing only the active-day header, not a percentage. */
+const COLLAPSED_PX = 84;
+
 /* "full" stops right below the floating search omnibox (top:64, 48px tall
    → bottom ≈ 112) so an expanded sheet covers the ENTIRE map while leaving
    the search bar + header pill reachable. Sprint 21 #1 — maximize. */
 const FULL_TOP_INSET = 112;
 
 const offsetFor = (snap, vh) =>
-  snap === "full" ? FULL_TOP_INSET : vh - vh * SNAP_FRACTION[snap]; // translateY from top
+  snap === "full" ? FULL_TOP_INSET
+    : snap === "peek" ? vh - COLLAPSED_PX
+      : vh - vh * SNAP_FRACTION[snap]; // half (initial orientation only)
 
 const EditorBottomSheet = forwardRef(({ header, children, defaultSnap = "half", onSnapChange }, ref) => {
   const [snap, setSnapState] = useState(defaultSnap);
@@ -92,15 +98,15 @@ const EditorBottomSheet = forwardRef(({ header, children, defaultSnap = "half", 
       v = (b.y - a.y) / Math.max(1, b.t - a.t);
     }
     const vh = vhRef.current;
+    /* Sprint 38 #5 — STRICT two-state snapping while dragging: the sheet
+       only ever rests fully Collapsed ("peek", ~80px) or fully Expanded
+       ("full"). The half state exists solely as the initial-load orientation
+       default and is never a drag rest-point. */
     let target;
-    if (v > FLING) target = snap === "full" ? "half" : "peek";        // fling down
-    else if (v < -FLING) target = snap === "peek" ? "half" : "full";  // fling up
+    if (v > FLING) target = "peek";       // fling down → collapse
+    else if (v < -FLING) target = "full"; // fling up → expand
     else {
-      // nearest of three
-      const cand = ["full", "half", "peek"];
-      target = cand.reduce((best, s) =>
-        Math.abs(translateY - offsetFor(s, vh)) < Math.abs(translateY - offsetFor(best, vh)) ? s : best
-      , "half");
+      target = Math.abs(translateY - offsetFor("peek", vh)) < Math.abs(translateY - offsetFor("full", vh)) ? "peek" : "full";
     }
     setSnap(target);
   };
@@ -108,14 +114,19 @@ const EditorBottomSheet = forwardRef(({ header, children, defaultSnap = "half", 
   return (
     <div
       style={{
+        /* Sprint 49 #3 — the sheet layer sits ABOVE the map canvas and every
+           map-anchored control (map-lock z29, the map FABs z45/46) so an upward
+           pull cleanly slides a solid panel over them. It stays BELOW the top
+           Home/Search row, the inbox drawer, toasts and modals. */
         position: "fixed", insetInlineStart: 0, insetInlineEnd: 0, top: 0,
-        height: "100vh", zIndex: 30, pointerEvents: "none",
+        height: "100vh", zIndex: 50, pointerEvents: "none",
       }}
       aria-hidden={false}
     >
       <div
         style={{
           position: "absolute", left: 0, right: 0, top: 0, height: "100vh",
+          /* Clean, fully-opaque surface — the map must never show through. */
           background: "#fff",
           borderTopLeftRadius: 22, borderTopRightRadius: 22,
           boxShadow: "0 -8px 40px rgba(0,0,0,0.16)",

@@ -5,6 +5,8 @@ import { useDarkMode } from "../utils/theme";
 import Icon from "../components/Icon";
 import SwipeBackContainer from "../components/SwipeBackContainer";
 import useActiveTrip from "../utils/useActiveTrip";
+import useIsDesktop from "../utils/useIsDesktop";
+import TripOverviewDesktop from "./TripOverviewDesktop";
 
 /* ══════════════════════════════════════════════════════════════
    TripOverviewView — magazine-style Trip Preview / summary screen.
@@ -69,8 +71,12 @@ const TripOverviewView = () => {
   const { tripId } = useParams();
   const navigate = useNavigate();
   const { P } = useDarkMode();
+  const isDesktop = useIsDesktop();
   const activeId = useActiveTrip(); // globally-active "live" trip
   const isActive = activeId === tripId;
+  /* Desktop widens the magazine column and lays the day cards two-up.
+     Additive — every `isDesktop` use falls back to the exact mobile value. */
+  const OVERVIEW_MAX = isDesktop ? 900 : 720;
 
   const [trip, setTrip] = useState(null);
   const [error, setError] = useState(null);
@@ -117,9 +123,13 @@ const TripOverviewView = () => {
       return next;
     });
 
-  /* Read-only example trips (the Japan demo) open the canonical
-     static demo map; editable trips open their own editor workspace. */
-  const mapRoute = trip?.readOnly ? "/map?demo=1" : `/map/edit/${tripId}`;
+  /* ONLY the canonical Japan example (id "japan-demo") opens the static
+     marketing demo map. Every real trip — owned OR shared, editable OR
+     view-only — opens its OWN editor workspace (which renders read-only
+     collaborators in view mode). Previously any `readOnly` trip was sent to
+     the Japan demo, so a shared VIEW trip (e.g. Italy) opened Japan instead. */
+  const isDemoExample = tripId === "japan-demo";
+  const mapRoute = isDemoExample ? "/map?demo=1" : `/map/edit/${tripId}`;
   const goEdit = () => navigate(mapRoute);
 
   /* Flag this trip as the globally-active "live" trip, celebrate,
@@ -198,7 +208,17 @@ const TripOverviewView = () => {
         .tp-glow { animation: tp-glow 2.2s ease-in-out infinite; }
       `}</style>
 
-      <div style={{ maxWidth: 720, margin: "0 auto", paddingBottom: 120 /* clear sticky action bar */ }}>
+      {isDesktop ? (
+        <TripOverviewDesktop
+          P={P} trip={trip} lm={lm} country={country}
+          totalDays={totalDays} totalStops={totalStops} cities={cities}
+          visibleDays={visibleDays} expanded={expanded} toggleDay={toggleDay}
+          showAllDays={showAllDays} setShowAllDays={setShowAllDays} hiddenDays={hiddenDays}
+          navigate={navigate} goEdit={goEdit} isActive={isActive} stopTrip={stopTrip}
+          onActivate={() => setConfirmActivate(true)} activating={activating}
+        />
+      ) : (<>
+      <div style={{ maxWidth: OVERVIEW_MAX, margin: "0 auto", paddingBottom: 120 /* clear sticky action bar */ }}>
 
         {/* ── Cover header — pure hero image, no overlapping cards ── */}
         <div style={{
@@ -269,7 +289,9 @@ const TripOverviewView = () => {
         {/* ── "מה קורה בכל יום" ─────────────────────────────────── */}
         <section style={{ padding: "32px 24px 0" }}>
           <div style={{ fontSize: 13, fontWeight: 800, color: P.ink3, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 14 }}>מה קורה בכל יום</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={isDesktop
+            ? { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, alignItems: "start" }
+            : { display: "flex", flexDirection: "column", gap: 12 }}>
             {days.length === 0 && (
               <div style={{ background: P.panel, border: `1px dashed ${P.line}`, borderRadius: 16, padding: 22, textAlign: "center", color: P.ink3, fontSize: 15 }}>
                 טרם הוגדרו ימים למסלול זה.
@@ -337,7 +359,7 @@ const TripOverviewView = () => {
           prominent primary action; "הפעל מסלול" is a compact secondary
           control that opens the explanatory activation modal. */}
       <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 50, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
-        <div style={{ width: "100%", maxWidth: 720, margin: "0 auto", padding: "12px 20px 18px", background: `linear-gradient(to top, ${P.page} 62%, ${P.page}00)`, display: "flex", gap: 12, pointerEvents: "auto", alignItems: "center" }}>
+        <div style={{ width: "100%", maxWidth: OVERVIEW_MAX, margin: "0 auto", padding: "12px 20px 18px", background: `linear-gradient(to top, ${P.page} 62%, ${P.page}00)`, display: "flex", gap: 12, pointerEvents: "auto", alignItems: "center" }}>
           <button onClick={goEdit} className="tp-press tp-glow"
             style={{ flex: 1.4, height: 54, borderRadius: 999, border: "none", background: ACCENT, color: "#fff", fontSize: 15.5, fontWeight: 800, cursor: "pointer", fontFamily: FONT, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, boxShadow: `0 6px 22px ${ACCENT}55` }}>
             <Icon name="edit" size={17} strokeWidth={2.1} />
@@ -360,6 +382,7 @@ const TripOverviewView = () => {
           )}
         </div>
       </div>
+      </>)}
 
       {/* Sprint 28 #1 — activation interception modal */}
       {confirmActivate && (

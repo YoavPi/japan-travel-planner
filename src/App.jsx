@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { Analytics } from "@vercel/analytics/react";
 import { GoogleOAuthProvider } from "@react-oauth/google";
-import { AuthProvider } from "./context/AuthContext";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 import { useDarkMode } from "./utils/theme";
 import useActiveTrip from "./utils/useActiveTrip";
 import tripService from "./services/tripService";
@@ -10,6 +10,7 @@ import Icon from "./components/Icon";
 import ProtectedRoute from "./components/ProtectedRoute";
 import BottomDock from "./components/BottomDock";
 import SideMenu from "./components/SideMenu";
+import useIsDesktop from "./utils/useIsDesktop";
 import LandingView from "./views/LandingView";
 import HomePage from "./views/HomePage";
 import ExploreView from "./views/ExploreView";
@@ -19,15 +20,28 @@ import WizardView from "./views/WizardView";
 /* /profile redirects to /dashboard (see <Navigate> route below). */
 import SettingsView from "./views/SettingsView";
 import NotificationsView from "./views/NotificationsView";
-import EditorView from "./views/EditorView";
+import ResponsiveEditor from "./views/ResponsiveEditor";
 import TripOverviewView from "./views/TripOverviewView";
 import OnboardingView, { isOnboarded } from "./views/OnboardingView";
 import SharePermissionsModal from "./components/SharePermissionsModal";
+import PrivacyPage from "./views/PrivacyPage";
+import TermsPage from "./views/TermsPage";
+import AccessibilityPage from "./views/AccessibilityPage";
+import CreditsPage from "./views/CreditsPage";
+import AccessibilityWidget from "./components/AccessibilityWidget";
+import CookieConsent from "./components/CookieConsent";
 
 /* First-visit gate: send guests through the 5-step walkthrough
    before they ever hit the SaaS landing. The flag persists so the
-   redirect only happens once per device. */
-const LandingGate = () => (isOnboarded() ? <LandingView /> : <Navigate to="/welcome" replace />);
+   redirect only happens once per device.
+   Sprint 36 #17 — an authenticated user skips the marketing landing
+   entirely and lands straight on their personalized dashboard. */
+const LandingGate = () => {
+  const { isAuthenticated, initializing } = useAuth();
+  if (initializing) return null; // wait for the session probe (no flash/bounce)
+  if (isAuthenticated) return <Navigate to="/dashboard" replace />;
+  return isOnboarded() ? <LandingView /> : <Navigate to="/welcome" replace />;
+};
 
 /* ══════════════════════════════════════════════════════════════
    APP — Top-level router
@@ -53,13 +67,18 @@ const LandingGate = () => (isOnboarded() ? <LandingView /> : <Navigate to="/welc
 const AnimatedRoutes = () => {
   const location = useLocation();
   return (
-    <div key={location.pathname} className="tp-route" style={{ minHeight: "100vh" }}>
+    <div id="main-content" tabIndex={-1} key={location.pathname} className="tp-route" style={{ minHeight: "100vh", outline: "none" }}>
       <Routes location={location}>
         <Route path="/" element={<LandingGate />} />
         <Route path="/welcome" element={<OnboardingView />} />
         <Route path="/japan" element={<HomePage />} />
         <Route path="/map" element={<ExploreView />} />
         <Route path="/auth" element={<AuthView />} />
+        {/* Static legal / info pages (public). */}
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/accessibility" element={<AccessibilityPage />} />
+        <Route path="/credits" element={<CreditsPage />} />
         <Route
           path="/dashboard"
           element={
@@ -106,7 +125,9 @@ const AnimatedRoutes = () => {
           path="/map/edit/:tripId"
           element={
             <ProtectedRoute>
-              <EditorView />
+              {/* Stage 0 responsive switch: mobile renders EditorView verbatim;
+                  desktop frames it. The real desktop cockpit lands here later. */}
+              <ResponsiveEditor />
             </ProtectedRoute>
           }
         />
@@ -145,8 +166,12 @@ const AppChrome = () => {
   const { pathname } = useLocation();
   const { P } = useDarkMode();
   const [menuOpen, setMenuOpen] = useState(false);
+  /* Desktop gets a real full-width top nav from each view — the floating
+     mobile dock + hamburger are what made desktop read as "stretched
+     mobile", so they are suppressed entirely at ≥1024px. */
+  const isDesktop = useIsDesktop();
 
-  const show = SHOW_CHROME(pathname);
+  const show = SHOW_CHROME(pathname) && !isDesktop;
 
   /* Make sure the drawer never lingers open when we route into a
      full-screen flow (wizard/editor) where the chrome is hidden. */
@@ -384,9 +409,12 @@ const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID || "";
 const Shell = () => (
   <AuthProvider>
     <BrowserRouter>
+      <a href="#main-content" className="tp-skip-link">דילוג לתוכן</a>
       <AnimatedRoutes />
       <AppChrome />
       <ActiveTripBar />
+      <AccessibilityWidget />
+      <CookieConsent />
       <Analytics />
     </BrowserRouter>
   </AuthProvider>

@@ -96,9 +96,16 @@ const AddTransitSheet = ({ onAdd, onClose, initial = null }) => {
   const [departTime, setDepartTime] = useState(initial?.departTime || "");
   const [arriveTime, setArriveTime] = useState(initial?.arriveTime || "");
   const [refId, setRefId] = useState(initial?.refId || "");
+  /* A transit is defined by its TYPE alone — route, times and reference are
+     optional refinements. So the details section starts COLLAPSED (open only
+     when editing or already prefilled), keeping the common case to ~2 taps:
+     pick a type → הוספה. The user can add details now or later via edit. */
+  const [showDetails, setShowDetails] = useState(
+    editing || !!(initial?.from || initial?.to || initial?.departTime || initial?.arriveTime || initial?.refId)
+  );
 
   const meta = MODES.find((m) => m.key === mode) || MODES[0];
-  const canAdd = from.trim().length > 0 || to.trim().length > 0;
+  const canAdd = true;
 
   const commit = () => {
     if (!canAdd) return;
@@ -154,9 +161,10 @@ const AddTransitSheet = ({ onAdd, onClose, initial = null }) => {
           })}
         </div>
 
-        {/* Route — from / to. Sprint 22 #4: flights speak precise aviation
-            language (origin airport / destination hub); ground transit keeps
-            the generic origin/destination labels. */}
+        {showDetails ? (
+        <>
+        {/* Route — from / to. Flights speak aviation language; ground transit
+            keeps generic origin/destination labels. All optional. */}
         <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
           <Field
             label={mode === "flight" ? "מאיפה ממריאים" : "מוצא"}
@@ -183,6 +191,13 @@ const AddTransitSheet = ({ onAdd, onClose, initial = null }) => {
           <div style={{ marginBottom: 18 }}>
             <Field label={meta.refLabel} value={refId} onChange={setRefId} placeholder={meta.refPlaceholder} />
           </div>
+        )}
+        </>
+        ) : (
+          <button onClick={() => setShowDetails(true)}
+            style={{ width: "100%", height: 46, marginBottom: 18, borderRadius: 14, border: `1.5px dashed ${T.line}`, background: T.surface, color: T.ink2, cursor: "pointer", fontFamily: "inherit", fontSize: 13.5, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+            ＋ פרטים · מסלול, זמנים{meta.hasRef ? ", מספר" : ""} <span style={{ color: T.ink4, fontWeight: 600 }}>(אופציונלי)</span>
+          </button>
         )}
 
         {/* Commit */}

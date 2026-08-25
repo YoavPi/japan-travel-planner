@@ -3,6 +3,11 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App.jsx';
 import reportWebVitals from './reportWebVitals';
+import { initAnalytics } from './analytics/posthog';
+
+/* Start PostHog before render so the first pageview + any early clicks are
+   captured. No-op unless REACT_APP_POSTHOG_KEY is configured. */
+initAnalytics();
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(

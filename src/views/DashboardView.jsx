@@ -2,12 +2,17 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import tripService, { MAX_ACTIVE_TRIPS } from "../services/tripService";
+import isAdminEmail from "../utils/isAdmin";
 import { useDarkMode } from "../utils/theme";
 import MapCard from "../components/MapCard";
 import Icon from "../components/Icon";
 import SharePermissionsModal from "../components/SharePermissionsModal";
 import SwipeBackContainer from "../components/SwipeBackContainer";
+import ProductUpdatesModal from "../components/ProductUpdatesModal";
+import AiTripModal from "../components/AiTripModal";
 import useActiveTrip from "../utils/useActiveTrip";
+import useIsDesktop from "../utils/useIsDesktop";
+import DashboardDesktop from "./DashboardDesktop";
 
 /* ──────────────────────────────────────────────────────────────
    DashboardView — premium "My Maps" profile dashboard.
@@ -31,19 +36,65 @@ const DashboardView = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [trips, setTrips] = useState(null);
-  const [filter, setFilter] = useState("all");
+  const [filter, setFilter] = useState("mine"); // default to the user's OWN maps
+  /* Favorite maps — a personal quick-access flag (device-local). Favorites
+     float to the top of the list and show a gold star. */
+  const [favorites, setFavorites] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem("tp_favorites_v1") || "[]")); } catch { return new Set(); }
+  });
+  const toggleFavorite = (trip) => setFavorites((prev) => {
+    const next = new Set(prev);
+    if (next.has(trip.id)) next.delete(trip.id); else next.add(trip.id);
+    try { localStorage.setItem("tp_favorites_v1", JSON.stringify([...next])); } catch { /* storage off */ }
+    return next;
+  });
   const { dark, toggle: toggleTheme, P } = useDarkMode();
+  const [aiOpen, setAiOpen] = useState(false); // Sprint 67 — AI trip generator
+  /* Landing "בנה לי מסלול אוטומטי" sets tp_open_ai before routing here (incl.
+     through the SSO redirect) — open the AI form on arrival, once. */
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem("tp_open_ai") === "1") {
+        sessionStorage.removeItem("tp_open_ai");
+        setAiOpen(true);
+      }
+    } catch { /* storage off */ }
+  }, []);
   const [confirmTrip, setConfirmTrip] = useState(null);
   const [toast, setToast] = useState("");
   /* Which trip's share/permissions modal is open (null = closed). */
   const [permissionModalTripId, setPermissionModalTripId] = useState(null);
+  /* Sprint 40 — dashboard load state. `loadError` surfaces a clean retry
+     block instead of an endless skeleton; `reloadKey` re-runs the fetch. */
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const activeId = useActiveTrip();
+  /* Desktop (≥1024px) widens the board and lays the cards out as a grid.
+     Every use of `isDesktop` below is additive — when false, the mobile
+     layout renders byte-for-byte as before. */
+  const isDesktop = useIsDesktop();
+  /* Constrains the profile controls (identity/stats/filters/CTA/account) on
+     desktop so they don't stretch grotesquely across the wide board, while
+     the card grid uses the full width. */
+  const deskNarrow = isDesktop ? { maxWidth: 560 } : null;
 
+  /* Sprint 40 — the fetch is now fully guarded: EVERY path (success, empty,
+     network error, RLS block) resolves the loading state so the skeleton
+     never loops. On failure we render 0 trips + a retry affordance. */
   useEffect(() => {
     let live = true;
-    tripService.fetchAllTrips(user?.id).then((list) => { if (live) setTrips(list); });
+    setLoadError(false);
+    setTrips(null); // show the skeleton while (re)loading
+    (async () => {
+      try {
+        const list = await tripService.fetchAllTrips(user?.id);
+        if (live) setTrips(Array.isArray(list) ? list : []);
+      } catch (err) {
+        if (live) { setTrips([]); setLoadError(true); } // resolve loader → error UI
+      }
+    })();
     return () => { live = false; };
-  }, [user]);
+  }, [user, reloadKey]);
 
   const showToast = (m) => { setToast(m); setTimeout(() => setToast(""), 1500); };
 
@@ -60,23 +111,35 @@ const DashboardView = () => {
 
   /* SaaS tier gate — once the account holds MAX_ACTIVE_TRIPS maps the
      "create" flow locks until a trip is deleted (which updates `trips`
-     and re-evaluates this immediately). */
-  const tripCount = (trips || []).length;
-  const atTripCap = tripCount >= MAX_ACTIVE_TRIPS;
+     and re-evaluates this immediately). Counts only maps the user OWNS —
+     a map someone else shared with you does NOT count against your quota. */
+  const tripCount = counts.mine;
+  const admin = isAdminEmail(user?.email);   // admins: no map cap (still counted)
+  const atTripCap = !admin && tripCount >= MAX_ACTIVE_TRIPS;
 
   const filtered = useMemo(() => {
     if (!trips) return null;
-    if (filter === "mine") return trips.filter((t) => t.role === "owner");
-    if (filter === "shared") return trips.filter((t) => t.role !== "owner");
-    return trips;
-  }, [trips, filter]);
+    const scoped = filter === "mine" ? trips.filter((t) => t.role === "owner")
+      : filter === "shared" ? trips.filter((t) => t.role !== "owner")
+      : trips;
+    // Favorites float to the top (stable within each group).
+    return scoped.slice().sort((a, b) => (favorites.has(b.id) ? 1 : 0) - (favorites.has(a.id) ? 1 : 0));
+  }, [trips, filter, favorites]);
 
   const openTrip = (t) => navigate(`/trip/overview/${t.id}`);
   const confirmDelete = () => {
     const t = confirmTrip; setConfirmTrip(null);
     if (!t) return;
+    /* Optimistic remove — but if the backend delete FAILS (e.g. an RLS
+       policy blocked it), restore the card and tell the user, instead of
+       silently swallowing it (which made "deleted" trips reappear on reload). */
     setTrips((prev) => (prev || []).filter((x) => x.id !== t.id));
-    tripService.deleteTrip(t.id).catch(() => {});
+    tripService.deleteTrip(t.id).catch((e) => {
+      setTrips((prev) => [t, ...(prev || []).filter((x) => x.id !== t.id)]);
+      showToast("מחיקת המפה נכשלה — נסו שוב");
+      // eslint-disable-next-line no-console
+      console.error("deleteTrip failed:", e?.message || e);
+    });
   };
 
   /* Sprint 19.3 — persist a per-trip sticky memo (optimistic update). */
@@ -87,19 +150,42 @@ const DashboardView = () => {
   };
 
   const FILTERS = [
-    { id: "all", label: "הכל", n: counts.all },
-    { id: "mine", label: "שלי", n: counts.mine },
+    { id: "mine", label: "המפות שלי", n: counts.mine },
     { id: "shared", label: "שותפו איתי", n: counts.shared },
+    { id: "all", label: "הכל", n: counts.all },
   ];
 
   return (
     <SwipeBackContainer>
+    {/* Sprint 44 #1 — product updates popup (self-gates on last_viewed_sprint). */}
+    <ProductUpdatesModal />
     <div dir="rtl" style={{ minHeight: "100vh", background: P.page, fontFamily: FONT, transition: "background 0.25s" }}>
-      <div className="tp-fade" style={{ maxWidth: 560, margin: "0 auto", background: P.panel, minHeight: "100vh", paddingBottom: 96, transition: "background 0.25s" }}>
+      {isDesktop ? (
+        <DashboardDesktop
+          user={user} P={P} dark={dark} toggleTheme={toggleTheme} navigate={navigate}
+          stats={stats} counts={counts} FILTERS={FILTERS} filter={filter} setFilter={setFilter}
+          filtered={filtered} loadError={loadError} onRetry={() => setReloadKey((k) => k + 1)}
+          tripCount={tripCount} atTripCap={atTripCap} maxTrips={MAX_ACTIVE_TRIPS} activeId={activeId}
+          openTrip={openTrip} onShare={(id) => setPermissionModalTripId(id)}
+          onSaveMemo={saveTripMemo} onDelete={(t) => setConfirmTrip(t)} showToast={showToast}
+          onCreateAi={() => setAiOpen(true)}
+          favorites={favorites} onToggleFavorite={toggleFavorite}
+        />
+      ) : (
+      <div className="tp-fade" style={{ maxWidth: 560, margin: "0 auto", background: P.panel, minHeight: "100vh", paddingBottom: 96, paddingInline: 0, transition: "background 0.25s, max-width 0.2s" }}>
 
-        {/* Header action row */}
-        <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px 8px" }}>
-          <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color: P.ink }}>המפות שלי</div>
+        {/* Header action row — on desktop a sticky, frosted top nav (Apple
+            material): brand on the right (RTL), actions on the left. */}
+        <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: isDesktop ? "14px 18px" : "16px 18px 8px",
+          ...(isDesktop ? {
+            position: "sticky", top: 0, zIndex: 30, marginInline: -16, paddingInline: 34,
+            background: dark ? "rgba(20,19,23,0.7)" : "rgba(255,255,255,0.72)",
+            backdropFilter: "blur(20px) saturate(180%)", WebkitBackdropFilter: "blur(20px) saturate(180%)",
+            borderBottom: `1px solid ${P.line}`,
+          } : null) }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ fontSize: isDesktop ? 22 : 20, fontWeight: 800, letterSpacing: "-0.022em", color: P.ink }}>המפות שלי</div>
+          </div>
           <div style={{ display: "flex", gap: 8 }}>
             <Circle P={P} title={dark ? "מצב בהיר" : "מצב כהה"} onClick={toggleTheme}>
               <Icon name={dark ? "sun" : "moon"} size={18} strokeWidth={1.9} />
@@ -111,7 +197,7 @@ const DashboardView = () => {
         </header>
 
         {/* Identity */}
-        <section style={{ display: "flex", alignItems: "center", gap: 16, padding: "10px 22px 18px" }}>
+        <section style={{ display: "flex", alignItems: "center", gap: 16, padding: "10px 22px 18px", ...deskNarrow }}>
           <div style={{ position: "relative", flexShrink: 0 }}>
             <div style={{ width: 76, height: 76, borderRadius: "50%", background: `linear-gradient(145deg, ${ACCENT}, #B83A2B)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, fontWeight: 800, color: "#fff" }}>
               {(user?.name || "?").trim().slice(0, 1)}
@@ -134,19 +220,32 @@ const DashboardView = () => {
         </section>
 
         {/* Stats grid */}
-        <section style={{ padding: "0 22px 18px" }}>
+        <section style={{ padding: "0 22px 18px", ...deskNarrow }}>
           <div style={{ display: "flex", background: P.surface, borderRadius: 18, overflow: "hidden" }}>
             {[{ n: stats.trips, l: "מסלולים" }, { n: stats.countries, l: "מדינות" }, { n: stats.days, l: "ימי טיול" }].map((s, i) => (
               <div key={s.l} style={{ flex: 1, textAlign: "center", padding: "14px 0", borderInlineStart: i ? `1px solid ${P.line}` : "none" }}>
-                <div style={{ fontSize: 23, fontWeight: 800, color: P.ink, fontVariantNumeric: "tabular-nums" }}>{s.n}</div>
+                <div style={{ fontSize: 23, fontWeight: 800, letterSpacing: "-0.015em", color: P.ink, fontVariantNumeric: "tabular-nums" }}>{s.n}</div>
                 <div style={{ fontSize: 11.5, color: P.ink3, marginTop: 2 }}>{s.l}</div>
               </div>
             ))}
           </div>
         </section>
 
+        {/* Example trip — so a new user has an itinerary to explore. */}
+        <section style={{ padding: "0 22px 16px", ...deskNarrow }}>
+          <button onClick={() => navigate("/japan")} className="tp-press"
+            style={{ width: "100%", display: "flex", alignItems: "center", gap: 13, padding: "13px 15px", borderRadius: 16, border: `1px solid ${P.line}`, background: `linear-gradient(135deg, ${dark ? "rgba(224,83,63,0.10)" : "rgba(224,83,63,0.06)"}, ${P.surface})`, cursor: "pointer", fontFamily: "inherit", textAlign: "start" }}>
+            <span aria-hidden style={{ flexShrink: 0, width: 44, height: 44, borderRadius: 12, background: `linear-gradient(145deg, ${ACCENT}, #B83A2B)`, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>🗾</span>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: "block", fontSize: 14.5, fontWeight: 800, color: P.ink }}>מסלול לדוגמה — יפן</span>
+              <span style={{ display: "block", fontSize: 12, color: P.ink3, marginTop: 1 }}>קבלו השראה ממסלול מלא, מוכן לצפייה</span>
+            </span>
+            <Icon name="chevronStart" size={16} strokeWidth={2.2} color={P.ink3} />
+          </button>
+        </section>
+
         {/* Filter pills */}
-        <section style={{ padding: "0 22px 14px" }}>
+        <section style={{ padding: "0 22px 14px", ...deskNarrow }}>
           <div style={{ display: "flex", gap: 4, background: P.surface, borderRadius: 999, padding: 4 }}>
             {FILTERS.map((f) => {
               const on = filter === f.id;
@@ -165,7 +264,31 @@ const DashboardView = () => {
             itself flips to a destructive-red warning state (disabled click,
             red border/surface/text + an explicit quota sub-label) instead of
             being swapped out for a separate banner. */}
-        <section style={{ padding: "0 22px 12px" }}>
+        {/* Sprint 67 — AI trip generator: the primary, most inviting create path. */}
+        <section style={{ padding: "0 22px 12px", ...deskNarrow }}>
+          <button
+            onClick={atTripCap ? undefined : () => setAiOpen(true)}
+            disabled={atTripCap}
+            aria-disabled={atTripCap}
+            title={atTripCap ? "הגעת למכסת המפות המקסימלית לחשבון חינמי" : "יצירת מסלול עם AI"}
+            className={atTripCap ? undefined : "tp-press"}
+            style={{
+              display: "flex", alignItems: "center", gap: 12, padding: 15,
+              border: "none", borderRadius: 18, width: "100%", fontFamily: "inherit", textAlign: "right",
+              cursor: atTripCap ? "not-allowed" : "pointer", opacity: atTripCap ? 0.5 : 1,
+              background: "linear-gradient(135deg, #E0533F, #C0392B)", color: "#fff",
+              boxShadow: atTripCap ? "none" : "0 8px 26px rgba(224,83,63,0.34)",
+            }}>
+            <span style={{ width: 44, height: 44, borderRadius: 14, background: "rgba(255,255,255,0.18)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 22 }} aria-hidden>✨</span>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: "block", fontSize: 15.5, fontWeight: 800 }}>צור מסלול עם AI</span>
+              <span style={{ display: "block", fontSize: 12, color: "rgba(255,255,255,0.85)", marginTop: 2, lineHeight: 1.5 }}>תארו יעד והעדפות — נבנה מסלול מלא בשניות</span>
+            </span>
+            <span aria-hidden style={{ flexShrink: 0, opacity: 0.9 }}><Icon name="chevronStart" size={18} strokeWidth={2.4} color="#fff" /></span>
+          </button>
+        </section>
+
+        <section style={{ padding: "0 22px 12px", ...deskNarrow }}>
           <button
             onClick={atTripCap ? undefined : () => navigate("/create")}
             disabled={atTripCap}
@@ -186,13 +309,17 @@ const DashboardView = () => {
             <span style={{ flex: 1, minWidth: 0 }}>
               <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14.5, fontWeight: 800, color: atTripCap ? "#C0392B" : P.ink }}>
                 מסלול חדש
-                <span style={{ fontSize: 11, fontWeight: 800, color: atTripCap ? "#C0392B" : P.ink3, background: atTripCap ? "rgba(192,57,43,0.14)" : P.surface, borderRadius: 999, padding: "2px 9px", fontVariantNumeric: "tabular-nums" }}>{tripCount}/{MAX_ACTIVE_TRIPS}</span>
+                <span style={{ fontSize: 11, fontWeight: 800, color: atTripCap ? "#C0392B" : (admin ? "#0C8B94" : P.ink3), background: atTripCap ? "rgba(192,57,43,0.14)" : (admin ? "rgba(12,139,148,0.12)" : P.surface), borderRadius: 999, padding: "2px 9px", fontVariantNumeric: "tabular-nums" }}>
+                  {admin ? `${tripCount} · ∞` : `${tripCount}/${MAX_ACTIVE_TRIPS}`}
+                </span>
               </span>
               <span role={atTripCap ? "status" : undefined} aria-live={atTripCap ? "polite" : undefined}
                 style={{ display: "block", fontSize: 12, color: atTripCap ? "#A03325" : P.ink3, marginTop: 2, lineHeight: 1.5 }}>
                 {atTripCap
                   ? "הגעת למכסת המפות המקסימלית לחשבון חינמי. יש למחוק מפה קיימת כדי ליצור חדשה."
-                  : "התחילו מאפס או מתבנית מוכנה"}
+                  : admin
+                    ? `✨ אדמין · ${tripCount} מפות (ללא הגבלה)`
+                    : "התחילו מאפס או מתבנית מוכנה"}
               </span>
             </span>
           </button>
@@ -203,6 +330,22 @@ const DashboardView = () => {
           {filtered === null ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {[0, 1, 2].map((i) => <div key={i} style={{ height: 116, borderRadius: 20, background: `linear-gradient(90deg, ${P.surface}, ${P.surface2}, ${P.surface})`, backgroundSize: "200% 100%", animation: "tpSkeleton 1.2s ease infinite" }} />)}
+            </div>
+          ) : loadError ? (
+            /* Sprint 40 — the load failed (network / RLS / server). We show a
+               clean, actionable state instead of looping the skeleton. */
+            <div className="tp-fade-up" style={{ textAlign: "center", padding: "32px 16px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+              <div style={{ width: 64, height: 64, borderRadius: "50%", background: "rgba(192,57,43,0.10)", color: "#C0392B", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                <Icon name="shield" size={26} strokeWidth={1.8} />
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: P.ink }}>לא הצלחנו לטעון את המסלולים</div>
+              <div style={{ fontSize: 13, color: P.ink3, lineHeight: 1.55, maxWidth: 300 }}>
+                ייתכן שיש בעיית רשת או הרשאות. המסלולים שלכם שמורים — אפשר לנסות שוב.
+              </div>
+              <button onClick={() => setReloadKey((k) => k + 1)} className="tp-press"
+                style={{ marginTop: 4, padding: "11px 22px", borderRadius: 999, border: "none", background: P.ink, color: P.panel, fontSize: 13.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 8 }}>
+                <span aria-hidden style={{ fontSize: 15, lineHeight: 1 }}>↻</span> נסו שוב
+              </button>
             </div>
           ) : filtered.length === 0 ? (
             <div className="tp-fade-up" style={{ textAlign: "center", padding: "36px 16px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
@@ -217,7 +360,9 @@ const DashboardView = () => {
               </button>
             </div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={isDesktop
+              ? { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 16, alignItems: "start" }
+              : { display: "flex", flexDirection: "column", gap: 12 }}>
               {filtered.map((t, i) => (
                 <MapCard
                   key={t.id}
@@ -231,20 +376,22 @@ const DashboardView = () => {
                   onShare={t.role === "owner" ? () => setPermissionModalTripId(t.id) : undefined}
                   onSaveMemo={saveTripMemo}
                   onDelete={() => setConfirmTrip(t)}
+                  favorite={favorites.has(t.id)}
+                  onToggleFavorite={toggleFavorite}
                 />
               ))}
             </div>
           )}
 
-          {filtered && (
+          {filtered && !loadError && (
             <div style={{ textAlign: "center", fontSize: 12, color: P.ink4, marginTop: 18 }}>
-              נוצרו {counts.all} מסלולים · 24.5MB מתוך 2GB בענן
+              נוצרו {counts.all} מסלולים
             </div>
           )}
         </section>
 
         {/* Account rows (merged from the old Profile screen). */}
-        <section style={{ padding: "0 22px 28px" }}>
+        <section style={{ padding: "0 22px 28px", ...deskNarrow }}>
           <div style={{ borderRadius: 18, border: `1px solid ${P.line}`, overflow: "hidden" }}>
             {[
               { icon: "settings", label: "הגדרות וניהול",   sub: "שפה, יחידות, התראות, פרטיות" },
@@ -267,6 +414,7 @@ const DashboardView = () => {
           </div>
         </section>
       </div>
+      )}
 
       {/* Delete confirm modal */}
       {confirmTrip && (
@@ -274,7 +422,7 @@ const DashboardView = () => {
           <div onClick={() => setConfirmTrip(null)} className="tp-fade" style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)" }} />
           <div className="tp-pop" dir="rtl" style={{ position: "relative", width: "100%", maxWidth: 360, background: P.panel, borderRadius: 22, padding: "24px 22px", boxShadow: "0 30px 80px rgba(0,0,0,0.4)", textAlign: "center", fontFamily: FONT }}>
             <div style={{ fontSize: 34, marginBottom: 8 }}>🗑️</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: P.ink, marginBottom: 6 }}>מחיקת מפה</div>
+            <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: "-0.012em", color: P.ink, marginBottom: 6 }}>מחיקת מפה</div>
             <div style={{ fontSize: 14, color: P.ink3, lineHeight: 1.5, marginBottom: 20 }}>
               האם אתה בטוח שברצונך למחוק את "{confirmTrip.title}"?<br />הפעולה אינה הפיכה.
             </div>
@@ -305,6 +453,8 @@ const DashboardView = () => {
           }
         />
       )}
+
+      <AiTripModal open={aiOpen} onClose={() => setAiOpen(false)} dark={dark} />
 
       <style>{`@keyframes tpSkeleton{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
     </div>

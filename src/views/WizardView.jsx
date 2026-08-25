@@ -1,8 +1,13 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import tripService, { MAX_ACTIVE_TRIPS } from "../services/tripService";
 import Icon from "../components/Icon";
-import { isPlacesEnabled, autocomplete as placesAutocomplete } from "../services/googlePlaces";
+import { isPlacesEnabled, autocomplete as placesAutocomplete, getDetails as placesGetDetails } from "../services/googlePlaces";
+import { parseStartDate } from "../utils/tripDates";
+import CalendarRangePicker from "../components/CalendarRangePicker";
+import useIsDesktop from "../utils/useIsDesktop";
+import { useAuth } from "../context/AuthContext";
+import isAdminEmail from "../utils/isAdmin";
 
 /* ──────────────────────────────────────────────────────────────
    WizardView — dynamic global onboarding (3 steps + summary).
@@ -90,10 +95,27 @@ const Cta = ({ children, onClick, disabled }) => (
 
 const WizardView = () => {
   const navigate = useNavigate();
+  /* Desktop widens the wizard column modestly and grids the destination
+     chooser. Additive — `isDesktop` false ⇒ exact mobile layout. */
+  const isDesktop = useIsDesktop();
   const [step, setStep] = useState(0);          // 0..2 wizard, 3 = summary
   const [query, setQuery] = useState("");
   const [destId, setDestId] = useState("jp");
+  /* Google-Places autocomplete for the DESTINATION field, so any place (e.g.
+     פראג / צ'כיה) can be chosen — not only the 10 curated countries. Mirrors
+     the AI modal's destination search. `customDest` holds a Google pick with
+     its coordinates (for the map center). */
+  const [destPreds, setDestPreds] = useState([]);
+  const [destOpen, setDestOpen] = useState(false);
+  const [destLoading, setDestLoading] = useState(false);
+  const [customDest, setCustomDest] = useState(null); // { name, en, center }
   const [dur, setDur] = useState(9);
+  /* Sprint 43 #1 — dual-path duration setup. `durMode` is null until the
+     user picks a path: "calendar" (pick a start+end date → auto-compute the
+     day count + store startDate) or "days" (legacy nights slider, no date). */
+  const [durMode, setDurMode] = useState(null); // null | "calendar" | "days"
+  const [startDate, setStartDate] = useState(""); // ISO yyyy-mm-dd or ""
+  const [endDate, setEndDate] = useState("");     // ISO yyyy-mm-dd or ""
   const [cities, setCities] = useState([]);      // [{ name, fromDay, toDay }]
   /* Sprint 27 #1 — flight-lite capture: ONLY origin country + landing
      city (both optional). No flight numbers / terminals / times — those
@@ -103,14 +125,24 @@ const WizardView = () => {
   const [citySearch, setCitySearch] = useState("");
   const [cityPreds, setCityPreds] = useState([]); // live (cities)-restricted predictions
   const [creating, setCreating] = useState(false);
+  /* Hotfix — the real failure reason from a rejected create/update write, so
+     the CTA reports the problem instead of freezing on "יוצר…". */
+  const [createError, setCreateError] = useState("");
   /* SaaS tier backstop — the wizard is reachable directly via /create,
      so we re-check the active-trip count here too and block the final
      build action once the account is at MAX_ACTIVE_TRIPS. */
   const [atTripCap, setAtTripCap] = useState(false);
-  /* Sprint 22 #3 — HTML5 drag-and-drop state for reordering the city
-     routing rows (which physically re-sequences the route). */
-  const [dragCityIdx, setDragCityIdx] = useState(-1);
-  const [dragOverIdx, setDragOverIdx] = useState(-1);
+  /* Sprint 41 #1 — POINTER-based drag reorder for the city routing rows
+     (native HTML5 `draggable` doesn't fire on touch, so mobile reordering was
+     dead). `from`/`over` drive the live insertion state; `dy` tracks the
+     grabbed row under the finger. Pointer capture on the ≡ handle keeps the
+     gesture alive across the whole list. */
+  const [cityDrag, setCityDrag] = useState({ from: -1, over: -1, dy: 0 });
+  const cityDragRef = useRef({ from: -1, over: -1, dy: 0 });
+  const cityDragActive = useRef(false);
+  const cityGrabY = useRef(0);
+  const cityRowRefs = useRef([]);
+  const setCityDragState = (next) => { cityDragRef.current = next; setCityDrag(next); };
   /* Sprint 22 #4 — skeleton-edit mode. `/create?edit=<tripId>` re-enters
      the wizard against an EXISTING trip: duration + city allocation are
      prefilled, and finishing applies the new skeleton via
@@ -119,13 +151,27 @@ const WizardView = () => {
   const editTripId = searchParams.get("edit");
   const [editTrip, setEditTrip] = useState(null);
 
+  const { user } = useAuth();
+  const admin = isAdminEmail(user?.email); // admins: no map cap
   useEffect(() => {
+    if (admin) { setAtTripCap(false); return; }
     let live = true;
     tripService.fetchAllTrips().then((list) => {
       if (live) setAtTripCap((list || []).length >= MAX_ACTIVE_TRIPS);
     }).catch(() => {});
     return () => { live = false; };
-  }, []);
+  }, [admin]);
+
+  /* Sprint 43 #1 — PATH A: derive the nights count from the chosen calendar
+     range (Duration = End − Start + 1 days → nights = days − 1). */
+  useEffect(() => {
+    if (durMode !== "calendar" || !startDate || !endDate) return;
+    const s = parseStartDate(startDate);
+    const e = parseStartDate(endDate);
+    if (!s || !e || e < s) return;
+    const days = Math.round((e - s) / 86400000) + 1;
+    if (days >= 1) setDur(Math.max(1, days - 1));
+  }, [durMode, startDate, endDate]);
 
   useEffect(() => {
     if (!editTripId) return;
@@ -137,6 +183,21 @@ const WizardView = () => {
          day footprint, so subtract the checkout day on the way in. */
       const totalDays = t.days || t.data?.tripData?.length || 10;
       setDur(Math.max(1, totalDays - 1));
+      /* Sprint 43 — editing an existing trip prefills the duration path so
+         step 1 isn't stuck on the chooser: calendar if a start date exists
+         (prefill the range too), otherwise the days slider. */
+      const existingStart = t.settings?.startDate;
+      if (existingStart) {
+        const es = parseStartDate(existingStart);
+        setDurMode("calendar");
+        setStartDate(existingStart.slice(0, 10));
+        if (es) {
+          const end = new Date(es.getFullYear(), es.getMonth(), es.getDate() + (totalDays - 1));
+          setEndDate(`${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`);
+        }
+      } else {
+        setDurMode("days");
+      }
       const ranges = t.settings?.cityRanges || [];
       if (ranges.length) {
         /* Invert the last-range +1 stretch applied on save. */
@@ -163,12 +224,64 @@ const WizardView = () => {
     return () => { live = false; };
   }, [editTripId]);
 
-  const dest = useMemo(() => DESTINATIONS.find((d) => d.id === destId) || {
-    id: "custom", flag: "📍",
-    name: editTrip?.settings?.destinationHe || editTrip?.title || "",
-    en: editTrip?.settings?.destination || "",
-    sub: "", center: editTrip?.center || null,
-  }, [destId, editTrip]);
+  /* Deep-link prefill from the marketing footer's "popular destinations":
+     /create?dest=<countryId>&city=<cityName> lands the wizard on the
+     destination step with that country pre-selected and the city pre-added,
+     so the place chosen in the footer carries straight into the new-map flow.
+     (Edit mode owns its own prefill above, so this only runs for fresh trips.) */
+  useEffect(() => {
+    if (editTripId) return;
+    const destParam = searchParams.get("dest");
+    const cityParam = searchParams.get("city");
+    if (destParam && DESTINATIONS.some((d) => d.id === destParam)) setDestId(destParam);
+    if (cityParam) setCities([{ name: cityParam, days: 2 }]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const dest = useMemo(() => {
+    const preset = DESTINATIONS.find((d) => d.id === destId);
+    if (preset) return preset;
+    /* A Google-picked destination (or an edited trip's stored destination). */
+    if (customDest) return { id: "custom", flag: "📍", name: customDest.name, en: customDest.en, sub: "", center: customDest.center };
+    return {
+      id: "custom", flag: "📍",
+      name: editTrip?.settings?.destinationHe || editTrip?.title || "",
+      en: editTrip?.settings?.destination || "",
+      sub: "", center: editTrip?.center || null,
+    };
+  }, [destId, customDest, editTrip]);
+
+  /* Debounced Google-Places autocomplete for the destination search (geocode =
+     countries, regions, cities, islands). Inert without a Places key. */
+  useEffect(() => {
+    if (!isPlacesEnabled()) { setDestPreds([]); setDestOpen(false); return; }
+    const q = query.trim();
+    if (q.length < 2) { setDestPreds([]); setDestOpen(false); setDestLoading(false); return; }
+    let live = true;
+    setDestLoading(true); setDestOpen(true);
+    const t = setTimeout(() => {
+      placesAutocomplete(q, { types: ["geocode"] })
+        .then((res) => { if (live) setDestPreds(res || []); })
+        .catch(() => { if (live) setDestPreds([]); })
+        .finally(() => { if (live) setDestLoading(false); });
+    }, 250);
+    return () => { live = false; clearTimeout(t); };
+  }, [query]);
+
+  /* Pick a Google destination → fetch its coordinates for the map center, store
+     it as the custom destination, and advance like choosing a country card. */
+  const pickGoogleDest = async (pred) => {
+    const label = [pred.primary, pred.secondary].filter(Boolean).join(", ");
+    setDestOpen(false); setDestPreds([]); setQuery(pred.primary);
+    let center = null;
+    try {
+      const d = await placesGetDetails(pred.placeId);
+      if (d && Number.isFinite(d.lat) && Number.isFinite(d.lng)) center = { lng: d.lng, lat: d.lat, zoom: 7 };
+    } catch { /* proceed without a center — the editor falls back to a default */ }
+    setCustomDest({ name: pred.primary, en: label, center });
+    setDestId("custom");
+    setStep(1);
+  };
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return DESTINATIONS;
@@ -194,6 +307,9 @@ const WizardView = () => {
   }, [citySearch]);
 
   const back = () => (step === 0 ? navigate("/dashboard") : setStep((s) => s - 1));
+  /* Sprint 51 #5 — in skeleton-edit mode the top control is an explicit exit
+     (✕) that closes WITHOUT updates, returning straight to the planner grid. */
+  const closeEdit = () => navigate(`/map/edit/${editTripId}`);
 
   /* City-routing helpers.
      Each row is { name, days }. The day SEQUENCE is derived from the
@@ -215,6 +331,37 @@ const WizardView = () => {
       next.splice(toIdx, 0, moved);
       return next;
     });
+  };
+
+  /* Sprint 41 #1 — pointer-drag handlers (defined after moveCityTo so no
+     temporal-dead-zone reference). Grab the ≡ handle, drag vertically, drop
+     to reorder; sequencedCities/night ranges recompute instantly. */
+  const onCityHandleDown = (i) => (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    cityDragActive.current = true;
+    cityGrabY.current = e.clientY;
+    setCityDragState({ from: i, over: i, dy: 0 });
+    try { navigator.vibrate && navigator.vibrate(40); } catch { /* unsupported */ }
+    try { e.currentTarget.setPointerCapture?.(e.pointerId); } catch { /* no-op */ }
+  };
+  const onCityPointerMove = (e) => {
+    if (!cityDragActive.current) return;
+    const y = e.clientY;
+    let over = cityDragRef.current.over;
+    cityRowRefs.current.forEach((el, idx) => {
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      if (y >= r.top && y <= r.bottom) over = idx;
+    });
+    setCityDragState({ from: cityDragRef.current.from, over, dy: y - cityGrabY.current });
+  };
+  const endCityDrag = () => {
+    if (!cityDragActive.current) return;
+    cityDragActive.current = false;
+    const { from, over } = cityDragRef.current;
+    if (from >= 0 && over >= 0 && from !== over) moveCityTo(from, over);
+    setCityDragState({ from: -1, over: -1, dy: 0 });
   };
 
   /* Sequential day ranges from the ordered rows. */
@@ -243,6 +390,14 @@ const WizardView = () => {
      nights can be freed and redistributed. */
   const nightsCapReached = totalAssigned >= dur;
 
+  /* Sprint 43 #1 — step 1 can advance once a duration path is fully set:
+     "days" is always ready; "calendar" needs a valid start ≤ end range. */
+  const step1Ready = durMode === "days"
+    || (durMode === "calendar" && !!startDate && !!endDate && (() => {
+      const s = parseStartDate(startDate); const e = parseStartDate(endDate);
+      return s && e && e >= s;
+    })());
+
   const finish = async () => {
     if (creating || !allocationValid) return;
     /* Sprint 23 #3 — `dur` counts NIGHTS; the trip schema receives the
@@ -257,50 +412,80 @@ const WizardView = () => {
        structure — never a new trip, so the tier cap doesn't apply. */
     if (editTripId) {
       setCreating(true);
+      setCreateError("");
       try {
         await tripService.applySkeleton(editTripId, { days: totalDays, cityRanges, meta: `${totalDays} ימים · ${dest.name}` });
-      } catch { /* surfaced by the editor on reload */ }
-      setCreating(false);
-      navigate(`/map/edit/${editTripId}`);
+        navigate(`/map/edit/${editTripId}`);
+      } catch (err) {
+        /* Hotfix — never swallow silently: a failed skeleton write used to
+           navigate anyway (losing the change with no feedback). */
+        setCreateError(err?.message || "עדכון המסלול נכשל. נסו שוב.");
+      } finally {
+        setCreating(false); // guaranteed — the CTA can never freeze
+      }
       return;
     }
     if (atTripCap) return; // tier ceiling — guarded by the disabled CTA + banner
     setCreating(true);
-    const trip = await tripService.createNewTrip({
-      title: dest.name,
-      destination: dest.en,
-      destinationHe: dest.name,
-      center: dest.center,
-      days: totalDays,
-      cityRanges,
-      /* Sprint 27 #1 — basic flight structure only (deep logistics are
-         editor-side, optional). */
-      transitOrigin: originCountry.trim(),
-      transitDestination: landingCity.trim(),
-      meta: `${totalDays} ימים · ${dest.name}`,
-    });
-    setCreating(false);
-    navigate(`/map/edit/${trip.id}`);
+    setCreateError("");
+    try {
+      const trip = await tripService.createNewTrip({
+        title: dest.name,
+        destination: dest.en,
+        destinationHe: dest.name,
+        center: dest.center,
+        days: totalDays,
+        cityRanges,
+        /* Sprint 27 #1 — basic flight structure only (deep logistics are
+           editor-side, optional). */
+        transitOrigin: originCountry.trim(),
+        transitDestination: landingCity.trim(),
+        /* Sprint 43 #1 — PATH A stores the chosen start date (ISO yyyy-mm-dd);
+           PATH B leaves it null to be set later from the editor. */
+        startDate: durMode === "calendar" && startDate ? startDate : null,
+        meta: `${totalDays} ימים · ${dest.name}`,
+      });
+      if (!trip?.id) throw new Error("המסלול נוצר אך לא הוחזר מזהה מהשרת.");
+      navigate(`/map/edit/${trip.id}`);
+    } catch (err) {
+      /* Hotfix — the insert can reject (RLS / constraint / network). Without
+         this the await rejected, setCreating(false) never ran, and the CTA
+         stayed stuck on "יוצר…" forever. Surface the real reason. */
+      setCreateError(err?.message || "יצירת המסלול נכשלה. בדקו את החיבור ונסו שוב.");
+    } finally {
+      setCreating(false); // guaranteed on EVERY path
+    }
   };
 
   /* cityTimeline intentionally removed — summary renders sequencedCities
      directly as individual SummaryCard rows (see step === 3 block). */
 
   return (
-    <div dir="rtl" style={{ minHeight: "100vh", background: "#EDEDEC", fontFamily: T.font }}>
-      <div style={{ maxWidth: 560, margin: "0 auto", background: "#fff", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-        {/* Head */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px 6px" }}>
-          <button onClick={back} aria-label={step === 0 ? "סגירה" : "חזרה"} style={{ width: 36, height: 36, borderRadius: "50%", border: "none", background: T.surface, cursor: "pointer", fontFamily: "inherit", color: T.ink2, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-            <Icon name={step === 0 ? "x" : "chevronStart"} size={16} strokeWidth={2} />
+    <div dir="rtl" style={{ minHeight: "100vh", background: "#EDEDEC", fontFamily: T.font, ...(isDesktop ? { backgroundImage: "radial-gradient(circle, rgba(20,20,20,0.045) 1px, transparent 1.4px)", backgroundSize: "24px 24px" } : null) }}>
+      {/* Desktop: a centered, elevated wizard CARD floating on the textured
+          page — not a full-height white column on gray ("wide phone"). */}
+      <div style={{ maxWidth: isDesktop ? 720 : 560, margin: isDesktop ? "44px auto 72px" : "0 auto", background: "#fff", minHeight: isDesktop ? 0 : "100vh", display: "flex", flexDirection: "column", ...(isDesktop ? { borderRadius: 24, border: "1px solid rgba(20,20,20,0.09)", boxShadow: "0 24px 70px rgba(0,0,0,0.12)", overflow: "hidden" } : null) }}>
+        {/* Head — sticky frosted step bar on desktop (Apple material). */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px 6px",
+          ...(isDesktop ? {
+            position: "sticky", top: 0, zIndex: 30,
+            background: "rgba(255,255,255,0.75)", backdropFilter: "blur(20px) saturate(180%)", WebkitBackdropFilter: "blur(20px) saturate(180%)",
+            borderBottom: `1px solid ${T.line}`,
+          } : null) }}>
+          {/* Sprint 51 #5 — edit mode: the secondary "back" is replaced by an
+              explicit ✕ exit (close without updates → planner). */}
+          <button onClick={editTripId ? closeEdit : back} aria-label={(editTripId || step === 0) ? "סגירה" : "חזרה"} style={{ width: 36, height: 36, borderRadius: "50%", border: "none", background: T.surface, cursor: "pointer", fontFamily: "inherit", color: T.ink2, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+            <Icon name={(editTripId || step === 0) ? "x" : "chevronStart"} size={16} strokeWidth={2} />
           </button>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             {[0, 1, 2].map((i) => <Pip key={i} state={i < Math.min(step, 3) ? "done" : i === step ? "active" : "todo"} />)}
           </div>
-          <button onClick={() => allocationValid && setStep(step === 2 ? 3 : Math.min(3, step + 1))}
-            disabled={!allocationValid}
-            style={{ border: "none", background: "none", color: allocationValid ? T.ink3 : T.ink4, fontSize: 13, fontWeight: 600, cursor: allocationValid ? "pointer" : "default", fontFamily: "inherit", visibility: step === 2 ? "visible" : "hidden" }}>
-            דלגו
+          {/* Sprint 51 #5 — edit mode: "דלג" becomes the affirmative "עדכן",
+              committing the skeleton immediately (no review step). */}
+          <button onClick={() => { if (!allocationValid) return; if (editTripId) finish(); else setStep(step === 2 ? 3 : Math.min(3, step + 1)); }}
+            disabled={!allocationValid || creating}
+            style={{ border: "none", background: "none", color: allocationValid ? (editTripId ? T.accent : T.ink3) : T.ink4, fontSize: 13, fontWeight: editTripId ? 800 : 600, cursor: allocationValid ? "pointer" : "default", fontFamily: "inherit", visibility: step === 2 ? "visible" : "hidden" }}>
+            {editTripId ? "עדכן" : "דלגו"}
           </button>
         </div>
 
@@ -328,10 +513,31 @@ const WizardView = () => {
               <p style={{ fontSize: 14, color: T.ink3, lineHeight: 1.55, marginBottom: 16 }}>בחרו יעד — נבנה שלד מסלול ונכוון את המפה למדינה.</p>
               <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "11px 14px", borderRadius: 16, background: T.surface, border: `1px solid ${T.line}`, marginBottom: 16 }}>
                 <span aria-hidden style={{ color: T.ink3, display: "inline-flex" }}><Icon name="search" size={16} /></span>
-                <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="חיפוש מדינה או עיר"
+                <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="חיפוש יעד — מדינה או עיר"
                   style={{ flex: 1, border: "none", background: "transparent", fontSize: 16, fontFamily: "inherit", direction: "rtl", textAlign: "right" }} />
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {/* Google-Places predictions — lets ANY destination be picked
+                  (e.g. פראג / צ'כיה), not only the curated countries below. */}
+              {destOpen && (destLoading || destPreds.length > 0) && (
+                <div style={{ marginTop: -8, marginBottom: 16, border: `1px solid ${T.line}`, borderRadius: 12, overflow: "hidden", background: "#fff", boxShadow: "0 8px 24px rgba(0,0,0,0.08)" }}>
+                  {destLoading && destPreds.length === 0 && (
+                    <div style={{ padding: "12px 14px", fontSize: 13, color: T.ink3 }}>מחפש יעדים…</div>
+                  )}
+                  {destPreds.map((p) => (
+                    <button key={p.placeId} onClick={() => pickGoogleDest(p)}
+                      style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "11px 14px", border: "none", borderBottom: `1px solid ${T.line}`, background: "#fff", cursor: "pointer", fontFamily: "inherit", textAlign: "right" }}>
+                      <span aria-hidden style={{ color: T.ink3, display: "inline-flex", flexShrink: 0 }}><Icon name="map" size={15} /></span>
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ fontSize: 14.5, fontWeight: 700, color: T.ink }}>{p.primary}</span>
+                        {p.secondary && <span style={{ fontSize: 12, color: T.ink3, marginInlineStart: 6 }}>{p.secondary}</span>}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div style={isDesktop
+                ? { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }
+                : { display: "flex", flexDirection: "column", gap: 8 }}>
                 {filtered.map((c) => {
                   const on = destId === c.id;
                   return (
@@ -359,24 +565,67 @@ const WizardView = () => {
               what the trip schema ultimately receives. */}
           {step === 1 && (
             <>
+              {/* Sprint 43 #1 — dual-path setup: choose how to define the trip
+                  length before showing any inputs. */}
               <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.022em", color: T.ink, margin: "6px 0 6px" }}>
-                לכמה <span style={{ color: T.accent }}>לילות</span> תטוסו?
+                {durMode ? <>לכמה <span style={{ color: T.accent }}>לילות</span> תטוסו?</> : "כיצד תרצו להגדיר את זמן החופשה?"}
               </h1>
-              <p style={{ fontSize: 14, color: T.ink3, lineHeight: 1.55, marginBottom: 28 }}>גררו את הבר לבחירת מספר הלילות — בין 1 ל־45.</p>
+              <p style={{ fontSize: 14, color: T.ink3, lineHeight: 1.55, marginBottom: durMode ? 22 : 24 }}>
+                {durMode === "calendar" ? "בחרו תאריך יציאה וחזרה — נחשב את מספר הימים אוטומטית."
+                  : durMode === "days" ? "גררו את הבר לבחירת מספר הלילות — בין 1 ל־45."
+                  : "אפשר לבחור תאריכים מהלוח, או פשוט להזין מספר ימים."}
+              </p>
 
-              {/* Big readout — nights, with the total day footprint below */}
+              {/* Path chooser (shown until a mode is picked). */}
+              {!durMode && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 8 }}>
+                  {[
+                    { m: "calendar", emoji: "📅", t: "בחירת תאריכים קלנדריים", s: "בחרו תאריך יציאה וחזרה מהלוח" },
+                    { m: "days", emoji: "🔢", t: "הגדרת כמות ימים בלבד", s: "הזינו מספר ימים — תאריכים אפשר להוסיף אחר כך" },
+                  ].map((o) => (
+                    <button key={o.m} onClick={() => setDurMode(o.m)}
+                      style={{ display: "flex", alignItems: "center", gap: 14, width: "100%", textAlign: "right", padding: "16px 16px", borderRadius: 18, cursor: "pointer", fontFamily: "inherit", border: `1.5px solid ${T.line}`, background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+                      <span aria-hidden style={{ fontSize: 26, flexShrink: 0 }}>{o.emoji}</span>
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ display: "block", fontSize: 15.5, fontWeight: 800, color: T.ink }}>{o.t}</span>
+                        <span style={{ display: "block", fontSize: 12.5, color: T.ink3, marginTop: 2, lineHeight: 1.4 }}>{o.s}</span>
+                      </span>
+                      <span aria-hidden style={{ color: T.ink4, display: "inline-flex", flexShrink: 0 }}><Icon name="chevronStart" size={18} strokeWidth={2.2} /></span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* PATH A — Sprint 45 #1 visual month-grid range picker. */}
+              {durMode === "calendar" && (
+                <div style={{ marginBottom: 22 }}>
+                  <CalendarRangePicker
+                    start={startDate}
+                    end={endDate}
+                    onChange={(s, e) => { setStartDate(s); setEndDate(e); }}
+                  />
+                  <button onClick={() => { setDurMode(null); }} style={{ marginTop: 12, border: "none", background: "none", color: T.ink3, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }}>← החלפת אופן ההגדרה</button>
+                </div>
+              )}
+
+              {/* PATH B — legacy nights readout (slider rendered below). */}
+              {durMode === "days" && (
               <div style={{ textAlign: "center", marginBottom: 22 }}>
                 <span style={{ fontSize: 64, fontWeight: 800, color: T.ink, letterSpacing: "-0.03em", fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>{dur}</span>
                 <span style={{ fontSize: 18, fontWeight: 700, color: T.ink3, marginInlineStart: 8 }}>לילות</span>
                 <div style={{ marginTop: 8, fontSize: 13.5, fontWeight: 700, color: T.ink3 }}>
                   {dur + 1} ימי טיול סך הכל
                 </div>
+                <button onClick={() => { setDurMode(null); }} style={{ marginTop: 10, border: "none", background: "none", color: T.ink3, fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }}>← החלפת אופן ההגדרה</button>
               </div>
+              )}
 
               {/* Sprint 27 #1 — flight-lite: origin country + landing city
                   only. Optional, single screen, zero deep logistics (no
                   flight numbers / terminals / times — those live in the
-                  editor as manual additions). */}
+                  editor as manual additions). Sprint 43 — only after a
+                  duration path is chosen. */}
+              {durMode && (<>
               <div style={{ display: "flex", gap: 10, marginBottom: 24 }}>
                 <label style={{ flex: 1, minWidth: 0 }}>
                   <span style={{ display: "block", fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", color: T.ink3, marginBottom: 6 }}>מדינת מוצא</span>
@@ -399,11 +648,13 @@ const WizardView = () => {
                   ))}
                 </div>
               )}
+              </>
+              )}
 
-              {/* Custom slider: a clearly-visible track + filled bar +
-                  big thumb, with a transparent native range on top to
-                  capture drag/keys. RTL → fill grows from the right. */}
-              {(() => {
+              {/* Custom slider — PATH B (days) only: a clearly-visible track +
+                  filled bar + big thumb, with a transparent native range on
+                  top to capture drag/keys. RTL → fill grows from the right. */}
+              {durMode === "days" && (() => {
                 const pct = ((dur - 1) / 44) * 100;
                 return (
                   <div style={{ padding: "0 6px" }}>
@@ -549,29 +800,35 @@ const WizardView = () => {
                      unnamed rows that aren't sequenced). */
                   const namedBefore = cities.slice(0, i).filter((x) => x.name.trim()).length;
                   const range = c.name.trim() ? seq[namedBefore] : null;
-                  const isDrop = dragOverIdx === i && dragCityIdx !== -1 && dragCityIdx !== i;
+                  const beingDragged = cityDrag.from === i;
+                  const isDrop = cityDrag.from >= 0 && cityDrag.over === i && cityDrag.from !== i;
                   const col = ALLOC_COLORS[(c.name.trim() ? namedBefore : i) % ALLOC_COLORS.length];
                   return (
                     <div key={i}
-                      draggable
-                      onDragStart={(e) => { setDragCityIdx(i); try { e.dataTransfer.effectAllowed = "move"; } catch { /* noop */ } }}
-                      onDragOver={(e) => { e.preventDefault(); setDragOverIdx(i); }}
-                      onDragLeave={() => setDragOverIdx((v) => (v === i ? -1 : v))}
-                      onDrop={(e) => { e.preventDefault(); moveCityTo(dragCityIdx, i); setDragCityIdx(-1); setDragOverIdx(-1); }}
-                      onDragEnd={() => { setDragCityIdx(-1); setDragOverIdx(-1); }}
+                      ref={(el) => { cityRowRefs.current[i] = el; }}
                       style={{
                         position: "relative", borderRadius: 16, background: "#fff",
                         border: isDrop ? `1.5px dashed ${T.accent}` : `1px solid ${T.line}`,
-                        opacity: dragCityIdx === i ? 0.55 : 1,
+                        opacity: beingDragged ? 0.85 : 1,
                         /* Card grows with the allocated nights (spatial weight). */
                         padding: `${10 + Math.min(6, c.days) * 2}px 14px`,
-                        boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-                        transition: "padding 0.25s ease, border-color 0.15s ease, opacity 0.15s ease",
+                        boxShadow: beingDragged ? "0 12px 30px rgba(0,0,0,0.22)" : "0 1px 3px rgba(0,0,0,0.04)",
+                        transform: beingDragged ? `translateY(${cityDrag.dy}px) scale(1.02)` : "none",
+                        zIndex: beingDragged ? 5 : "auto",
+                        transition: cityDrag.from >= 0 ? "none" : "padding 0.25s ease, border-color 0.15s ease, opacity 0.15s ease",
+                        touchAction: "pan-y",
                       }}>
                       {/* City color accent — inline-start edge bracket */}
                       <span aria-hidden style={{ position: "absolute", insetInlineStart: 0, top: 10, bottom: 10, width: 4, borderRadius: 999, background: col }} />
                       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <span title="גררו לשינוי סדר המסלול" style={{ cursor: "grab", color: T.ink4, fontSize: 16, flexShrink: 0, touchAction: "none" }}>≡</span>
+                        {/* Sprint 41 #1 — pointer-drag handle (touch + mouse), ≥44px hit area. */}
+                        <span
+                          onPointerDown={onCityHandleDown(i)}
+                          onPointerMove={onCityPointerMove}
+                          onPointerUp={endCityDrag}
+                          onPointerCancel={endCityDrag}
+                          title="גררו לשינוי סדר המסלול" aria-label="ידית גרירה"
+                          style={{ width: 44, height: 44, marginInlineStart: -10, display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "grab", color: T.ink4, fontSize: 18, flexShrink: 0, touchAction: "none" }}>≡</span>
                         <span style={{ width: 26, height: 26, borderRadius: "50%", background: col, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, flexShrink: 0 }}>{i + 1}</span>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <input value={c.name} onChange={(e) => updateCity(i, { name: e.target.value })} placeholder="עיר (למשל רומא)"
@@ -704,8 +961,25 @@ const WizardView = () => {
         </div>
 
         {/* Footer CTA */}
-        {step < 2 && <Cta onClick={() => setStep(step + 1)}>המשך{step === 1 ? ` · ${dur} לילות` : ""} <span aria-hidden style={{ display: "inline-flex" }}><Icon name="chevronEnd" size={15} strokeWidth={2.4} /></span></Cta>}
-        {step === 2 && <Cta onClick={() => setStep(3)} disabled={!allocationValid}>{allocationValid ? "סקירה אחרונה" : "חלוקת הלילות אינה תואמת"} <span aria-hidden style={{ display: "inline-flex" }}><Icon name="chevronEnd" size={15} strokeWidth={2.4} /></span></Cta>}
+        {step === 0 && <Cta onClick={() => setStep(1)}>המשך <span aria-hidden style={{ display: "inline-flex" }}><Icon name="chevronEnd" size={15} strokeWidth={2.4} /></span></Cta>}
+        {step === 1 && <Cta onClick={() => step1Ready && setStep(2)} disabled={!step1Ready}>{step1Ready ? `המשך · ${dur} לילות` : "בחרו כיצד להגדיר את משך הטיול"} <span aria-hidden style={{ display: "inline-flex" }}><Icon name="chevronEnd" size={15} strokeWidth={2.4} /></span></Cta>}
+        {/* Sprint 51 #5 — edit mode commits straight from allocation (the
+            "סקירה אחרונה" review step is skipped for rapid structural updates). */}
+        {step === 2 && <Cta onClick={() => { if (!allocationValid) return; if (editTripId) finish(); else setStep(3); }} disabled={!allocationValid || (editTripId && creating)}>{!allocationValid ? "חלוקת הלילות אינה תואמת" : editTripId ? (creating ? "מעדכן מסלול…" : "עדכן מסלול") : "סקירה אחרונה"} <span aria-hidden style={{ display: "inline-flex" }}><Icon name="chevronEnd" size={15} strokeWidth={2.4} /></span></Cta>}
+        {/* Hotfix — surface a failed create/update instead of a frozen CTA. */}
+        {step === 3 && createError && (
+          <div role="alert" style={{
+            display: "flex", alignItems: "flex-start", gap: 10, margin: "0 0 10px",
+            padding: "11px 13px", borderRadius: 14,
+            border: "1px solid rgba(192,57,43,0.32)", background: "rgba(192,57,43,0.08)",
+            color: "#A03325", fontSize: 12.5, fontWeight: 600, lineHeight: 1.5, direction: "rtl",
+          }}>
+            <span aria-hidden style={{ fontSize: 15, lineHeight: 1.2 }}>⚠️</span>
+            <span style={{ minWidth: 0, wordBreak: "break-word" }}>
+              {editTripId ? "עדכון המסלול נכשל" : "יצירת המסלול נכשלה"} — {createError}
+            </span>
+          </div>
+        )}
         {step === 3 && <Cta onClick={finish} disabled={creating || !allocationValid || (!editTripId && atTripCap)}>
           {editTripId
             ? (creating ? "מעדכן מסלול…" : "עדכן מסלול")

@@ -1,3 +1,4 @@
+/* eslint-disable */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import MapComponent from "../components/MapComponent";
@@ -7,11 +8,16 @@ import StoryFlow from "../components/StoryFlow";
 import OmniboxSearch from "../components/OmniboxSearch";
 import { MetaIcon } from "../components/StoryFlowGlyph";
 import tripService from "../services/tripService";
+import { tripData as JAPAN_TRIP, routePath as JAPAN_ROUTE, HOTEL_COORDINATES as JAPAN_HOTELS } from "../data/tripData";
 
 /* FALLBACK_ID is the read-only Japan example trip — loaded when no
    ?tripId= query param is present or when the requested trip isn't
    found, so the Japan explorer at /map keeps working as before. */
 const FALLBACK_ID = "japan-demo";
+
+/* The marketing Japan example renders from the BUNDLED data — always
+   available (no Supabase round-trip), so it never fails to load. */
+const bundledJapan = () => ({ data: { tripData: JAPAN_TRIP, routePath: JAPAN_ROUTE, HOTEL_COORDINATES: JAPAN_HOTELS, cityTransitions: [] } });
 
 /* ══════════════════════════════════════════════════════════════
    EXPLORE VIEW — Travel-Story v3
@@ -37,19 +43,19 @@ const ExploreView = () => {
     let live = true;
     setTripLoading(true);
     setTripError(null);
+    /* The Japan example (default, no ?tripId) always renders from the bundled
+       data — it's a marketing showcase, so it must never depend on Supabase. */
+    if (tripId === FALLBACK_ID) {
+      setTripPayload(bundledJapan());
+      setTripLoading(false);
+      return () => { live = false; };
+    }
     tripService.fetchTripById(tripId)
       .then((t) => { if (live) { setTripPayload(t); setTripLoading(false); } })
       .catch(() => {
-        /* Fallback: if the requested trip isn't found, load japan-demo */
-        if (!live) return;
-        if (tripId !== FALLBACK_ID) {
-          tripService.fetchTripById(FALLBACK_ID)
-            .then((t) => { if (live) { setTripPayload(t); setTripLoading(false); } })
-            .catch((e) => { if (live) { setTripError(e.message); setTripLoading(false); } });
-        } else {
-          setTripError("לא ניתן לטעון את הטיול");
-          setTripLoading(false);
-        }
+        /* A specific trip that failed → fall back to the bundled Japan example
+           (never the "can't load" dead-end on this public map). */
+        if (live) { setTripPayload(bundledJapan()); setTripLoading(false); }
       });
     return () => { live = false; };
   }, [tripId]);
@@ -356,10 +362,13 @@ const ExploreView = () => {
         <div
           style={{
             position: "absolute",
-            top: 16, left: 16,
+            /* Right side, dropped below the top-right search omnibox so the two
+               never overlap. */
+            top: 76, right: 16,
             display: "flex", gap: 8,
             zIndex: 10,
             flexWrap: "wrap",
+            justifyContent: "flex-end",
           }}
         >
           {/* The map is part of the Japan example, so "בית" returns

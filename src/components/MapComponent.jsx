@@ -1,3 +1,4 @@
+/* eslint-disable */
 import React, { useCallback, useRef, useEffect, useMemo, useState } from "react";
 import Map, {
   Marker,

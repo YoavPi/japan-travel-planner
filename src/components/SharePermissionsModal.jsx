@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import tripService from "../services/tripService";
+import { track } from "../analytics/posthog";
 import { useDarkMode } from "../utils/theme";
 import Icon from "./Icon";
 
@@ -97,6 +98,8 @@ const SharePermissionsModal = ({ tripId, onClose, onChanged }) => {
     const person = { id: `u_${e.replace(/[^a-z0-9]/g, "").slice(0, 10)}_${Date.now().toString(36)}`, name: e.split("@")[0], email: e, role, avatar: null };
     setEmail("");
     persist([...collabs, person]);
+    /* Analytics — growth loop: a collaborator was invited, sliced by role. */
+    track("trip_shared", { via: "invite", role });
   };
 
   const changeRole = (id, value) => {
@@ -107,6 +110,8 @@ const SharePermissionsModal = ({ tripId, onClose, onChanged }) => {
   const copyLink = async () => {
     try { await navigator.clipboard.writeText(shareUrl); } catch { /* noop */ }
     setCopied(true); setTimeout(() => setCopied(false), 1400);
+    /* Analytics — sharing via the copyable link. */
+    track("trip_shared", { via: "link" });
   };
 
   const selectStyle = {

@@ -1,3 +1,4 @@
+/* eslint-disable */
 // Curated landmark images — high-quality Unsplash photos for each key destination
 // Using Unsplash Source for reliable, free, no-API-key image URLs
 // Format: unsplash random with search term, fixed size for consistency

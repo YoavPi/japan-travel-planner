@@ -29,6 +29,7 @@ import { tripData, routePath, HOTEL_COORDINATES } from "../data/tripData";
 import { cityTransitions, lodgingOverrides } from "../data/transportData";
 import { supabase, getSupabaseUser } from "../lib/supabase";
 import { addInboxPlaces } from "./googleSavedPlaces";
+import { track } from "../analytics/posthog";
 
 /* ── Sprint 26 — Supabase persistence layer ─────────────────────
    Every CRUD method now branches: with a live Supabase session the
@@ -257,28 +258,106 @@ export const tripService = {
   async fetchAllTrips(/* userId */) {
     const sbUser = await getSupabaseUser();
     if (sbUser) {
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from("trips").select("*")
         .order("last_edited", { ascending: false });
-      if (error) throw new Error(error.message);
-      return (data || []).map(rowToTrip).map(({ data: _d, ...rest }) => rest);
+      /* Sprint 40 / 63 — RESILIENCE: an unscoped scan evaluates every RLS
+         policy against every candidate row, so one bad policy (e.g. the
+         Sprint 62 collaborator policy's circular sub-query → "infinite
+         recursion detected in policy for relation trips") or one malformed row
+         can fail the WHOLE query and leave the dashboard empty. Fall back to an
+         owner-scoped read (index-backed → only this user's rows are evaluated)
+         so the primary trips list still renders. The definitive cure for the
+         recursion is supabase_migration_fix_trips_rls.sql. */
+      if (error) {
+        if (typeof console !== "undefined") console.warn("[trips] unscoped fetch failed, retrying owner-scoped:", error.message);
+        const fb = await supabase
+          .from("trips").select("*")
+          .eq("owner_id", sbUser.id)
+          .order("last_edited", { ascending: false });
+        if (fb.error) {
+          /* Sprint 63 — last-ditch: an even simpler owner-scoped read with no
+             ordering, in case the order column / a computed policy is the
+             culprit. Only if THIS also fails do we surface the error. */
+          const min = await supabase.from("trips").select("*").eq("owner_id", sbUser.id);
+          if (min.error) throw new Error(fb.error.message);
+          data = min.data;
+        } else {
+          data = fb.data;
+        }
+      }
+      /* `filter(Boolean)` guards the destructuring map below against a null
+         row (rowToTrip returns undefined for falsy input).
+         rowToTrip hardcodes role:"owner" (it has no user context), so resolve
+         REAL ownership here: a map whose owner is someone else is SHARED, not
+         mine. "המפות שלי" = maps I created; a map others shared with me lives
+         under "שותפו איתי". */
+      const email = (sbUser.email || "").toLowerCase();
+      return (data || []).map((row) => {
+        const trip = rowToTrip(row);
+        if (!trip) return null;
+        const { data: _d, ...rest } = trip;
+        const mine = row.owner_id ? row.owner_id === sbUser.id : (!rest.owner?.id || rest.owner.id === sbUser.id);
+        if (mine) return { ...rest, role: "owner", shared: false };
+        /* SHARED trip — resolve the REAL per-user role from the collaborators
+           JSONB by email (same logic as fetchTripById). Previously every shared
+           trip was hardcoded role:"edit", so a VIEW collaborator saw an "עריכה"
+           button and edit affordances they didn't actually have. */
+        const collab = Array.isArray(row.collaborators)
+          ? row.collaborators.find((c) => (c.email || "").toLowerCase() === email)
+          : null;
+        const canEdit = collab?.role === "edit";
+        return {
+          ...rest,
+          role: canEdit ? "edit" : "view",
+          readOnly: !canEdit,
+          shared: true,
+          sharedBy: rest.owner?.name || row.owner_name || "משתמש אחר",
+        };
+      }).filter(Boolean);
     }
     await delay(LAG);
     return readStore().map(toSummary);
   },
 
-  /* Full trip incl. itinerary payload. */
+  /* Full trip incl. itinerary payload.
+     Sprint 39 #4 — resolves BOTH owner and SHARED access so a recipient
+     opening a /map/edit/<id> share link renders the itinerary instead of
+     crashing with "Trip not found". */
   async fetchTripById(tripId) {
     const sbUser = await getSupabaseUser();
     if (sbUser) {
-      /* VibeSec defense-in-depth: scope to the owner explicitly in
-         addition to RLS, so a misconfigured policy can never leak another
-         user's row (returns 404-equivalent "not found"). */
+      /* Sprint 64 — SINGLE RLS-GOVERNED READ. Owner AND collaborator access are
+         both decided by the "Collaborators can view shared trip details" policy
+         (see supabase_migration_fix_shared_trip_load.sql), so we no longer scope
+         the read to owner_id (that scoping blocked non-owners from opening a
+         shared trip → "לא ניתן לטעון את הטיול"). The row comes back iff the
+         viewer is the owner, the trip's owner is null (legacy), or the viewer is
+         a collaborator (trip_collaborators table OR the collaborators JSONB). */
       const { data, error } = await supabase
-        .from("trips").select("*").eq("id", tripId).eq("owner_id", sbUser.id).maybeSingle();
+        .from("trips").select("*").eq("id", tripId).maybeSingle();
       if (error) throw new Error(error.message);
-      if (!data) throw new Error(`Trip not found: ${tripId}`);
-      return rowToTrip(data);
+      if (data) {
+        const trip = rowToTrip(data);
+        /* Role resolution — no strict client-side gate; RLS already authorized
+           the read. Owners edit fully; 'edit' collaborators get a WRITABLE
+           editor; everyone else renders read-only. */
+        if (data.owner_id && data.owner_id === sbUser.id) {
+          trip.role = "owner";
+          return trip;
+        }
+        const email = (sbUser.email || "").toLowerCase();
+        const collab = Array.isArray(data.collaborators)
+          ? data.collaborators.find((c) => (c.email || "").toLowerCase() === email)
+          : null;
+        const canEdit = collab?.role === "edit";
+        trip.role = canEdit ? "edit" : "view";
+        trip.readOnly = !canEdit;             // 'edit' collaborators → editor access
+        trip.shared = true;
+        trip.sharedBy = data.owner_name || trip.owner?.name || undefined;
+        return trip;
+      }
+      throw new Error(`Trip not found: ${tripId}`);
     }
     await delay(LAG);
     const trip = readStore().find((t) => t.id === tripId);
@@ -290,12 +369,24 @@ export const tripService = {
   async saveTrip(tripId, patch) {
     const sbUser = await getSupabaseUser();
     if (sbUser) {
+      /* Owner fast-path (defense-in-depth: scope to the owner in addition to
+         RLS). */
+      const row = tripPatchToRow(patch);
       const { data, error } = await supabase
-        .from("trips").update(tripPatchToRow(patch))
+        .from("trips").update(row)
         .eq("id", tripId).eq("owner_id", sbUser.id).select().maybeSingle();
       if (error) throw new Error(error.message);
-      if (!data) throw new Error(`Trip not found: ${tripId}`);
-      return rowToTrip(data);
+      if (data) return rowToTrip(data);
+      /* Sprint 64 — not the owner: an 'edit' COLLABORATOR may still persist.
+         Retry without the owner scope and let RLS (trips_collab_edit) decide —
+         it grants the update only to the owner or an 'edit' collaborator, so a
+         viewer or stranger still gets 0 rows and a clean "not found". */
+      const fb = await supabase
+        .from("trips").update(row)
+        .eq("id", tripId).select().maybeSingle();
+      if (fb.error) throw new Error(fb.error.message);
+      if (!fb.data) throw new Error(`Trip not found: ${tripId}`);
+      return rowToTrip(fb.data);
     }
     await delay(LAG);
     const trips = readStore();
@@ -404,8 +495,17 @@ export const tripService = {
   async deleteTrip(tripId) {
     const sbUser = await getSupabaseUser();
     if (sbUser) {
-      const { error } = await supabase.from("trips").delete().eq("id", tripId).eq("owner_id", sbUser.id);
+      /* `.select()` returns the rows actually deleted. With RLS enabled a
+         missing/incorrect DELETE policy (or an ownership mismatch) removes
+         ZERO rows and returns NO error — the old code treated that as success,
+         so the trip reappeared on reload. We now require ≥1 deleted row and
+         throw otherwise, so the UI can surface a real failure. */
+      const { data, error } = await supabase
+        .from("trips").delete().eq("id", tripId).eq("owner_id", sbUser.id).select("id");
       if (error) throw new Error(error.message);
+      if (!data || data.length === 0) {
+        throw new Error("delete-blocked: no rows deleted (check the trips DELETE RLS policy / ownership)");
+      }
       return true;
     }
     await delay(LAG);
@@ -423,7 +523,14 @@ export const tripService = {
     if (!sbUser) await delay(LAG);
     const trips = sbUser ? [] : readStore();
     const id = uid();
-    const dayCount = Number(tripSettings.days) || 0;
+    /* Sprint 67 — AI trip generation. When `seedDays` is supplied (a fully
+       built tripData array from /api/generate-trip), we skip the empty
+       scaffold and land the generated days directly. `seedDays` is itinerary
+       content, not a setting, so it's stripped from the persisted `settings`. */
+    const seedDays = Array.isArray(tripSettings.seedDays) && tripSettings.seedDays.length
+      ? tripSettings.seedDays : null;
+    const { seedDays: _omitSeed, ...cleanSettings } = tripSettings;
+    const dayCount = seedDays ? seedDays.length : (Number(tripSettings.days) || 0);
     const city = tripSettings.destination || "";
     const cityHe = tripSettings.destinationHe || tripSettings.title || "";
     /* Optional day→city ranges from the wizard's city-routing step.
@@ -434,7 +541,7 @@ export const tripService = {
       const r = ranges.find((x) => dayNum >= x.fromDay && dayNum <= x.toDay);
       return r ? { city: r.city, cityHe: r.cityHe || r.city } : { city, cityHe };
     };
-    const scaffold = Array.from({ length: dayCount }, (_, i) => ({
+    const scaffold = seedDays || Array.from({ length: dayCount }, (_, i) => ({
       day: i + 1,
       ...cityForDay(i + 1),
       attractions: [],
@@ -478,9 +585,19 @@ export const tripService = {
          the editor and transit segments can read them directly). */
       transitOrigin: tripSettings.transitOrigin || "",
       transitDestination: tripSettings.transitDestination || "",
-      settings: tripSettings,
+      settings: cleanSettings,
       data: { tripData: scaffold, cityTransitions: [], lodgingOverrides: {} },
     };
+    /* Product analytics — "a map was built". Fires for both creation paths
+       (AI-generated when seedDays is present, otherwise the manual wizard).
+       No-op unless PostHog is configured. */
+    track("map_created", {
+      source: seedDays ? "ai" : "wizard",
+      days: dayCount,
+      destination: tripSettings.destinationHe || tripSettings.destination || cityHe || "",
+      authed: !!sbUser,
+    });
+
     /* Sprint 26 — Supabase-first persistence for authenticated users. */
     if (sbUser) {
       const row = {
@@ -493,13 +610,22 @@ export const tripService = {
         meta: trip.meta,
         read_only: false,
         collaborators: [],
-        settings: tripSettings,
+        settings: cleanSettings,
         data: trip.data,
         last_edited: nowISO(),
       };
-      const { data, error } = await supabase.from("trips").insert(row).select().single();
+      /* Hotfix — INSERT WITHOUT a RETURNING `.select()`.
+         `.insert(row).select()` makes PostgREST read the new row back, which
+         evaluates every SELECT policy on `trips`. The "trips: shared read"
+         policy subqueries `trip_shares`, whose own policy subqueries `trips`
+         → Postgres raises "infinite recursion detected in policy" (42P17) and
+         the whole insert call rejects, freezing the wizard CTA.
+         An INSERT alone only evaluates the WITH CHECK policy (owner_id =
+         auth.uid()), so it succeeds cleanly. We already know exactly what we
+         wrote, so the record is rebuilt from `row` — no read-back needed. */
+      const { error } = await supabase.from("trips").insert(row);
       if (error) throw new Error(error.message);
-      return rowToTrip(data);
+      return rowToTrip(row);
     }
     trips.unshift(trip);
     writeStore(trips);

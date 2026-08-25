@@ -2,44 +2,65 @@
    mapsUrl.js — single source of truth for Google Maps links.
 
    Every component that renders a "Google Maps" button MUST go
-   through mapsUrlFor() so curated CSV `link` URLs in tripData are
-   honored. Pre-fix history: each component defined its own
-   `gmapsUrl(name)` that built a Hebrew name-search URL,
-   completely ignoring item.link — so even when the data was
-   correct, the buttons opened a search instead of the curated
-   place. Centralising this prevents the bug from recurring.
+   through mapsUrlFor() so we open the actual PLACE (its Google
+   listing) rather than a bare coordinate pin.
 
-   Resolution order:
-     1. item.link  — if it's a real http(s) URL (curated)
-     2. coordinates → /maps/search/?query=lat,lng  (precise)
-     3. name + " Japan" → /maps/search/?query=<name>+Japan  (last)
+   Resolution order (place identity first, coordinates last):
+     1. item.link        — curated real http(s) URL
+     2. item.place_id    — Google place → query_place_id opens the
+                            real listing (hours, photos, reviews…)
+     3. name (+ area)    — text search that resolves to the place
+     4. coordinates      — LAST resort: a dropped pin, no identity
+                            (correct only for custom map pins)
+
+   History: call sites used to hardcode `?query=lat,lng`, which
+   opens a pin at the coordinate instead of the store/attraction
+   the user tapped. Routing everything through here fixes that and
+   keeps it fixed. Destination-agnostic (no hardcoded country).
    ══════════════════════════════════════════════════════════════ */
 
 const isHttpUrl = (s) => typeof s === "string" && /^https?:\/\//i.test(s);
 
+// A real Google place_id (starts with "ChI…"); our simulated/local
+// ids ("sim:…", "pid:…", "local-…") are NOT resolvable by Maps.
+const isRealPlaceId = (s) =>
+  typeof s === "string" && s.length > 8 && !/^(sim:|pid:|local[-:]|custom[-:])/i.test(s);
+
 export const mapsUrlFor = (itemOrName) => {
   if (!itemOrName) return null;
 
-  // Plain string fallback — only when we truly have nothing else.
+  // Plain string — a name search, our weakest signal.
   if (typeof itemOrName === "string") {
-    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(itemOrName + " Japan")}`;
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(itemOrName)}`;
   }
 
   const item = itemOrName;
+
+  // 1. Curated real URL wins outright.
   if (isHttpUrl(item.link)) return item.link;
 
-  // Accept both nested `coordinates: {lng,lat}` and flat `lng`/`lat`
-  // shapes — different surfaces (StoryFlow stops vs map markers)
-  // have historically used different conventions.
+  const name = item.nameEn || item.name || item.nameHe || "";
+  const pid = item.place_id || item.placeId || null;
+
+  // 2. Google place_id → opens the ACTUAL listing, not a pin.
+  if (isRealPlaceId(pid)) {
+    const q = name ? encodeURIComponent(name) : "place";
+    return `https://www.google.com/maps/search/?api=1&query=${q}&query_place_id=${encodeURIComponent(pid)}`;
+  }
+
+  // 3. Name search, with city/area context when we have it, so the
+  //    right "Starbucks" resolves instead of the nearest one.
+  if (name) {
+    const ctx = item.city || item.area || item.cityHe || item.destination || "";
+    const q = ctx && !name.includes(ctx) ? `${name} ${ctx}` : name;
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
+  }
+
+  // 4. Coordinates — last resort (a bare pin, no place identity).
   const lng = item.coordinates?.lng ?? item.lng;
   const lat = item.coordinates?.lat ?? item.lat;
   if (Number.isFinite(lng) && Number.isFinite(lat)) {
     return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
-  }
-
-  const name = item.name || item.nameEn || item.nameHe || "";
-  if (name) {
-    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name + " Japan")}`;
   }
   return null;
 };

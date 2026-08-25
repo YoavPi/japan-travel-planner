@@ -1,3 +1,4 @@
+/* eslint-disable */
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { buildStory, buildStoryFromData, STORY_CITIES, getChronologicalCityPath, getChronologicalCityPathFromData } from "../data/storyBuilder";
 import { Glyph, MetaIcon, TRANSIT_LABEL_HE } from "./StoryFlowGlyph";

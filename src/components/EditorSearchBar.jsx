@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { isSearchEnabled, autocomplete, getDetails, RateLimitError } from "../services/googlePlaces";
 import { classifyLocation, ratingToBadge, CATEGORY_META } from "../utils/classify";
+import Icon from "./Icon";
 
 /* ══════════════════════════════════════════════════════════════
    EditorSearchBar — persistent search on top of the editor map.
@@ -32,7 +33,7 @@ const T = {
   font: "'Noto Sans Hebrew','Inter','Noto Sans JP',system-ui,sans-serif",
 };
 
-const EditorSearchBar = ({ onAddStop, onPreview, activeDay }) => {
+const EditorSearchBar = ({ onAddStop, onPreview, activeDay, getBias, onFocusInput, floatResults = false, placeholder }) => {
   const placesOn = isSearchEnabled();
   const [query, setQuery] = useState("");
   const [preds, setPreds] = useState([]);
@@ -41,6 +42,10 @@ const EditorSearchBar = ({ onAddStop, onPreview, activeDay }) => {
   const [rlError, setRlError] = useState(""); // rate-limit notification
   const debRef = useRef(null);
   const wrapRef = useRef(null);
+  /* Sprint 47 #3 — hold the latest bias getter in a ref so the debounced
+     autocomplete effect can read it without listing it as a dependency. */
+  const biasRef = useRef(getBias);
+  biasRef.current = getBias;
 
   /* Debounced autocomplete (live or simulated). */
   useEffect(() => {
@@ -50,13 +55,15 @@ const EditorSearchBar = ({ onAddStop, onPreview, activeDay }) => {
     setBusy(true);
     debRef.current = setTimeout(async () => {
       try {
-        const res = await autocomplete(query);
+        /* Sprint 47 #3 — bias predictions to the visible map / trip country. */
+        const bias = typeof biasRef.current === "function" ? biasRef.current() : null;
+        const res = await autocomplete(query, bias ? { bias } : {});
         setPreds(res); setRlError(""); setBusy(false); setOpen(true);
       } catch (err) {
         setBusy(false); setPreds([]); setOpen(true);
         setRlError(err instanceof RateLimitError ? err.message : "החיפוש נכשל, נסו שוב");
       }
-    }, 250);
+    }, 300); // Sprint 42 #6 — standard 300ms debounce
     return () => debRef.current && clearTimeout(debRef.current);
   }, [query, placesOn]);
 
@@ -99,13 +106,18 @@ const EditorSearchBar = ({ onAddStop, onPreview, activeDay }) => {
   };
 
   return (
-    <div ref={wrapRef} dir="rtl" style={{ position: "absolute", top: 64, insetInlineStart: 16, insetInlineEnd: 16, zIndex: 35, fontFamily: T.font }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, height: 48, padding: "0 14px", borderRadius: 999, background: "#fff", boxShadow: "0 4px 20px rgba(0,0,0,0.14)", border: `1px solid ${T.line}` }}>
-        <span aria-hidden>🔍</span>
+    /* Sprint 45 #6 — the bar is now an INLINE flex child of a unified top row
+       (Home + Search) owned by the editor; it fills the remaining width. The
+       results dropdown stays anchored relative to this wrapper. */
+    <div ref={wrapRef} dir="rtl" style={{ position: "relative", flex: 1, minWidth: 0, fontFamily: T.font }}>
+      {/* Sprint 56 #1 — flat rigid search block: rounded-md, solid border, no
+          shadow depth; the magnifier is a monochrome vector. */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, height: 48, padding: "0 12px", borderRadius: 8, background: "#fff", boxShadow: "none", border: "1.5px solid #E4E4E8" }}>
+        <span aria-hidden style={{ color: T.ink3, display: "inline-flex" }}><Icon name="search" size={17} strokeWidth={2} /></span>
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          onFocus={() => setOpen(true)}
+          onFocus={() => { setOpen(true); if (onFocusInput) onFocusInput(); }}
           onKeyDown={(e) => {
             /* Map Discovery Invariant: Enter must NOT commit a stop.
                Pick a place from the list (which opens the preview card)
@@ -115,7 +127,7 @@ const EditorSearchBar = ({ onAddStop, onPreview, activeDay }) => {
               if (placesOn && preds[0]) addFromPlace(preds[0]);
             }
           }}
-          placeholder="חיפוש מקום והוספה למסלול…"
+          placeholder={placeholder || "חיפוש מקום והוספה למסלול…"}
           style={{ flex: 1, border: "none", outline: "none", background: "transparent", fontSize: 16, fontFamily: "inherit", direction: "rtl", textAlign: "right", color: T.ink }}
         />
         {busy && <span style={{ fontSize: 11, color: T.ink4 }}>מחפש…</span>}
@@ -125,7 +137,12 @@ const EditorSearchBar = ({ onAddStop, onPreview, activeDay }) => {
       </div>
 
       {open && query.trim().length >= 2 && (
-        <div style={{ marginTop: 6, background: "#fff", border: `1px solid ${T.line}`, borderRadius: 16, boxShadow: "0 16px 40px rgba(0,0,0,0.16)", overflow: "hidden" }}>
+        <div style={{
+          ...(floatResults
+            ? { position: "absolute", top: "calc(100% + 6px)", insetInlineStart: 0, insetInlineEnd: 0, zIndex: 400 }
+            : { marginTop: 6 }),
+          background: "#fff", border: `1px solid ${T.line}`, borderRadius: 16, boxShadow: "0 16px 40px rgba(0,0,0,0.16)", overflow: "hidden",
+        }}>
           {rlError ? (
             <div style={{ padding: "12px 14px", fontSize: 13, fontWeight: 700, color: T.accent, display: "flex", alignItems: "center", gap: 8 }}>
               <span aria-hidden>⏳</span>{rlError}

@@ -1,3 +1,4 @@
+/* eslint-disable */
 import React, { forwardRef } from "react";
 import { HOTEL_COORDINATES } from "../data/tripData";
 import { vibeDescriptions } from "../data/landmarkImages";

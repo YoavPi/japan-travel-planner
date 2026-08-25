@@ -25,6 +25,9 @@ const T = {
   line: "rgba(20,20,20,0.10)", surface: "#F6F6F4", accent: "#E0533F",
 };
 
+/* Sprint 51 #2 — 4 muted pastel card themes the user can stamp on any stop. */
+const PASTELS = ["#E7A9A0", "#9CCBA9", "#EBCB93", "#A9BBE4"];
+
 const Row = ({ icon, label, danger, onClick, last }) => (
   <button onClick={onClick}
     style={{
@@ -52,7 +55,7 @@ const SectionRule = () => (
   <div aria-hidden style={{ height: 1, background: "rgba(20,20,20,0.08)", margin: "6px 0" }} />
 );
 
-const StopActionsSheet = ({ stop, days = [], otherTrips = [], onMove, onCopy, onCrossCopy, onSetNote, onSetLodging, onSetMultiDayHotel, onMoveNextDay, onSplitDay, onDelete, onClose }) => {
+const StopActionsSheet = ({ stop, days = [], otherTrips = [], onMove, onCopy, onCrossCopy, onSetNote, onSetLodging, onSetColor, onSetMultiDayHotel, onMoveNextDay, onSplitDay, onCopyName, onDuplicate, onAttach, attachBusy, attachmentCount = 0, onRemoveAttachment, onDelete, onClose }) => {
   const [mode, setMode] = useState(null); // null | 'move' | 'copy' | 'crosscopy' | 'hoteldays' | 'note'
   /* Cross-trip copy selection state. */
   const [targetTripId, setTargetTripId] = useState("");
@@ -64,6 +67,8 @@ const StopActionsSheet = ({ stop, days = [], otherTrips = [], onMove, onCopy, on
 
   const targetTrip = otherTrips.find((t) => t.id === targetTripId) || null;
   const targetDayCount = targetTrip ? (Number(targetTrip.days) || 0) : 0;
+  /* Sprint 51 #2 — current lodging state drives the toggle row's icon. */
+  const isLodging = !!(stop && (stop._hotelGroup || /מלון|לינה/.test(stop.category || "")));
 
   const title =
     mode === "move" ? "העברה ליום" :
@@ -81,7 +86,8 @@ const StopActionsSheet = ({ stop, days = [], otherTrips = [], onMove, onCopy, on
   const backBtnStyle = { marginTop: 12, width: "100%", height: 44, borderRadius: 12, border: `1px solid ${T.line}`, background: "#fff", cursor: "pointer", fontFamily: "inherit", fontSize: 14, color: T.ink2 };
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 60, display: "flex", alignItems: "flex-end" }}>
+    /* Sprint 65 #3 — raise the whole sheet above every map overlay/FAB stack. */
+    <div style={{ position: "fixed", inset: 0, zIndex: 300, display: "flex", alignItems: "flex-end" }}>
       <div onClick={onClose} className="tp-fade" style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.32)" }} />
       <div dir="rtl" className="tp-sheet-up" style={{
         position: "relative", width: "100%", maxWidth: 720, margin: "0 auto",
@@ -92,8 +98,13 @@ const StopActionsSheet = ({ stop, days = [], otherTrips = [], onMove, onCopy, on
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
           <div style={{ width: 44, height: 5, borderRadius: 999, background: "rgba(20,20,20,0.18)" }} />
         </div>
-        <div style={{ padding: "0 16px 12px", fontSize: 15.5, fontWeight: 800, color: T.ink }}>
-          {title}
+        {/* Sprint 54 #2 / 57 #4 / 65 #3 — high-contrast ✕ dismissal pinned as a
+            STICKY header (z-index 999 + safe-area top padding) so it is never
+            obscured by a top bar or map overlay and always tappable. */}
+        <div style={{ position: "sticky", top: 0, zIndex: 999, background: "#fff", padding: "env(safe-area-inset-top, 0px) 16px 12px", display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ flex: 1, minWidth: 0, fontSize: 15.5, fontWeight: 800, color: T.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{title}</span>
+          <button onClick={onClose} title="סגירה" aria-label="סגירה" className="tp-press"
+            style={{ position: "relative", zIndex: 999, flexShrink: 0, width: 36, height: 36, borderRadius: "50%", border: "none", background: "#1E1E24", color: "#fff", cursor: "pointer", fontFamily: "inherit", fontSize: 16, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.12)" }}>✕</button>
         </div>
 
         {mode === "move" || mode === "copy" ? (
@@ -199,6 +210,8 @@ const StopActionsSheet = ({ stop, days = [], otherTrips = [], onMove, onCopy, on
             <SectionHeading>ניהול לוח זמנים</SectionHeading>
             <Row icon="↪" label="העברה ליום אחר" onClick={() => setMode("move")} />
             <Row icon="⧉" label="העתקה ליום אחר" onClick={() => setMode("copy")} />
+            {/* Sprint 61 #3 — instant duplicate of THIS place into the same day. */}
+            {onDuplicate && <Row icon="📋" label="שכפל מיקום" onClick={() => { onDuplicate(); onClose?.(); }} />}
             <Row icon="➡️" label="העבר ליום הבא" onClick={onMoveNextDay} />
             <Row icon="✂️" label="פצל יום החל מנקודה זו" onClick={onSplitDay} last />
 
@@ -206,10 +219,36 @@ const StopActionsSheet = ({ stop, days = [], otherTrips = [], onMove, onCopy, on
 
             {/* Section 2 — Content & accommodations */}
             <SectionHeading>תוכן ולינה</SectionHeading>
+            {/* Sprint 51 #2 — inline pastel palette: stamp a persistent card
+                theme onto this stop (or clear it). */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 16px 10px" }}>
+              <span aria-hidden style={{ fontSize: 18, width: 22, textAlign: "center" }}>🎨</span>
+              <span style={{ fontSize: 15, fontWeight: 600, color: T.ink, flex: 1 }}>צבע הכרטיס</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                {PASTELS.map((c) => {
+                  const on = (stop?._theme || "") === c;
+                  return (
+                    <button key={c} onClick={() => onSetColor?.(on ? null : c)}
+                      aria-label="צבע כרטיס" title="צבע כרטיס"
+                      style={{ width: 26, height: 26, borderRadius: "50%", background: c, cursor: "pointer",
+                        border: on ? `2.5px solid ${T.ink}` : "2px solid #fff", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
+                  );
+                })}
+                {/* Clear the theme back to the default city color. */}
+                <button onClick={() => onSetColor?.(null)} aria-label="ללא צבע" title="ללא צבע"
+                  style={{ width: 26, height: 26, borderRadius: "50%", background: "#fff", cursor: "pointer", border: `2px solid ${T.line}`, color: T.ink4, fontSize: 13, lineHeight: 1, fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>⌀</button>
+              </div>
+            </div>
             <Row icon="🏨" label="זה מלון לכמה ימים" onClick={() => setMode("hoteldays")} />
-            <Row icon="🛏" label="הגדרה כנקודת לינה / מלון" onClick={onSetLodging} />
+            <Row icon={isLodging ? "🏨" : "🛏"} label="הגדר/בטל כנקודת לינה" onClick={onSetLodging} />
             <Row icon="📝" label={stop?.note ? "עריכת הערה" : "הוספת הערה"} onClick={() => { setNoteDraft(stop?.note || ""); setMode("note"); }} />
-            <Row icon="📋" label="העתקה לטיול אחר" onClick={() => setMode("crosscopy")} last />
+            {/* Sprint 61 #7 — attach a confirmation file / PDF / image. */}
+            {onAttach && <Row icon="📎" label={attachBusy ? "מצרף קובץ…" : "צרף קובץ/מסמך"} onClick={attachBusy ? undefined : () => { onAttach(); }} />}
+            {/* Sprint 65 #2 — remove an attached file from this stop. */}
+            {onRemoveAttachment && attachmentCount > 0 && <Row icon="🗑" label="הסר קובץ מצורף" onClick={() => { onRemoveAttachment(); }} />}
+            {/* Sprint 55 #2 — quick-copy name migrated off the card into ⋯. */}
+            {onCopyName && <Row icon="🔗" label="העתקת שם המקום" onClick={() => { onCopyName(); onClose?.(); }} />}
+            <Row icon="🗂" label="העתקה לטיול אחר" onClick={() => setMode("crosscopy")} last />
 
             <SectionRule />
 

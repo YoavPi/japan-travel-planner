@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useDarkMode } from "../utils/theme";
+import { useAuth } from "../context/AuthContext";
 import Icon from "./Icon";
 
 /* ══════════════════════════════════════════════════════════════
@@ -21,6 +22,7 @@ const BottomDock = () => {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const { P } = useDarkMode();
+  const { isAuthenticated } = useAuth();
 
   const active = useMemo(() => {
     if (pathname.startsWith("/settings")) return "settings";
@@ -32,9 +34,12 @@ const BottomDock = () => {
 
   /* RTL convention — primary action (Home) anchors the RIGHT edge,
      secondary settings end on the LEFT. Array order is the visual
-     order under dir="rtl" (right → left). */
+     order under dir="rtl" (right → left).
+     Sprint 66 #3 — the "בית" (Home) button is REDUNDANT once signed in (the
+     authenticated home IS the dashboard), so it's shown to guests only and
+     hidden for authenticated users to declutter the dock. */
   const items = [
-    { id: "home",     icon: "home",     title: "בית", to: "/" },
+    ...(!isAuthenticated ? [{ id: "home", icon: "home", title: "בית", to: "/" }] : []),
     { id: "maps",     icon: "map",      title: "המסלולים שלי", to: "/dashboard" },
     { id: "notif",    icon: "bell",     title: "התראות", to: "/notifications" },
     { id: "settings", icon: "settings", title: "הגדרות", to: "/settings" },

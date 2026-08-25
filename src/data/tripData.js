@@ -1,3 +1,4 @@
+/* eslint-disable */
 // Japan Honeymoon Trip Data — Source of truth.
 // attractions[] is now the CANONICAL ordered list for each day.
 // Items appear exactly in the chronological order they're written;

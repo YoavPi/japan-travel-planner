@@ -70,29 +70,42 @@ const AuthView = () => {
     const m = (window.location.hash + window.location.search).match(/error_description=([^&]+)/);
     return m ? decodeURIComponent(m[1].replace(/\+/g, " ")) : "";
   });
+  /* Inline auth error (e.g. OAuth failed, or an unimplemented provider was
+     tapped). We NEVER silently mock-sign-in on a real backend. */
+  const [authErr, setAuthErr] = React.useState("");
 
-  /* OAuth-loop fix — only navigate once hydration has settled. During
-     `initializing` the Supabase client is still consuming the callback
-     tokens; deciding early is what bounced users back here. */
+  /* OAuth-loop fix — navigate in once we know the user is authenticated. */
   React.useEffect(() => {
     if (!initializing && isAuthenticated) navigate(dest, { replace: true });
   }, [initializing, isAuthenticated, dest, navigate]);
 
+  /* DEMO-ONLY mock sign-in — reachable only when there is NO real backend
+     (supabaseEnabled === false). With a real backend it must never run, or
+     it would sign the visitor in as the shared demo identity. */
   const doSignIn = async () => {
+    if (supabaseEnabled) { setAuthErr("התחברות זו אינה זמינה — התחברו עם Google."); return; }
     await signIn();
     navigate(dest, { replace: true });
   };
 
-  /* Sprint 26 — Supabase NATIVE Google OAuth is the primary path when
-     the backend is configured: signInWithOAuth redirects to Google and
-     back to /auth, where the isAuthenticated effect routes onward. The
-     GIS-widget / mock paths remain as graceful fallbacks. */
+  /* Supabase NATIVE Google OAuth — the ONLY real sign-in path in production.
+     On failure we surface an error and let the user retry; we do NOT fall
+     back to a mock identity (that was the account-mix-up bug). */
   const doSupabaseGoogle = async () => {
+    setAuthErr("");
     try {
       await signInWithSupabase(); // browser navigates away on success
     } catch {
-      await doSignIn(); // backend misconfigured → mock fallback keeps the demo usable
+      setAuthErr("ההתחברות עם Google נכשלה. נסו שוב.");
     }
+  };
+
+  /* Apple / Email aren't implemented against the real backend yet. Tapping
+     them must inform the user — never quietly mock them into someone's
+     account. In the no-backend demo they still run the local mock. */
+  const doOtherProvider = () => {
+    if (supabaseEnabled) { setAuthErr("התחברות עם Apple/אימייל עדיין לא זמינה — התחברו עם Google."); return; }
+    doSignIn();
   };
 
   /* Real Google onSuccess — the callback payload carries an ID token
@@ -161,6 +174,19 @@ const AuthView = () => {
             </div>
           )}
 
+          {/* Inline auth error (failed OAuth / unavailable provider). */}
+          {authErr && !initializing && (
+            <div role="alert" style={{ padding: "10px 12px", marginBottom: 12, borderRadius: 12, background: "rgba(192,57,43,0.08)", border: "1px solid rgba(192,57,43,0.35)", color: "#A03325", fontSize: 12.5, fontWeight: 700, lineHeight: 1.5 }}>
+              {authErr}
+            </div>
+          )}
+
+          {/* While the session check is in flight, show ONLY the spinner above
+              — NOT clickable sign-in buttons. Otherwise a user on a slow network
+              clicks Google while a session is hydrating, and that redirect races
+              the auto-navigate that fires the instant hydration finishes → the
+              click appears to "do nothing" until they close and land in. */}
+          {!initializing && (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {supabaseEnabled ? (
               /* Sprint 26 — Supabase native Google OAuth (primary). */
@@ -185,17 +211,20 @@ const AuthView = () => {
                 {signingIn ? <span>מתחבר…</span> : <><GoogleGlyph /><span>המשך עם Google</span></>}
               </AuthBtn>
             )}
-            <AuthBtn variant="apple" onClick={doSignIn} disabled={signingIn}>
+            <AuthBtn variant="apple" onClick={doOtherProvider} disabled={signingIn}>
               <AppleGlyph /><span style={{ color: "#fff" }}>המשך עם Apple</span>
             </AuthBtn>
-            <AuthBtn variant="ghost" onClick={doSignIn} disabled={signingIn}>
+            <AuthBtn variant="ghost" onClick={doOtherProvider} disabled={signingIn}>
               המשך עם אימייל
             </AuthBtn>
           </div>
+          )}
 
+          {!initializing && (
           <div style={{ fontSize: 11.5, color: T.ink4, textAlign: "center", marginTop: 18, lineHeight: 1.5 }}>
             בלחיצה אתם מסכימים ל<span style={{ color: T.ink3, textDecoration: "underline" }}>תנאי השימוש</span> ול<span style={{ color: T.ink3, textDecoration: "underline" }}>מדיניות הפרטיות</span> שלנו.
           </div>
+          )}
         </div>
       </div>
     </div>

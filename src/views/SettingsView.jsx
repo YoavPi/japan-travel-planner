@@ -16,10 +16,30 @@ const FONT = "'Noto Sans Hebrew','Inter','Noto Sans JP',system-ui,sans-serif";
 
 const SettingsView = () => {
   const navigate = useNavigate();
-  const { user, signOut } = useAuth();
+  const { user, signOut, updateProfile } = useAuth();
   const { dark, setDark, P } = useDarkMode();
   const [prefs, setPrefs] = useState(readPrefs);
   const [toast, setToast] = useState("");
+  /* Editable account profile — display name persisted to the backend. */
+  const [editingName, setEditingName] = useState(null); // string draft | null
+  const [savingName, setSavingName] = useState(false);
+  const openNameEditor = () => setEditingName(user?.name || "");
+  const saveName = async () => {
+    const clean = (editingName || "").trim();
+    if (!clean || clean === user?.name) { setEditingName(null); return; }
+    setSavingName(true);
+    try {
+      await updateProfile({ name: clean });
+      setEditingName(null);
+      setToast("הפרופיל עודכן");
+      setTimeout(() => setToast(""), 1600);
+    } catch {
+      setToast("עדכון הפרופיל נכשל — נסו שוב");
+      setTimeout(() => setToast(""), 1800);
+    } finally {
+      setSavingName(false);
+    }
+  };
 
   /* Other prefs persist via the local helper; dark goes through
      the hook so it broadcasts to mounted screens. */
@@ -68,7 +88,7 @@ const SettingsView = () => {
         <div style={{ padding: "16px 16px 96px" /* reserve bottom space for the floating dock */ }}>
           {/* Account */}
           <Group>
-            <Row first icon="user" title="פרטי חשבון" sub={user?.email || "שם, מייל, תמונת פרופיל"} onClick={soon} soonBadge />
+            <Row first icon="user" title="פרטי חשבון" sub={[user?.name, user?.email].filter(Boolean).join(" · ") || "שם ומייל"} value="עריכה" onClick={openNameEditor} />
             <Row icon="sparkle" title="מנוי וחיוב" value={user?.plan || "Free"} onClick={soon} soonBadge />
           </Group>
 
@@ -83,15 +103,18 @@ const SettingsView = () => {
 
           {/* Notifications + sharing */}
           <Group>
-            <Row first icon="bell" title="התראות" sub="תזכורות ועדכונים מהמסלול" control={<Toggle on={prefs.notifications} onClick={() => update({ notifications: !prefs.notifications })} />} />
-            <Row icon="share" title="עדכוני שיתוף" sub="כשמישהו עורך מסלול משותף" control={<Toggle on={prefs.shareUpdates} onClick={() => update({ shareUpdates: !prefs.shareUpdates })} />} />
+            <Row first icon="bell" title="התראות" sub="תזכורות ועדכונים מהמסלול" onClick={soon} soonBadge />
+            <Row icon="share" title="עדכוני שיתוף" sub="כשמישהו עורך מסלול משותף" onClick={soon} soonBadge />
             <Row icon="shield" title="פרטיות והרשאות" sub="ברירת מחדל לשיתוף מסלולים" onClick={soon} soonBadge />
           </Group>
 
           {/* Support + danger */}
           <Group>
             <Row first icon="helpCircle" title="עזרה ותמיכה" onClick={soon} soonBadge />
-            <Row icon="logOut" title="התנתקות" danger onClick={() => { signOut(); navigate("/"); }} />
+            {/* Sprint 60 #4 — forceful sign-out: clear session, then hard
+                window.location.replace to the public marketing home (full
+                reload — no lingering editor canvas / cold SSO overlay). */}
+            <Row icon="logOut" title="התנתקות" danger onClick={() => { signOut(); window.location.replace(window.location.origin + "/"); }} />
           </Group>
 
           <div style={{ textAlign: "center", fontSize: 12, color: P.ink4, marginTop: 18 }}>
@@ -99,6 +122,31 @@ const SettingsView = () => {
           </div>
         </div>
       </div>
+
+      {/* Profile editor — edit the display name, saved to the backend. */}
+      {editingName !== null && (
+        <div dir="rtl" onClick={() => !savingName && setEditingName(null)}
+          style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(10,12,15,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, fontFamily: FONT }}>
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ width: "100%", maxWidth: 440, background: P.panel, borderRadius: 18, border: `1px solid ${P.line}`, padding: 20, boxShadow: "0 24px 70px rgba(0,0,0,0.4)" }}>
+            <div style={{ fontSize: 17, fontWeight: 800, color: P.ink, marginBottom: 4 }}>עריכת פרופיל</div>
+            <div style={{ fontSize: 12.5, color: P.ink3, marginBottom: 16 }}>{user?.email}</div>
+            <label style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: P.ink3, marginBottom: 6 }}>שם תצוגה</label>
+            <input autoFocus value={editingName} onChange={(e) => setEditingName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") saveName(); }}
+              placeholder="השם שלך" maxLength={60}
+              style={{ width: "100%", boxSizing: "border-box", height: 46, padding: "0 13px", borderRadius: 12, border: `1.5px solid ${P.line}`, background: P.page, color: P.ink, fontSize: 15, fontFamily: "inherit", direction: "rtl", textAlign: "right" }} />
+            <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+              <button onClick={() => setEditingName(null)} disabled={savingName}
+                style={{ flex: 1, height: 46, borderRadius: 12, border: `1px solid ${P.line}`, background: P.panel, color: P.ink2, fontSize: 14.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>ביטול</button>
+              <button onClick={saveName} disabled={savingName}
+                style={{ flex: 1, height: 46, borderRadius: 12, border: "none", background: ACCENT, color: "#fff", fontSize: 14.5, fontWeight: 800, cursor: savingName ? "default" : "pointer", opacity: savingName ? 0.7 : 1, fontFamily: "inherit" }}>
+                {savingName ? "שומר…" : "שמירה"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {toast && (
         <div style={{ position: "fixed", bottom: 96, left: "50%", transform: "translateX(-50%)", background: P.ink, color: P.panel, borderRadius: 999, padding: "10px 20px", fontSize: 13.5, fontWeight: 600, zIndex: 80, fontFamily: FONT }}>

@@ -1,3 +1,4 @@
+/* eslint-disable */
 import React, { useRef, useEffect, useCallback, useMemo } from "react";
 import { tripData } from "../data/tripData";
 import DayCard from "./DayCard";

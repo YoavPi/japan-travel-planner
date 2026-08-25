@@ -150,6 +150,12 @@ body {
 .tp-press { transition: transform 0.12s ease; }
 .tp-press:active { transform: scale(0.94); }
 
+/* Apple-grade press response (both surfaces): every control highlights the
+   instant it is pressed. Brightness — not transform — so positioned or
+   already-animated buttons never jump. Instant by design (no wait). */
+button:not(:disabled):active,
+[role="button"]:not([aria-disabled="true"]):active { filter: brightness(0.93); }
+
 @media (prefers-reduced-motion: reduce) {
   .tp-fade-up, .tp-fade, .tp-pop, .tp-sheet-up, .tp-route { animation: none; }
   .tp-card:hover { transform: none; }
@@ -440,3 +446,56 @@ html { scroll-behavior: smooth; }
   pointer-events: none;
   z-index: 0;
 }
+
+/* Sprint 36 #9 — prevent intrusive iOS/Android focus-zoom by keeping
+   every form control at >=16px. The !important beats inline styles that
+   set a smaller px value on individual fields. */
+input,
+textarea,
+select {
+  font-size: 16px;
+}
+@media (max-width: 820px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* Sprint 67 — global spinner (AI trip generation modal + reused elsewhere). */
+@keyframes tp-spin { to { transform: rotate(360deg); } }
+.tp-spin { animation: tp-spin 0.7s linear infinite; }
+
+/* Sprint 68 — AI "map building" loader animation. */
+@keyframes tp-route-draw { 0% { stroke-dashoffset: 320; } 70% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: 0; } }
+@keyframes tp-pin-pop { 0%,20% { transform: scale(0); opacity: 0; } 55% { transform: scale(1.18); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+@keyframes tp-loader-pan { 0% { transform: translate(0,0); } 50% { transform: translate(-6px,-4px); } 100% { transform: translate(0,0); } }
+.tp-route-line { stroke-dasharray: 320; animation: tp-route-draw 2.6s ease-in-out infinite; }
+.tp-loader-pin { transform-origin: center; animation: tp-pin-pop 2.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .tp-route-line, .tp-loader-pin { animation: none; } }
+
+/* ── Accessibility (compliance bundle) ──────────────────────────
+   Visible keyboard-focus ring everywhere (mouse users are unaffected
+   thanks to :focus-visible), plus the "skip to content" link that
+   appears only when tabbed to. Teal matches the a11y widget accent. */
+:focus-visible {
+  outline: 3px solid #E0533F;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.tp-skip-link {
+  position: fixed;
+  top: -80px;
+  inset-inline-start: 12px;
+  z-index: 2147483600;
+  background: #0D0F11;
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-weight: 800;
+  font-size: 14px;
+  text-decoration: none;
+  transition: top 0.15s ease;
+}
+.tp-skip-link:focus { top: 12px; }

@@ -69,7 +69,7 @@ const Initial = ({ name, i }) => (
   </span>
 );
 
-const MapCard = ({ trip, index = 0, dark = false, active = false, onOpen, onCopyLink, onShare, onDelete, onSaveMemo }) => {
+const MapCard = ({ trip, index = 0, dark = false, active = false, onOpen, onCopyLink, onShare, onDelete, onSaveMemo, favorite = false, onToggleFavorite }) => {
   const P = dark ? DARK : LIGHT;
   const role = ROLE[trip.role] || ROLE.view;
   const lm = landmarkFor(trip);
@@ -166,7 +166,9 @@ const MapCard = ({ trip, index = 0, dark = false, active = false, onOpen, onCopy
 
   const copyLink = async (e) => {
     e.stopPropagation();
-    const url = trip.readOnly ? `${window.location.origin}/map?demo=1` : `${window.location.origin}/map/edit/${trip.id}`;
+    /* Only the Japan example links to the marketing demo; every real trip
+       (incl. shared view-only) links to its own editor (view mode if read-only). */
+    const url = trip.id === "japan-demo" ? `${window.location.origin}/map?demo=1` : `${window.location.origin}/map/edit/${trip.id}`;
     try { await navigator.clipboard.writeText(url); } catch { /* noop */ }
     setCopied(true); setTimeout(() => setCopied(false), 1400);
     onCopyLink && onCopyLink(trip);
@@ -226,6 +228,14 @@ const MapCard = ({ trip, index = 0, dark = false, active = false, onOpen, onCopy
         ) : null}
         {active && (
           <span aria-hidden style={{ position: "absolute", inset: 0, boxShadow: `inset 0 0 0 2px ${ACCENT}`, borderRadius: 14 }} />
+        )}
+        {/* Favorite star — quick-save / highlight. */}
+        {onToggleFavorite && (
+          <button onClick={(e) => { e.stopPropagation(); onToggleFavorite(trip); }}
+            title={favorite ? "הסרה מהמועדפים" : "הוספה למועדפים"} aria-label={favorite ? "הסרה מהמועדפים" : "הוספה למועדפים"} aria-pressed={favorite}
+            style={{ position: "absolute", top: 6, insetInlineStart: 6, width: 26, height: 26, borderRadius: "50%", border: "none", background: favorite ? "#F5A623" : "rgba(13,15,17,0.55)", color: "#fff", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 13, boxShadow: "0 2px 6px rgba(0,0,0,0.3)", backdropFilter: "blur(4px)" }}>
+            <span aria-hidden>{favorite ? "★" : "☆"}</span>
+          </button>
         )}
         {/* Ownership badge — minimalist crown (owned) / users (shared)
             chip pinned to the thumb's top inline-end corner. */}
