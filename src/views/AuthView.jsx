@@ -38,12 +38,6 @@ const GoogleGlyph = () => (
     <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3a12 12 0 0 1-4.1 5.6l6.2 5.2c-.4.4 6.6-4.8 6.6-14.8 0-1.3-.1-2.3-.4-3.5z"/>
   </svg>
 );
-const AppleGlyph = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="#0D0F11" aria-hidden>
-    <path d="M16.4 12.8c0-2.2 1.8-3.3 1.9-3.4-1-1.5-2.6-1.7-3.2-1.7-1.4-.1-2.6.8-3.3.8-.7 0-1.7-.8-2.8-.8-1.4 0-2.8.8-3.5 2.1-1.5 2.6-.4 6.4 1.1 8.5.7 1 1.5 2.2 2.6 2.1 1-.04 1.4-.7 2.7-.7 1.2 0 1.6.7 2.7.6 1.1-.02 1.8-1 2.5-2 .8-1.2 1.1-2.3 1.1-2.4-.02-.01-2.1-.8-2.1-3zM14.3 6.3c.6-.7 1-1.7.9-2.7-.9.04-1.9.6-2.5 1.3-.5.6-1 1.6-.9 2.6 1 .08 1.9-.5 2.5-1.2z"/>
-  </svg>
-);
-
 const AuthBtn = ({ children, onClick, disabled, variant }) => {
   const base = {
     width: "100%", height: 54, borderRadius: 14, cursor: disabled ? "default" : "pointer",
@@ -52,8 +46,6 @@ const AuthBtn = ({ children, onClick, disabled, variant }) => {
   };
   const styles = {
     google: { ...base, border: `1px solid ${T.line}`, background: "#fff", color: T.ink },
-    apple:  { ...base, border: "none", background: T.ink, color: "#fff" },
-    ghost:  { ...base, border: "none", background: "transparent", color: T.ink2, height: 46, fontWeight: 600 },
   };
   return <button onClick={onClick} disabled={disabled} style={styles[variant]}>{children}</button>;
 };
@@ -98,14 +90,6 @@ const AuthView = () => {
     } catch {
       setAuthErr("ההתחברות עם Google נכשלה. נסו שוב.");
     }
-  };
-
-  /* Apple / Email aren't implemented against the real backend yet. Tapping
-     them must inform the user — never quietly mock them into someone's
-     account. In the no-backend demo they still run the local mock. */
-  const doOtherProvider = () => {
-    if (supabaseEnabled) { setAuthErr("התחברות עם Apple/אימייל עדיין לא זמינה — התחברו עם Google."); return; }
-    doSignIn();
   };
 
   /* Real Google onSuccess — the callback payload carries an ID token
@@ -211,12 +195,6 @@ const AuthView = () => {
                 {signingIn ? <span>מתחבר…</span> : <><GoogleGlyph /><span>המשך עם Google</span></>}
               </AuthBtn>
             )}
-            <AuthBtn variant="apple" onClick={doOtherProvider} disabled={signingIn}>
-              <AppleGlyph /><span style={{ color: "#fff" }}>המשך עם Apple</span>
-            </AuthBtn>
-            <AuthBtn variant="ghost" onClick={doOtherProvider} disabled={signingIn}>
-              המשך עם אימייל
-            </AuthBtn>
           </div>
           )}
 
