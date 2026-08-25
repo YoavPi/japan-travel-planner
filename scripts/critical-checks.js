@@ -60,8 +60,13 @@ check(
 );
 check(
   "AUTH: Apple/Email do not mock-sign-in on a real backend",
-  /doOtherProvider/.test(view) && /supabaseEnabled\s*\)\s*{\s*setAuthErr/.test(view),
-  "Apple/Email must route through a guard that blocks the mock when supabaseEnabled."
+  /* Sign-in is now Google-only: the Apple/Email buttons were removed, which
+     eliminates their mock-sign-in path entirely. This passes if those buttons
+     are ABSENT (current state) OR — for backward-compat — the old
+     supabaseEnabled guard around doOtherProvider is present. */
+  (!/המשך עם Apple/.test(view) && !/המשך עם אימייל/.test(view)) ||
+    (/doOtherProvider/.test(view) && /supabaseEnabled\s*\)\s*{\s*setAuthErr/.test(view)),
+  "With Google-only auth the Apple/Email buttons must be absent; otherwise they must route through a supabaseEnabled guard that blocks the mock."
 );
 
 /* ── BACKEND WIRING — prod must not silently run in demo mode ───────── */
