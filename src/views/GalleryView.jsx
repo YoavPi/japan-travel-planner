@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import SiteFooter from "../components/SiteFooter";
 import GalleryCard from "../components/GalleryCard";
@@ -6,6 +6,7 @@ import { useAuth } from "../context/AuthContext";
 import { GALLERY_CATEGORIES } from "../utils/gallery";
 import { fetchPublicTrips } from "../services/galleryService";
 import { listFavoriteIds } from "../services/favoritesService";
+import { isPlacesEnabled, autocomplete as placesAutocomplete } from "../services/googlePlaces";
 import { track } from "../analytics/posthog";
 
 /* ══════════════════════════════════════════════════════════════
@@ -39,6 +40,13 @@ const GalleryView = () => {
   const [loading, setLoading] = useState(true);
   const [favIds, setFavIds] = useState(new Set());
 
+  /* Google-Places autocomplete for the destination box (geocode = countries,
+     regions, cities). Mirrors the wizard's destination search so the same
+     Hebrew place names surface and match published maps' `destinationHe`. */
+  const [destPreds, setDestPreds] = useState([]);
+  const [destOpen, setDestOpen] = useState(false);
+  const destPicked = useRef(false);
+
   useEffect(() => {
     track("gallery_viewed");
   }, []);
@@ -57,6 +65,29 @@ const GalleryView = () => {
   useEffect(() => {
     setLimit(PAGE_SIZE);
   }, [q, destination, category, sort]);
+
+  /* Debounced destination autocomplete. Skips the round-trip right after the
+     user picks a suggestion (so the dropdown doesn't reopen on the set value). */
+  useEffect(() => {
+    if (!isPlacesEnabled()) return;
+    if (destPicked.current) { destPicked.current = false; return; }
+    const term = destination.trim();
+    if (term.length < 2) { setDestPreds([]); setDestOpen(false); return; }
+    let live = true;
+    const t = setTimeout(() => {
+      placesAutocomplete(term, { types: ["geocode"] })
+        .then((res) => { if (live) { setDestPreds(res || []); setDestOpen((res || []).length > 0); } })
+        .catch(() => { if (live) { setDestPreds([]); setDestOpen(false); } });
+    }, 250);
+    return () => { live = false; clearTimeout(t); };
+  }, [destination]);
+
+  const pickDest = (pred) => {
+    destPicked.current = true;
+    setDestination(pred.primary);
+    setDestPreds([]);
+    setDestOpen(false);
+  };
 
   /* Fetch results whenever filters or the page size change. */
   useEffect(() => {
@@ -139,24 +170,51 @@ const GalleryView = () => {
                 color: T.ink,
               }}
             />
-            <input
-              type="text"
-              value={destination}
-              onChange={(e) => setDestination(e.target.value)}
-              placeholder="יעד…"
-              style={{
-                flex: "1 1 180px",
-                minWidth: 160,
-                height: 46,
-                borderRadius: 12,
-                border: `1px solid ${T.line}`,
-                background: "#fff",
-                padding: "0 16px",
-                fontSize: 14.5,
-                fontFamily: "inherit",
-                color: T.ink,
-              }}
-            />
+            <div style={{ position: "relative", flex: "1 1 180px", minWidth: 160 }}>
+              <input
+                type="text"
+                value={destination}
+                onChange={(e) => setDestination(e.target.value)}
+                onFocus={() => destPreds.length > 0 && setDestOpen(true)}
+                onBlur={() => setTimeout(() => setDestOpen(false), 150)}
+                placeholder="יעד (חיפוש מגוגל)…"
+                autoComplete="off"
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  height: 46,
+                  borderRadius: 12,
+                  border: `1px solid ${T.line}`,
+                  background: "#fff",
+                  padding: "0 16px",
+                  fontSize: 14.5,
+                  fontFamily: "inherit",
+                  color: T.ink,
+                }}
+              />
+              {destOpen && destPreds.length > 0 && (
+                <div style={{
+                  position: "absolute", top: "calc(100% + 6px)", insetInlineStart: 0, insetInlineEnd: 0, zIndex: 60,
+                  background: "#fff", border: `1px solid ${T.line}`, borderRadius: 12, overflow: "hidden",
+                  boxShadow: "0 12px 32px rgba(0,0,0,0.14)",
+                }}>
+                  {destPreds.slice(0, 6).map((p) => (
+                    <button
+                      key={p.placeId}
+                      onMouseDown={(e) => { e.preventDefault(); pickDest(p); }}
+                      style={{
+                        display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2,
+                        width: "100%", textAlign: "right", padding: "10px 14px", border: "none",
+                        borderBottom: `1px solid ${T.line}`, background: "#fff", cursor: "pointer", fontFamily: "inherit",
+                      }}
+                    >
+                      <span style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>{p.primary}</span>
+                      {p.secondary && <span style={{ fontSize: 12, color: T.ink3 }}>{p.secondary}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <div style={{ display: "inline-flex", borderRadius: 12, border: `1px solid ${T.line}`, overflow: "hidden", flexShrink: 0 }}>
               {[{ id: "popular", label: "פופולריים" }, { id: "new", label: "חדשים" }].map((s) => (
                 <button

@@ -156,6 +156,12 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
+  /* Email magic-link (passwordless). Sends the sign-in link; the app user is
+     hydrated by onAuthStateChange when the user returns via the emailed link. */
+  const signInWithEmailLink = useCallback(async (email) => {
+    return authService.signInWithEmailLink(email);
+  }, []);
+
   /* Real Google SSO callback — hydrate the session from the verified
      ID token (credential) handed back by @react-oauth/google onSuccess. */
   const signInWithGoogleToken = useCallback((credential) => {
@@ -188,12 +194,13 @@ export const AuthProvider = ({ children }) => {
       signingIn,
       signIn,
       signInWithSupabase,
+      signInWithEmailLink,
       supabaseEnabled: isSupabaseEnabled(),
       signInWithGoogleToken,
       updateProfile,
       signOut,
     }),
-    [user, initializing, signingIn, signIn, signInWithSupabase, signInWithGoogleToken, updateProfile, signOut]
+    [user, initializing, signingIn, signIn, signInWithSupabase, signInWithEmailLink, signInWithGoogleToken, updateProfile, signOut]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

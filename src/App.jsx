@@ -41,8 +41,11 @@ import CookieConsent from "./components/CookieConsent";
 const LandingGate = () => {
   const { isAuthenticated, initializing } = useAuth();
   if (initializing) return null; // wait for the session probe (no flash/bounce)
-  if (isAuthenticated) return <Navigate to="/dashboard" replace />;
-  return isOnboarded() ? <LandingView /> : <Navigate to="/welcome" replace />;
+  /* Onboarding is for SIGNED-IN users only, and only the first time.
+     A logged-in user who hasn't seen it yet gets it; everyone else
+     (including every anonymous visitor) goes straight to their surface. */
+  if (isAuthenticated) return isOnboarded() ? <Navigate to="/dashboard" replace /> : <Navigate to="/welcome" replace />;
+  return <LandingView />;
 };
 
 /* ══════════════════════════════════════════════════════════════

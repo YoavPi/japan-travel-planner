@@ -318,13 +318,71 @@ export default function useEditorState(tripId) {
     setActiveDay(newDayNum);
   }, [trip, commitDays]);
 
+  /* Remove a day entirely (its stops included) and renumber 1..N so the strip
+     stays sequential — mirrors the mobile day-reorder convention. Never deletes
+     the last remaining day. */
+  const deleteDay = useCallback((dayNum) => {
+    const curLen = (trip?.data?.tripData || []).length;
+    if (curLen <= 1) return;
+    commitDays((arr) => {
+      if (arr.length <= 1) return arr;
+      const filtered = arr.filter((d) => d.day !== dayNum);
+      if (filtered.length === arr.length) return arr;
+      return filtered.map((d, i) => ({ ...d, day: i + 1 }));
+    });
+    const newLen = Math.max(1, curLen - 1);
+    setActiveDay((cur) => Math.min(Math.max(1, cur > dayNum ? cur - 1 : cur), newLen));
+  }, [trip, commitDays]);
+
+  /* Set/modify the trip's calendar start date (settings.startDate). */
+  const saveStartDate = useCallback((iso) => {
+    setTrip((prev) => {
+      if (!prev) return prev;
+      const nextSettings = { ...(prev.settings || {}), startDate: iso || null };
+      const nextTrip = { ...prev, settings: nextSettings };
+      if (!prev.readOnly) {
+        setSaving(true);
+        tripService.saveTrip(prev.id, { settings: nextSettings }).catch(() => {}).finally(() => setSaving(false));
+      }
+      return nextTrip;
+    });
+  }, []);
+
+  /* Apply a full date RANGE: set start date AND grow/shrink the day count to
+     match the span WITHOUT losing stops (grow appends empty days inheriting the
+     last city; shrink folds trailing days' stops into the last kept day). */
+  const applyDateRange = useCallback((startISO, endISO) => {
+    if (!startISO) { saveStartDate(null); return; }
+    const s = new Date(startISO);
+    const e = endISO ? new Date(endISO) : null;
+    const newCount = (s && e && e >= s) ? Math.round((e - s) / 86400000) + 1 : null;
+    if (newCount && newCount >= 1) {
+      commitDays((arr) => {
+        let next = arr.map((d) => ({ ...d, attractions: [...(d.attractions || [])] }));
+        const cur = next.length;
+        if (newCount > cur) {
+          const last = next[cur - 1] || {};
+          for (let i = cur; i < newCount; i++) next.push({ day: i + 1, city: last.city, cityHe: last.cityHe, attractions: [] });
+        } else if (newCount < cur) {
+          const keep = next.slice(0, newCount);
+          const dropped = next.slice(newCount);
+          const foldTarget = keep[keep.length - 1];
+          dropped.forEach((d) => { foldTarget.attractions = [...foldTarget.attractions, ...(d.attractions || [])]; });
+          next = keep;
+        }
+        return next.map((d, i) => ({ ...d, day: i + 1 }));
+      });
+    }
+    saveStartDate(startISO);
+  }, [commitDays, saveStartDate]);
+
   return {
     trip, error, saving,
     days, activeDay, setActiveDay, activeDayData, mapStops,
     editable, commitDays, reload,
     deleteStopAt, duplicateStopAt, moveStopToDay, setStopNote, reorderInDay, setDayOrder, addStopToDay,
     addTransitToDay, updateStopAt, addAttachmentToStop, removeAttachmentAt, insertAt,
-    addDay, moveStopToInbox, saveCustomPin, addSearchedToInbox,
+    addDay, deleteDay, saveStartDate, applyDateRange, moveStopToInbox, saveCustomPin, addSearchedToInbox,
     inbox, inboxLoading, loadInbox, assignInboxToDay, removeFromInbox, updateInboxNote, connectSavedPlaces,
   };
 }

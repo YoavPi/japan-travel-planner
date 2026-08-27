@@ -6,9 +6,14 @@ import ReferenceMapsPanel from "../components/ReferenceMapsPanel";
 import OverlayAddChoice from "../components/OverlayAddChoice";
 import EditorSearchBar from "../components/EditorSearchBar";
 import AddTransitSheet from "../components/AddTransitSheet";
+import FavoriteButton from "../components/FavoriteButton";
+import NearbySearchSheet from "../components/NearbySearchSheet";
+import { listFavoriteIds } from "../services/favoritesService";
+import { fullDateLabel } from "../utils/tripDates";
+import { track } from "../analytics/posthog";
 import Icon from "../components/Icon";
 import { categoryEmoji, classifyLocation, ratingToBadge, CATEGORY_META } from "../utils/classify";
-import { boundsForDestination } from "../services/googlePlaces";
+import { boundsForDestination, getDetails, nearbySearch } from "../services/googlePlaces";
 import { uploadAttachment } from "../services/attachmentService";
 import useEditorState from "../hooks/useEditorState";
 import mapsUrlFor from "../utils/mapsUrl";
@@ -50,6 +55,7 @@ const rowKey = (obj) => {
    ══════════════════════════════════════════════════════════════ */
 
 const CHARCOAL = "#1E1E24";
+const ACCENT = "#E0533F";
 const T = {
   ink: "#111114", ink2: "#2A3036", ink3: "#6B7178", ink4: "#A4AAB1",
   line: "#ECECEF", surface: "#F0F0F3",
@@ -107,18 +113,63 @@ export default function EditorDesktop() {
   const { trip, error, days, activeDay, setActiveDay, activeDayData, mapStops, editable,
     deleteStopAt, duplicateStopAt, moveStopToDay, setStopNote, addStopToDay, setDayOrder,
     addTransitToDay, updateStopAt, addAttachmentToStop, removeAttachmentAt, insertAt,
-    addDay, moveStopToInbox, saveCustomPin, addSearchedToInbox,
+    addDay, deleteDay, saveStartDate, applyDateRange, moveStopToInbox, saveCustomPin, addSearchedToInbox,
     inbox, inboxLoading, loadInbox, assignInboxToDay, removeFromInbox, updateInboxNote } = editor;
 
   const [flyToCoord, setFlyToCoord] = useState(null);
+  /* Live map viewport bounds ({west,south,east,north}) so search biases to the
+     area the user is looking at FIRST, then widens to the country. */
+  const viewportRef = useRef(null);
+  /* Live search-result pins on the map (from the search bar's Text Search). */
+  const [searchResults, setSearchResults] = useState([]);
+  /* "מצא לי X באזור" — the origin point whose picker sheet is open (null = closed). */
+  const [nearbyOrigin, setNearbyOrigin] = useState(null);
+  const runNearby = async (origin, query) => {
+    const c = origin?.coordinates || (Number.isFinite(origin?.lat) ? { lat: origin.lat, lng: origin.lng } : null);
+    setNearbyOrigin(null);
+    if (!c) return;
+    setFlyToCoord({ lat: c.lat, lng: c.lng });
+    const res = await nearbySearch(c, query);
+    setSearchResults(res);
+    track("nearby_search", { ...query, results: res.length });
+  };
+  /* Skeleton editing: the dates modal (start/end → day count) + per-day delete. */
+  const [datesOpen, setDatesOpen] = useState(false);
+  const [datesStart, setDatesStart] = useState("");
+  const [datesEnd, setDatesEnd] = useState("");
+  const [confirmDelDay, setConfirmDelDay] = useState(null); // day number pending delete
+  const [hoverDay, setHoverDay] = useState(null); // day chip under the cursor (reveals ×)
+  const openDatesModal = () => {
+    const startIso = trip?.settings?.startDate ? String(trip.settings.startDate).slice(0, 10) : "";
+    let endIso = "";
+    if (startIso && days.length > 0) {
+      const s = new Date(startIso); s.setDate(s.getDate() + days.length - 1);
+      endIso = s.toISOString().slice(0, 10);
+    }
+    setDatesStart(startIso); setDatesEnd(endIso); setDatesOpen(true);
+  };
   /* Places-Inbox side drawer (saved points → drop into a day). Lazy-loaded. */
   const [inboxOpen, setInboxOpen] = useState(false);
   /* Bank scope — "trip" shows points near THIS trip's places (default),
      "all" shows every saved point across all maps. */
   const [bankScope, setBankScope] = useState("trip");
+  const [bankFilter, setBankFilter] = useState(""); // free-text filter over saved bank points
   /* Opening the bank drawer closes any open point card first — otherwise the
      anchored map popup overlaps the drawer (the UI glitch Yoav saw). */
   const openInbox = () => { setPreview(null); setFocusStop(null); setInboxOpen(true); if (inbox === null) loadInbox(); };
+  /* Points currently in the bank — drives the bank button's count + accent
+     "has content" state. */
+  const bankCount = Array.isArray(inbox) ? inbox.length : 0;
+
+  /* Favorite state for a public map the viewer doesn't own (view-only). */
+  const isPublicView = !!trip?.public && trip?.role !== "owner";
+  const [isFav, setIsFav] = useState(false);
+  useEffect(() => {
+    if (!trip?.public || trip?.role === "owner") return;
+    let live = true;
+    listFavoriteIds().then((ids) => { if (live) setIsFav(ids.has(tripId)); }).catch(() => {});
+    return () => { live = false; };
+  }, [trip?.public, trip?.role, tripId]);
   /* "מפות נוספות" — load another map as a distinct-colour overlay + transfer
      points into this trip. */
   const [refMapsOpen, setRefMapsOpen] = useState(false);
@@ -200,6 +251,14 @@ export default function EditorDesktop() {
   const visibleInbox = (Array.isArray(inbox) ? inbox : []).filter((p) =>
     bankScope === "all" || !tripBounds ||
     (Number.isFinite(p.lat) && Number.isFinite(p.lng) && p.lat >= tripBounds.south && p.lat <= tripBounds.north && p.lng >= tripBounds.west && p.lng <= tripBounds.east));
+
+  /* Free-text filter over the EXISTING bank points (name / note / category) —
+     this is a search WITHIN the bank, not a Google "search + save" (that lives
+     in the main top search bar). */
+  const bankQ = bankFilter.trim().toLowerCase();
+  const filteredInbox = bankQ
+    ? visibleInbox.filter((p) => [p.nameHe, p.name, p.note, p.category].filter(Boolean).some((s) => String(s).toLowerCase().includes(bankQ)))
+    : visibleInbox;
 
   /* Float the open info card ON its point. Clicking any point crop-CENTERS it
      in the map pane (see EditorMap flyToStop), so the point is reliably at the
@@ -492,6 +551,14 @@ export default function EditorDesktop() {
             style={{ width: "100%", height: 46, borderRadius: 12, border: "none", background: CHARCOAL, color: "#fff", fontSize: 14.5, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
             ＋ הוספה ליום {previewDay ?? activeDay}
           </button>
+          {/* A bank point can be discarded straight from its card (mirrors the
+              mobile card's "מחיקה מהבנק"). */}
+          {preview._fromInbox && preview.id && (
+            <button onClick={() => { removeFromInbox(preview.id); setPreview(null); }}
+              style={{ marginTop: 8, width: "100%", height: 42, borderRadius: 12, border: `1px solid ${T.line}`, background: "#fff", color: T.ink3, fontSize: 13.5, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7 }}>
+              <Icon name="trash" size={15} strokeWidth={2} color={T.ink3} /> מחיקה מהבנק
+            </button>
+          )}
           {!preview._fromInbox && (
             <button onClick={() => { addSearchedToInbox({ ...preview, note: (preview.note || "").trim() || undefined }); setPreview(null); }}
               style={{ marginTop: 8, width: "100%", height: 42, borderRadius: 12, border: `1px solid ${T.line}`, background: "#fff", color: T.ink2, fontSize: 13.5, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7 }}>
@@ -503,6 +570,13 @@ export default function EditorDesktop() {
             <button onClick={() => openInMaps(preview)}
               style={{ marginTop: 8, width: "100%", height: 40, borderRadius: 12, border: `1px solid ${T.line}`, background: "#fff", color: T.ink2, fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7 }}>
               <Icon name="map" size={15} strokeWidth={2} color={T.ink2} /> פתח ב-Google Maps
+            </button>
+          )}
+          {/* "מצא לי X באזור" — search around this point. */}
+          {(preview.coordinates || Number.isFinite(preview.lat)) && (
+            <button onClick={() => setNearbyOrigin(preview)}
+              style={{ marginTop: 8, width: "100%", height: 40, borderRadius: 12, border: `1px solid ${T.line}`, background: "#fff", color: T.ink2, fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7 }}>
+              <Icon name="search" size={15} strokeWidth={2} color={T.ink2} /> מצא מקומות באזור
             </button>
           )}
         </div>
@@ -530,6 +604,13 @@ export default function EditorDesktop() {
             <button onClick={() => openInMaps(focusStop)}
               style={{ marginTop: 12, width: "100%", height: 44, borderRadius: 12, border: "none", background: CHARCOAL, color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7 }}>
               <Icon name="map" size={16} strokeWidth={2} color="#fff" /> פתח ב-Google Maps
+            </button>
+          )}
+          {/* "מצא לי X באזור" — search around this stop. */}
+          {focusStop.coordinates && (
+            <button onClick={() => setNearbyOrigin(focusStop)}
+              style={{ marginTop: 8, width: "100%", height: 42, borderRadius: 12, border: `1px solid ${T.line}`, background: "#fff", color: T.ink2, fontSize: 13.5, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7 }}>
+              <Icon name="search" size={15} strokeWidth={2} color={T.ink2} /> מצא מקומות באזור
             </button>
           )}
         </div>
@@ -615,19 +696,23 @@ export default function EditorDesktop() {
               activeDay={activeDay}
               floatResults
               onPreview={openPreview}
-              getBias={() => boundsForDestination(trip?.settings?.destination || trip?.settings?.destinationHe || "") || null}
+              onResults={setSearchResults}
+              getBias={() => viewportRef.current || boundsForDestination(trip?.settings?.destination || trip?.settings?.destinationHe || "") || null}
             />
           </div>
         ) : (
           /* Read-only (shared "view" collaborator): no add-search bar — surface a
              clear "view only" banner in its place, mirroring the mobile editor. */
-          <div style={{ flex: 1, minWidth: 0, display: "flex", justifyContent: "center", margin: "0 8px" }}>
+          <div style={{ flex: 1, minWidth: 0, display: "flex", justifyContent: "center", alignItems: "center", gap: 8, margin: "0 8px" }}>
             <div style={{ maxWidth: 360, height: 40, background: T.surface, borderRadius: 999, padding: "0 16px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, fontSize: 13, fontWeight: 700, color: T.ink2 }}>
               <Icon name="eye" size={15} strokeWidth={1.9} color={T.ink3} />
               <span dir="auto" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 צפייה בלבד{trip?.sharedBy ? ` · שותף ע״י ${trip.sharedBy}` : ""}
               </span>
             </div>
+            {isPublicView && (
+              <FavoriteButton tripId={tripId} favorited={isFav} onChange={setIsFav} returnTo={`/map/edit/${tripId}`} size={20} />
+            )}
           </div>
         )}
         {editable && (
@@ -635,18 +720,22 @@ export default function EditorDesktop() {
             title="בנק נקודות שמורות" aria-label="בנק נקודות"
             style={{
               flexShrink: 0, height: 40, display: "inline-flex", alignItems: "center", gap: 7, padding: "0 13px",
-              borderRadius: 10, border: `1px solid ${inboxOpen ? CHARCOAL : T.line}`, cursor: "pointer", fontFamily: "inherit",
-              background: inboxOpen ? CHARCOAL : "#fff", color: inboxOpen ? "#fff" : T.ink2, fontSize: 13, fontWeight: 800,
+              borderRadius: 10, cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 800,
+              /* Accent "has content" state once the bank holds saved points, so
+                 the first save is visible on the button itself (not only a badge). */
+              border: `1px solid ${inboxOpen ? CHARCOAL : (bankCount > 0 ? ACCENT : T.line)}`,
+              background: inboxOpen ? CHARCOAL : (bankCount > 0 ? "#E0533F14" : "#fff"),
+              color: inboxOpen ? "#fff" : (bankCount > 0 ? ACCENT : T.ink2),
             }}>
-            <Icon name="folder" size={16} strokeWidth={2} color={inboxOpen ? "#fff" : T.ink2} />
+            <Icon name="folder" size={16} strokeWidth={2} color={inboxOpen ? "#fff" : (bankCount > 0 ? ACCENT : T.ink2)} />
             <span>בנק נקודות</span>
-            {Array.isArray(inbox) && inbox.length > 0 && (
-              <span style={{ minWidth: 18, height: 18, borderRadius: 999, padding: "0 5px", background: inboxOpen ? "#fff" : CHARCOAL, color: inboxOpen ? CHARCOAL : "#fff", fontSize: 11, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{inbox.length}</span>
+            {bankCount > 0 && (
+              <span style={{ minWidth: 18, height: 18, borderRadius: 999, padding: "0 5px", background: inboxOpen ? "#fff" : ACCENT, color: inboxOpen ? CHARCOAL : "#fff", fontSize: 11, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{bankCount}</span>
             )}
           </button>
         )}
         {editable && (
-          <button onClick={() => (refMapsOpen ? closeRefMaps() : setRefMapsOpen(true))}
+          <button onClick={() => setRefMapsOpen((o) => !o)}
             title="טעינת מפה נוספת והעברת נקודות" aria-label="מפות נוספות"
             style={{
               flexShrink: 0, height: 40, display: "inline-flex", alignItems: "center", gap: 7, padding: "0 13px",
@@ -657,9 +746,6 @@ export default function EditorDesktop() {
             <span>מפות נוספות</span>
           </button>
         )}
-        <span style={{ flexShrink: 0, fontSize: 11.5, fontWeight: 700, color: T.ink4, background: T.surface, borderRadius: 999, padding: "5px 11px" }}>
-          שולחן עבודה · בטא
-        </span>
       </header>
 
       {/* ── Workspace: itinerary (right) + map (left) ──────────────── */}
@@ -673,18 +759,31 @@ export default function EditorDesktop() {
               const on = d.day === activeDay;
               const col = cityColor(d.city || d.cityHe || "");
               return (
-                <button key={d.day} onClick={() => { setShowAllOnMap(false); setActiveDay(d.day); }}
-                  title={d.cityHe || d.city || `יום ${d.day}`}
-                  style={{
-                    flexShrink: 0, minWidth: 44, height: 44, borderRadius: 10, cursor: "pointer",
-                    border: "none", fontFamily: "inherit",
-                    background: on ? CHARCOAL : T.surface, color: on ? "#fff" : T.ink2,
-                    display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1,
-                    transition: "background 0.15s, color 0.15s",
-                  }}>
-                  <span style={{ fontSize: 15, fontWeight: 800 }}>{d.day}</span>
-                  <span style={{ width: 5, height: 5, borderRadius: "50%", background: on ? "#fff" : col }} />
-                </button>
+                <div key={d.day} style={{ position: "relative", flexShrink: 0 }}
+                  onMouseEnter={() => setHoverDay(d.day)} onMouseLeave={() => setHoverDay(null)}>
+                  <button onClick={() => { setShowAllOnMap(false); setActiveDay(d.day); }}
+                    onContextMenu={editable && days.length > 1 ? (e) => { e.preventDefault(); setConfirmDelDay(d.day); } : undefined}
+                    title={editable ? "לחיצה — מעבר ליום · קליק ימני — מחיקה" : (d.cityHe || d.city || `יום ${d.day}`)}
+                    style={{
+                      flexShrink: 0, minWidth: 44, height: 44, borderRadius: 10, cursor: "pointer",
+                      border: "none", fontFamily: "inherit",
+                      background: on ? CHARCOAL : T.surface, color: on ? "#fff" : T.ink2,
+                      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1,
+                      transition: "background 0.15s, color 0.15s",
+                    }}>
+                    <span style={{ fontSize: 15, fontWeight: 800 }}>{d.day}</span>
+                    <span style={{ width: 5, height: 5, borderRadius: "50%", background: on ? "#fff" : col }} />
+                  </button>
+                  {/* Hover-reveal delete badge — a discoverable alternative to the
+                      right-click. Never on the last remaining day. */}
+                  {editable && days.length > 1 && hoverDay === d.day && (
+                    <button onClick={(e) => { e.stopPropagation(); setConfirmDelDay(d.day); }}
+                      title={`מחיקת יום ${d.day}`} aria-label={`מחיקת יום ${d.day}`}
+                      style={{ position: "absolute", top: -6, insetInlineStart: -6, width: 18, height: 18, borderRadius: "50%", border: "1.5px solid #fff", background: "#C0392B", color: "#fff", cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: 800, lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0, boxShadow: "0 1px 4px rgba(0,0,0,0.25)" }}>
+                      ×
+                    </button>
+                  )}
+                </div>
               );
             })}
             {/* Add a new day on the fly — persists to the skeleton immediately. */}
@@ -692,6 +791,14 @@ export default function EditorDesktop() {
               <button onClick={addDay} title="הוספת יום" aria-label="הוספת יום"
                 style={{ flexShrink: 0, minWidth: 44, height: 44, borderRadius: 10, cursor: "pointer", border: `1.5px dashed ${T.ink4}`, background: "#fff", color: T.ink3, fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 700 }}>
                 ＋
+              </button>
+            )}
+            {editable && (
+              /* Skeleton editing — start/end dates ⇒ day count (the desktop
+                 equivalent of the mobile dates modal). */
+              <button onClick={openDatesModal} title="עריכת תאריכים ושלד המסלול" aria-label="עריכת תאריכים"
+                style={{ flexShrink: 0, minWidth: 44, height: 44, borderRadius: 10, cursor: "pointer", border: `1px solid ${T.line}`, background: "#fff", color: T.ink2, fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                <Icon name="calendar" size={18} strokeWidth={2} color={T.ink2} />
               </button>
             )}
           </div>
@@ -704,6 +811,12 @@ export default function EditorDesktop() {
               </span>
               <span style={{ fontSize: 12.5, color: T.ink4 }}>·</span>
               <span style={{ fontSize: 13, fontWeight: 700, color: T.ink3 }}>יום {activeDayData.day}</span>
+              {trip?.settings?.startDate && (
+                <>
+                  <span style={{ fontSize: 12.5, color: T.ink4 }}>·</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: T.ink3, whiteSpace: "nowrap" }}>{fullDateLabel(trip.settings.startDate, activeDayData.day)}</span>
+                </>
+              )}
               <div style={{ flex: 1 }} />
               {editable && (
                 <button onClick={() => setTransitEdit({ idx: -1, initial: null })} title="הוספת טיסה או מעבר"
@@ -922,10 +1035,13 @@ export default function EditorDesktop() {
             color={mapPaneColor}
             center={trip.center || trip.settings?.center || null}
             flyToCoord={flyToCoord}
+            onViewportChange={(b) => { viewportRef.current = b; }}
+            searchResults={searchResults}
+            onSearchResultClick={async (p) => { const d = await getDetails(p.placeId); if (d) openPreview(d); setSearchResults([]); }}
             cropOnClick={true}
             holdView={!!preview || !!focusStop || inboxOpen || refMapsOpen}
             /* "מפות נוספות" — the loaded reference map drawn as a teal overlay. */
-            overlayPlaces={overlayMap?.points || []}
+            overlayPlaces={refMapsOpen ? (overlayMap?.points || []) : []}
             overlayColor={overlayMap?.color || "#0C8B94"}
             overlaySelected={overlaySel}
             onOverlaySelect={setOverlaySel}
@@ -1025,17 +1141,22 @@ export default function EditorDesktop() {
                 })}
               </div>
 
-              {/* Manual add — the bank is populated by hand (NOT auto-imported):
-                  search a place to save it here, or long-press the map. */}
-              {editable && (
+              {/* Filter WITHIN the saved bank (not a Google search — that's the
+                  main top search bar). Matches name / note / category. */}
+              {Array.isArray(inbox) && inbox.length > 0 && (
                 <div style={{ flexShrink: 0, padding: "10px 12px", borderBottom: `1px solid ${T.line}` }}>
-                  <EditorSearchBar
-                    activeDay={activeDay}
-                    floatResults
-                    placeholder="חיפוש מקום ושמירה לבנק…"
-                    onAddStop={(stop) => addSearchedToInbox(stop)}
-                    getBias={() => boundsForDestination(trip?.settings?.destination || trip?.settings?.destinationHe || "") || null}
-                  />
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, height: 40, padding: "0 12px", borderRadius: 10, background: "#fff", border: `1px solid ${T.line}` }}>
+                    <Icon name="search" size={15} strokeWidth={2} color={T.ink3} />
+                    <input
+                      value={bankFilter}
+                      onChange={(e) => setBankFilter(e.target.value)}
+                      placeholder="חיפוש בבנק הנקודות…"
+                      style={{ flex: 1, border: "none", outline: "none", background: "transparent", fontSize: 13.5, fontFamily: "inherit", direction: "rtl", textAlign: "right", color: T.ink }}
+                    />
+                    {bankFilter && (
+                      <button onClick={() => setBankFilter("")} aria-label="ניקוי" style={{ width: 20, height: 20, borderRadius: "50%", border: "none", background: T.surface, color: T.ink2, cursor: "pointer", fontFamily: "inherit", fontSize: 11 }}>✕</button>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -1052,6 +1173,11 @@ export default function EditorDesktop() {
                       או העבירו תחנה מהמסלול לכאן (⋯ → העבר לבנק).
                     </div>
                   </div>
+                ) : bankQ && filteredInbox.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "28px 14px", lineHeight: 1.7 }}>
+                    <div style={{ fontSize: 30, marginBottom: 8 }}>🔍</div>
+                    <div style={{ fontSize: 13, color: T.ink3 }}>לא נמצאו נקודות בבנק שתואמות ל"{bankFilter.trim()}".</div>
+                  </div>
                 ) : visibleInbox.length === 0 ? (
                   <div style={{ textAlign: "center", padding: "28px 14px", lineHeight: 1.7 }}>
                     <div style={{ fontSize: 30, marginBottom: 8 }}>🗺️</div>
@@ -1062,7 +1188,7 @@ export default function EditorDesktop() {
                     </button>
                   </div>
                 ) : (
-                  visibleInbox.map((p) => {
+                  filteredInbox.map((p) => {
                     const hasCoord = Number.isFinite(p.lat) && Number.isFinite(p.lng);
                     return (
                       <div key={p.id}
@@ -1223,6 +1349,75 @@ export default function EditorDesktop() {
           dark={false}
           onPick={(target, includeNotes) => { addOverlayPoints(addChoice, target, includeNotes); setAddChoice(null); }}
           onClose={() => setAddChoice(null)}
+        />
+      )}
+
+      {/* ── Dates / skeleton editor (start + end → day count) ─── */}
+      {datesOpen && (
+        <div dir="rtl" onClick={() => setDatesOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, background: "rgba(8,10,14,0.5)", fontFamily: T.font }}>
+          <div onClick={(e) => e.stopPropagation()} className="tp-pop" style={{ width: "100%", maxWidth: 420, background: "#fff", borderRadius: 20, border: `1px solid ${T.line}`, boxShadow: "0 30px 80px rgba(0,0,0,0.4)", padding: 22 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+              <span style={{ width: 34, height: 34, borderRadius: "50%", background: T.surface, display: "inline-flex", alignItems: "center", justifyContent: "center" }}><Icon name="calendar" size={17} strokeWidth={2} color={T.ink2} /></span>
+              <div style={{ flex: 1, fontSize: 18, fontWeight: 800, color: T.ink }}>תאריכי הטיול</div>
+              <button onClick={() => setDatesOpen(false)} aria-label="סגירה" style={{ width: 34, height: 34, borderRadius: "50%", border: "none", background: T.surface, color: T.ink3, cursor: "pointer", fontFamily: "inherit", fontSize: 15 }}>✕</button>
+            </div>
+            <div style={{ fontSize: 13, color: T.ink3, lineHeight: 1.6, marginBottom: 16 }}>
+              קביעת תאריך התחלה וסיום. מספר הימים במסלול יתעדכן אוטומטית לפי הטווח — הוספת ימים ריקים בסוף, או קיפול ימים עודפים אל היום האחרון (בלי לאבד נקודות).
+            </div>
+            <div style={{ display: "flex", gap: 12 }}>
+              <label style={{ flex: 1, fontSize: 12.5, fontWeight: 800, color: T.ink3 }}>
+                התחלה
+                <input type="date" value={datesStart} onChange={(e) => setDatesStart(e.target.value)}
+                  style={{ display: "block", width: "100%", boxSizing: "border-box", marginTop: 6, height: 44, padding: "0 12px", borderRadius: 12, border: `1.5px solid ${T.line}`, background: "#fff", color: T.ink, fontSize: 14, fontFamily: "inherit" }} />
+              </label>
+              <label style={{ flex: 1, fontSize: 12.5, fontWeight: 800, color: T.ink3 }}>
+                סיום
+                <input type="date" value={datesEnd} min={datesStart || undefined} onChange={(e) => setDatesEnd(e.target.value)}
+                  style={{ display: "block", width: "100%", boxSizing: "border-box", marginTop: 6, height: 44, padding: "0 12px", borderRadius: 12, border: `1.5px solid ${T.line}`, background: "#fff", color: T.ink, fontSize: 14, fontFamily: "inherit" }} />
+              </label>
+            </div>
+            <button onClick={() => { applyDateRange(datesStart || null, datesEnd || null); setDatesOpen(false); }} disabled={!datesStart} className="tp-press"
+              style={{ width: "100%", height: 48, marginTop: 18, borderRadius: 999, border: "none", background: datesStart ? T.ink : T.surface, color: datesStart ? "#fff" : T.ink4, fontSize: 15, fontWeight: 800, cursor: datesStart ? "pointer" : "default", fontFamily: "inherit" }}>
+              שמירה
+            </button>
+            {trip?.settings?.startDate && (
+              <button onClick={() => { saveStartDate(null); setDatesOpen(false); }}
+                style={{ width: "100%", height: 42, marginTop: 8, borderRadius: 999, border: `1px solid ${T.line}`, background: "#fff", color: T.ink3, fontSize: 13.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                הסרת התאריכים
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete-day confirmation ─── */}
+      {confirmDelDay != null && (
+        <div dir="rtl" onClick={() => setConfirmDelDay(null)} style={{ position: "fixed", inset: 0, zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, background: "rgba(8,10,14,0.5)", fontFamily: T.font }}>
+          <div onClick={(e) => e.stopPropagation()} className="tp-pop" style={{ width: "100%", maxWidth: 360, background: "#fff", borderRadius: 20, border: `1px solid ${T.line}`, boxShadow: "0 30px 80px rgba(0,0,0,0.4)", padding: 22, textAlign: "center" }}>
+            <div style={{ fontSize: 17, fontWeight: 800, color: T.ink, marginBottom: 8 }}>למחוק את יום {confirmDelDay}?</div>
+            <div style={{ fontSize: 13.5, color: T.ink3, lineHeight: 1.6, marginBottom: 18 }}>
+              היום וכל הנקודות שבו יימחקו. שאר הימים ימוספרו מחדש.
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setConfirmDelDay(null)}
+                style={{ flex: 1, height: 46, borderRadius: 999, border: `1px solid ${T.line}`, background: "#fff", color: T.ink2, fontSize: 14.5, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>
+                ביטול
+              </button>
+              <button onClick={() => { deleteDay(confirmDelDay); setConfirmDelDay(null); }} className="tp-press"
+                style={{ flex: 1, height: 46, borderRadius: 999, border: "none", background: "#C0392B", color: "#fff", fontSize: 14.5, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>
+                מחיקה
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* "מצא לי X באזור" — category picker; picks feed nearbySearch → map pins. */}
+      {nearbyOrigin && (
+        <NearbySearchSheet
+          point={nearbyOrigin}
+          onPick={(q) => runNearby(nearbyOrigin, q)}
+          onClose={() => setNearbyOrigin(null)}
         />
       )}
 

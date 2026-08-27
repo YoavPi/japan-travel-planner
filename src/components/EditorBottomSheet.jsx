@@ -71,6 +71,10 @@ const EditorBottomSheet = forwardRef(({ header, children, defaultSnap = "half", 
   }), [snap, setSnap]);
 
   const onPointerDown = (e) => {
+    /* A pointer starting on an opted-out element (e.g. the horizontally
+       scrollable day strip) must NOT hijack into a sheet drag — otherwise the
+       strip can't be swiped sideways. Its own touch-action handles scrolling. */
+    if (e.target.closest("[data-no-sheet-drag]")) return;
     if (!e.target.closest("[data-editor-sheet-drag]")) return;
     e.preventDefault();
     drag.current = { active: true, startY: e.clientY, startT: translateY, hist: [{ y: e.clientY, t: Date.now() }] };
@@ -141,8 +145,11 @@ const EditorBottomSheet = forwardRef(({ header, children, defaultSnap = "half", 
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
       >
-        {/* Drag region — handle + whole header */}
-        <div data-editor-sheet-drag style={{ flexShrink: 0, cursor: "grab", touchAction: "none" }}>
+        {/* Drag region — handle + whole header. touch-action:pan-x (not none) so
+            a horizontal swipe on the day strip inside `header` can still scroll
+            it; vertical sheet dragging is driven by the JS pointer handlers,
+            which pan-x does not interfere with. */}
+        <div data-editor-sheet-drag style={{ flexShrink: 0, cursor: "grab", touchAction: "pan-x" }}>
           <div style={{ display: "flex", justifyContent: "center", paddingTop: 10, paddingBottom: 6 }}>
             <div style={{ width: 44, height: 5, borderRadius: 999, background: "rgba(20,20,20,0.18)" }} />
           </div>

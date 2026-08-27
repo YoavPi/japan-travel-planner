@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import tripService from "../services/tripService";
+import { listFavoriteTrips } from "../services/favoritesService";
 import Icon from "./Icon";
 import usePlacePhotos, { photoKey } from "../utils/usePlacePhotos";
 import { photoStrict, onPhotoErrorStrict } from "../utils/placePhoto";
@@ -57,6 +58,10 @@ const tripToPoints = (trip) => {
 const ReferenceMapsPanel = ({ open, onClose, dark = false, desktop = false, currentTripId, favorites, onOverlayChange, onPointClick, onAddRequest, addedKeys, focusedKey }) => {
   const [view, setView] = useState("picker"); // "picker" | "points"
   const [maps, setMaps] = useState(null);
+  /* Gallery favorites (other people's PUBLIC maps the user starred). These are
+     NOT part of fetchAllTrips (own + shared), so the "מועדפות" tab loads them
+     from the trip_favorites table directly. null = not loaded yet. */
+  const [favMaps, setFavMaps] = useState(null);
   const [tab, setTab] = useState("mine"); // mine | shared | favorite
   const [loadingPts, setLoadingPts] = useState(false);
   const [selMap, setSelMap] = useState(null);
@@ -80,14 +85,28 @@ const ReferenceMapsPanel = ({ open, onClose, dark = false, desktop = false, curr
       .catch(() => setMaps([]));
   }, [open, maps, currentTripId]);
 
+  /* Load the user's gallery favorites for the "מועדפות" tab. */
+  useEffect(() => {
+    if (!open || favMaps !== null) return;
+    listFavoriteTrips()
+      .then((list) => setFavMaps((list || []).filter((t) => t.id !== currentTripId)))
+      .catch(() => setFavMaps([]));
+  }, [open, favMaps, currentTripId]);
+
   if (!open) return null;
 
   const T = dark
     ? { panel: "#191B1F", surface: "#24272C", ink: "#F3F4F6", ink2: "#C7CBD1", ink3: "#8B9198", line: "rgba(255,255,255,0.12)", page: "#0F1113" }
     : { panel: "#FFFFFF", surface: "#F6F6F4", ink: "#0D0F11", ink2: "#2A3036", ink3: "#6B7178", line: "rgba(20,20,20,0.12)", page: "#FFFFFF" };
 
-  const tabMaps = (maps || []).filter((m) =>
-    tab === "mine" ? m.role === "owner" : tab === "shared" ? m.role !== "owner" : favs.has(m.id));
+  /* The favorite tab draws from the separately-loaded gallery favorites; the
+     other tabs slice the own/shared list. `favs` (device-local) is no longer
+     the source of truth for favorites. */
+  const tabMaps = tab === "favorite"
+    ? (favMaps || [])
+    : (maps || []).filter((m) => (tab === "mine" ? m.role === "owner" : m.role !== "owner"));
+  /* Which underlying list is still loading for the active tab. */
+  const tabLoading = tab === "favorite" ? favMaps === null : maps === null;
 
   const pickMap = async (m) => {
     setLoadingPts(true); setError(""); setSelMap(m); setSelected(new Set());
@@ -160,7 +179,7 @@ const ReferenceMapsPanel = ({ open, onClose, dark = false, desktop = false, curr
             </div>
             <div style={{ padding: "6px 12px 8px", fontSize: 12, color: T.ink3 }}>בחרו מפה לטעינה על גבי המפה הנוכחית.</div>
             <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "0 12px 16px" }}>
-              {maps === null ? (
+              {tabLoading ? (
                 <div style={{ textAlign: "center", color: T.ink3, fontSize: 13, padding: "30px 0" }}>טוען מפות…</div>
               ) : tabMaps.length === 0 ? (
                 <div style={{ textAlign: "center", color: T.ink3, fontSize: 13, padding: "30px 12px", lineHeight: 1.6 }}>

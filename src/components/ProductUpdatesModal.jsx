@@ -32,7 +32,15 @@ const ProductUpdatesModal = () => {
   useEffect(() => {
     const v = readViewed();
     setViewed(v);
-    if (LATEST_SPRINT > v) { setActiveSprint(LATEST_SPRINT); setOpen(true); }
+    if (LATEST_SPRINT > v) {
+      setActiveSprint(LATEST_SPRINT);
+      setOpen(true);
+      /* Mark this update as SEEN the moment it's shown — so it never pops up
+         again for the same sprint, even if the user navigates away or refreshes
+         without pressing the close button. (`viewed` state keeps the OLD value
+         so the "missed updates" tabs still list everything correctly.) */
+      try { localStorage.setItem(LS_KEY, String(LATEST_SPRINT)); } catch { /* private mode */ }
+    }
   }, []);
 
   /* Every release newer than what the user last saw (newest first). */

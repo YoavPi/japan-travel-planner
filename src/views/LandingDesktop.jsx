@@ -76,6 +76,7 @@ const LandingDesktop = ({ navigate, isAuthenticated, user, activeId, activeTrip,
             </span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button onClick={() => navigate("/gallery")} style={{ border: "none", background: "transparent", color: T.ink2, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", padding: "8px 12px" }}>מפות של אחרים</button>
             <button onClick={() => navigate("/japan")} style={{ border: "none", background: "transparent", color: T.ink2, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", padding: "8px 12px" }}>טיול לדוגמה</button>
             <button onClick={() => navigate(isAuthenticated ? "/dashboard" : "/auth")} className="ld-cta"
               style={{ border: "none", background: T.ink, color: "#fff", borderRadius: 999, padding: "10px 20px", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
@@ -117,6 +118,10 @@ const LandingDesktop = ({ navigate, isAuthenticated, user, activeId, activeTrip,
             <button onClick={() => navigate("/japan")}
               style={{ height: 54, padding: "0 28px", borderRadius: 999, border: `1.5px solid ${T.ink}`, background: "transparent", color: T.ink, fontSize: 15.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
               צפו בטיול לדוגמה (יפן)
+            </button>
+            <button onClick={() => navigate("/gallery")}
+              style={{ height: 54, padding: "0 28px", borderRadius: 999, border: `1.5px solid ${T.line}`, background: "transparent", color: T.ink2, fontSize: 15.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+              מפות של אחרים
             </button>
           </div>
           <button onClick={openAi}

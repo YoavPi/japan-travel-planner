@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import EditorMap from "../components/EditorMap";
 import FavoriteButton from "../components/FavoriteButton";
+import Icon from "../components/Icon";
 import { useAuth } from "../context/AuthContext";
 import { fetchPublicTripById } from "../services/galleryService";
 import { visibleDayCount } from "../utils/gallery";
@@ -104,17 +105,28 @@ const PublicMapView = () => {
         display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
         padding: "12px 18px",
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-          <Link to="/" style={{ fontSize: 16, fontWeight: 800, color: T.ink, textDecoration: "none", flexShrink: 0 }}>
-            מסלול
-          </Link>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+          <button
+            onClick={() => navigate("/gallery")}
+            aria-label="חזרה לגלריה"
+            className="tp-press"
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0,
+              height: 36, padding: "0 12px 0 10px", borderRadius: 999,
+              border: `1px solid ${T.line}`, background: T.bg, color: T.ink,
+              fontFamily: T.font, fontSize: 13, fontWeight: 800, cursor: "pointer",
+            }}
+          >
+            <Icon name="chevronStart" size={16} strokeWidth={2.4} />
+            <span>גלריה</span>
+          </button>
           <div style={{ width: 1, height: 22, background: T.line, flexShrink: 0 }} />
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 14.5, fontWeight: 800, color: T.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {trip.title || "טיול"}
             </div>
             {trip.owner?.name && (
-              <div style={{ fontSize: 11.5, fontWeight: 600, color: T.ink3 }}>
+              <div style={{ fontSize: 11.5, fontWeight: 600, color: T.ink3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 מאת {trip.owner.name}
               </div>
             )}

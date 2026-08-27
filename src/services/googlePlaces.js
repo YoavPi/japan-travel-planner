@@ -317,11 +317,121 @@ export const getDetails = async (placeId) => {
   }
 };
 
+/* Text Search — unlike autocomplete (text-only predictions), this returns
+   places WITH coordinates + rating in ONE call, biased toward the current map
+   viewport (Google still widens the net when nothing local matches). Used by
+   the editor search so results can be plotted on the map before the user picks. */
+export const textSearch = async (query, opts = {}) => {
+  if (!query || query.trim().length < 2) return [];
+  enforceRateLimit(); // throws RateLimitError on flood
+  if (!liveAvailable()) return [];
+  const bias = opts.bias && Number.isFinite(opts.bias.west) ? opts.bias : null;
+  try {
+    const google = await ensureServices();
+    let bounds = null;
+    if (bias) {
+      try {
+        bounds = new google.maps.LatLngBounds(
+          new google.maps.LatLng(bias.south, bias.west),
+          new google.maps.LatLng(bias.north, bias.east)
+        );
+      } catch { /* bounds unavailable — proceed unbiased */ }
+    }
+    const mapResults = (results) => (results || []).slice(0, 12).map((r) => ({
+      placeId: r.place_id,
+      name: r.name,
+      primary: r.name,
+      secondary: r.formatted_address || r.vicinity || "",
+      lat: r.geometry?.location?.lat?.() ?? null,
+      lng: r.geometry?.location?.lng?.() ?? null,
+      rating: r.rating ?? null,
+      types: r.types || [],
+    })).filter((x) => Number.isFinite(x.lat) && Number.isFinite(x.lng));
+    const runOnce = (b) => new Promise((resolve) => {
+      placesSvc.textSearch(
+        { query: query.trim(), ...(b ? { bounds: b } : {}) },
+        (results, status) => {
+          /* Every Text Search request is billed regardless of result count. */
+          try { finOpsTracker.recordTextSearch(); } catch { /* metering is best-effort */ }
+          resolve(status === "OK" && results ? mapResults(results) : []);
+        }
+      );
+    });
+    /* Bias to the current viewport FIRST; if that finds nothing (e.g. the query
+       is a place far from where the map is), WIDEN by retrying unbiased so the
+       user still gets results — "start local, then reach farther". */
+    let out = await runOnce(bounds);
+    if (out.length === 0 && bounds) out = await runOnce(null);
+    return out;
+  } catch {
+    return [];
+  }
+};
+
+/* ── Nearby Search (point + radius) — powers "מצא לי X באזור" ─────── */
+export const NEARBY_RADIUS = 1500;      // metres — smart default
+export const NEARBY_WIDE_RADIUS = 5000; // metres — widen when sparse
+export const NEARBY_MIN_RESULTS = 4;
+
+/* Pure: map ONE raw google.maps result to our search-result shape (or null
+   when it has no usable coordinates). Exported for unit testing. */
+export const mapNearbyResult = (r) => {
+  const lat = r?.geometry?.location?.lat?.();
+  const lng = r?.geometry?.location?.lng?.();
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return {
+    placeId: r.place_id,
+    name: r.name,
+    primary: r.name,
+    secondary: r.formatted_address || r.vicinity || "",
+    lat, lng,
+    rating: r.rating ?? null,
+    types: r.types || [],
+  };
+};
+
+/* Pure: widen the radius only when the first pass found too few. */
+export const shouldWidenNearby = (results) => (results || []).length < NEARBY_MIN_RESULTS;
+
+/* Search places of `type` (chip) or matching `keyword` (free text) around a
+   center point. Same result shape as textSearch, so it feeds `searchResults`
+   directly. Widens once when the first pass is sparse. */
+export const nearbySearch = async (center, opts = {}) => {
+  if (!center || !Number.isFinite(center.lat) || !Number.isFinite(center.lng)) return [];
+  const type = opts.type || null;
+  const keyword = opts.keyword ? String(opts.keyword).trim() : null;
+  if (!type && !keyword) return [];
+  enforceRateLimit(); // throws RateLimitError on flood
+  if (!liveAvailable()) return [];
+  try {
+    const google = await ensureServices();
+    const location = new google.maps.LatLng(center.lat, center.lng);
+    const runOnce = (radius) => new Promise((resolve) => {
+      placesSvc.nearbySearch(
+        { location, radius, ...(type ? { type } : {}), ...(keyword ? { keyword } : {}) },
+        (results, status) => {
+          try { finOpsTracker.recordTextSearch(); } catch { /* metering is best-effort */ }
+          resolve(status === "OK" && results
+            ? results.slice(0, 12).map(mapNearbyResult).filter(Boolean)
+            : []);
+        }
+      );
+    });
+    let out = await runOnce(NEARBY_RADIUS);
+    if (shouldWidenNearby(out)) out = await runOnce(NEARBY_WIDE_RADIUS);
+    return out;
+  } catch {
+    return [];
+  }
+};
+
 const googlePlaces = {
   isPlacesEnabled,
   isSearchEnabled,
   loadPlaces,
   autocomplete,
+  textSearch,
+  nearbySearch,
   getDetails,
   RateLimitError,
 };

@@ -83,6 +83,25 @@ const PublishToGalleryModal = ({ trip, onClose, onDone }) => {
     }
   };
 
+  /* Persist name + cover (and, if the map is already public, its gallery meta)
+     WITHOUT changing publish state — so "שנה שם" / "שנה תמונה" from the card
+     menu actually save on their own, no publishing required. */
+  const saveOnly = async () => {
+    setErr("");
+    try {
+      setBusy(true);
+      if (title.trim() && title !== trip.title) await tripService.renameTrip(trip.id, title);
+      if (cover !== trip.cover) await tripService.setCover(trip.id, cover);
+      if (trip.isPublic) await publishToGallery(trip.id, { category, description });
+      onDone();
+    } catch (e) {
+      setErr(e?.message || "השמירה נכשלה");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const dirty = (title.trim() && title !== trip.title) || cover !== trip.cover;
+
   return (
     <div
       dir="rtl"
@@ -167,9 +186,17 @@ const PublishToGalleryModal = ({ trip, onClose, onDone }) => {
 
         {/* Footer */}
         <div style={{ flexShrink: 0, padding: "12px 18px", borderTop: `1px solid ${T.line}`, background: T.panel, display: "flex", flexDirection: "column", gap: 8 }}>
-          <button onClick={publish} disabled={!consent || busy} className="tp-press"
-            style={{ width: "100%", height: 48, borderRadius: 999, border: "none", background: T.ink, color: T.panel, fontSize: 15, fontWeight: 800, cursor: (!consent || busy) ? "default" : "pointer", fontFamily: T.font, opacity: (!consent || busy) ? 0.55 : 1 }}>
-            {busy ? "מפרסם…" : "פרסם"}
+          {!trip.isPublic && (
+            <button onClick={publish} disabled={!consent || busy} className="tp-press"
+              style={{ width: "100%", height: 48, borderRadius: 999, border: "none", background: T.ink, color: T.panel, fontSize: 15, fontWeight: 800, cursor: (!consent || busy) ? "default" : "pointer", fontFamily: T.font, opacity: (!consent || busy) ? 0.55 : 1 }}>
+              {busy ? "מפרסם…" : "פרסם לגלריה"}
+            </button>
+          )}
+          {/* Save name/cover (+ gallery meta if public) WITHOUT publishing —
+              so "שנה שם"/"שנה תמונה" work on their own. */}
+          <button onClick={saveOnly} disabled={busy || (!dirty && !trip.isPublic)} className="tp-press"
+            style={{ width: "100%", height: trip.isPublic ? 48 : 44, borderRadius: 999, border: `1.5px solid ${T.accent}`, background: trip.isPublic ? T.accent : "#E0533F12", color: trip.isPublic ? "#fff" : T.accent, fontSize: 14.5, fontWeight: 800, cursor: (busy || (!dirty && !trip.isPublic)) ? "default" : "pointer", fontFamily: T.font, opacity: (busy || (!dirty && !trip.isPublic)) ? 0.55 : 1 }}>
+            {busy ? "שומר…" : (trip.isPublic ? "שמור שינויים" : "שמור שם ותמונה")}
           </button>
           {trip.isPublic && (
             <button onClick={unpublish} disabled={busy} className="tp-press"

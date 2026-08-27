@@ -177,9 +177,11 @@ const DashboardDesktop = ({
                 const on = filter === f.id;
                 return (
                   <button key={f.id} onClick={() => setFilter(f.id)}
-                    style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 999, border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 700, background: on ? P.panel : "transparent", color: on ? P.ink : P.ink3, boxShadow: on ? "0 1px 4px rgba(0,0,0,0.10)" : "none" }}>
+                    style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 999, border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap", background: on ? P.panel : "transparent", color: on ? P.ink : P.ink3, boxShadow: on ? "0 1px 4px rgba(0,0,0,0.10)" : "none" }}>
                     {f.label}
-                    <span style={{ fontSize: 10.5, fontWeight: 800, background: on ? P.surface2 : "transparent", color: on ? P.ink2 : P.ink4, borderRadius: 999, padding: "1px 7px" }}>{f.n}</span>
+                    {f.n != null && (
+                      <span style={{ fontSize: 10.5, fontWeight: 800, background: on ? P.surface2 : "transparent", color: on ? P.ink2 : P.ink4, borderRadius: 999, padding: "1px 7px" }}>{f.n}</span>
+                    )}
                   </button>
                 );
               })}
@@ -260,7 +262,7 @@ const DashboardDesktop = ({
         <PublishToGalleryModal
           trip={publishTrip}
           onClose={() => setPublishTrip(null)}
-          onDone={() => { setPublishTrip(null); }}
+          onDone={() => { setPublishTrip(null); onRetry && onRetry(); }}
         />
       )}
     </div>

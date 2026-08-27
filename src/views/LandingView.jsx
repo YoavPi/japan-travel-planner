@@ -294,6 +294,14 @@ const LandingView = () => {
               >
                 צפו בטיול לדוגמה (יפן)
               </button>
+              {/* Guest entry to the public gallery. */}
+              <button
+                onClick={() => navigate("/gallery")}
+                className="tp-press"
+                style={{ flex: "1 1 160px", height: 48, borderRadius: 999, border: `1.5px solid ${T.line}`, background: "transparent", color: T.ink2, fontSize: 14.5, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "inherit" }}
+              >
+                מפות של אחרים
+              </button>
             </div>
           )}
 

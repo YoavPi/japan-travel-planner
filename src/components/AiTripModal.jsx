@@ -95,6 +95,10 @@ const AiTripModal = ({ open, onClose, dark = false }) => {
   const [restrictText, setRestrictText] = useState("");
   const [instructions, setInstructions] = useState("");
   const [busy, setBusy] = useState(false);
+  /* True only while the AI is (re)generating — initial build, refine, OR
+     rebuild. Drives the full-screen build loader so an AI *update* gets the
+     same loader as the first generation (not just a tiny text line). */
+  const [generating, setGenerating] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
   const [refineCount, setRefineCount] = useState(0);
@@ -181,7 +185,7 @@ const AiTripModal = ({ open, onClose, dark = false }) => {
   const canSubmit = destChosen && destination.trim().length >= 2 && !busy && !outOfQuota;
 
   const runGenerate = async ({ refine } = {}) => {
-    setBusy(true); setError(""); startProgress();
+    setBusy(true); setGenerating(true); setError(""); startProgress();
     try {
       const res = await generateItinerary({
         destination: destination.trim(), dayCount, pace,
@@ -215,7 +219,7 @@ const AiTripModal = ({ open, onClose, dark = false }) => {
         if (typeof console !== "undefined") console.warn("[ai-generate] failure:", (e && (e.message || e.code)) || e);
         setError("יש כרגע עומס על שירות ה-AI — אנחנו על זה. בינתיים אפשר להמשיך להוסיף ולערוך מקומות ידנית, או לנסות שוב עוד מעט 🙏");
       }
-    } finally { stopProgress(); setBusy(false); }
+    } finally { stopProgress(); setBusy(false); setGenerating(false); }
   };
 
   const accept = async () => {
@@ -258,7 +262,10 @@ const AiTripModal = ({ open, onClose, dark = false }) => {
   );
 
   const totalSpots = result ? (result.days || []).reduce((n, d) => n + (d.spots || []).length, 0) : 0;
-  const showLoader = busy && phase === "form";
+  /* Show the full build loader for ANY (re)generation — initial, refine, or
+     rebuild — regardless of phase. `accept` (opening the map) keeps its own
+     inline button text and is intentionally excluded. */
+  const showLoader = generating;
 
   return (
     <div dir="rtl" onClick={close}
@@ -270,7 +277,7 @@ const AiTripModal = ({ open, onClose, dark = false }) => {
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 4 }}>
           <div>
             <div style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 20, fontWeight: 800, letterSpacing: "-0.01em" }}>
-              <span aria-hidden>✨</span> {showLoader ? "בונה את המסלול…" : phase === "form" ? "יצירת מסלול עם AI" : "המסלול שלכם מוכן"}
+              <span aria-hidden>✨</span> {showLoader ? (phase === "review" ? "מעדכן את המסלול…" : "בונה את המסלול…") : phase === "form" ? "יצירת מסלול עם AI" : "המסלול שלכם מוכן"}
             </div>
             {!showLoader && (
               <div style={{ fontSize: 13, color: T.ink3, marginTop: 4 }}>
@@ -434,7 +441,7 @@ const AiTripModal = ({ open, onClose, dark = false }) => {
         )}
 
         {/* ── REVIEW (redesigned) ── */}
-        {phase === "review" && result && (
+        {phase === "review" && result && !showLoader && (
           <>
             {result.description && (
               <div style={{ marginTop: 16, padding: "14px 16px", borderRadius: 14, background: "rgba(224,83,63,0.08)", border: `1px solid ${T.line}`, fontSize: 14.5, color: T.ink, lineHeight: 1.6, fontWeight: 500 }}>
@@ -534,9 +541,6 @@ const AiTripModal = ({ open, onClose, dark = false }) => {
           </>
         )}
 
-        {busy && phase === "review" && (
-          <div style={{ marginTop: 12, fontSize: 12.5, color: T.ink3, textAlign: "center" }}>מעדכן את המסלול…</div>
-        )}
       </div>
     </div>
   );

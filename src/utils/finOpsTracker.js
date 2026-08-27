@@ -17,13 +17,17 @@
 
 const STORE_KEY = "tp_finops_usage_v1";
 
-/* Strict safety ceiling — outbound live spend is hard-disabled at/above this. */
-export const MONTHLY_CAP_USD = 20;
+/* Strict safety ceiling — outbound live spend is hard-disabled at/above this.
+   NB: this is a PER-DEVICE soft guard (localStorage), not a global budget — the
+   real hard cap must be a Places-API quota in Google Cloud (see roadmap). Kept
+   generous enough that ordinary use (and dev testing) never falls to sim. */
+export const MONTHLY_CAP_USD = 75;
 
 /* Representative Google Places list prices (USD). */
 export const COST = {
-  session: 0.017, // Autocomplete — Per Session
-  details: 0.017, // Place Details (Basic)
+  session: 0.017,     // Autocomplete — Per Session
+  details: 0.017,     // Place Details (Basic)
+  textSearch: 0.032,  // Text Search (Find Place) — ~2× a session
 };
 
 const monthKey = (d = new Date()) =>
@@ -66,6 +70,7 @@ const add = (usd, type) => {
 
 export const recordSession = () => add(COST.session, "session");
 export const recordDetails = () => add(COST.details, "details");
+export const recordTextSearch = () => add(COST.textSearch, "textSearch");
 
 /* The safety-lock invariant. */
 export const isOverBudget = () => getMonthlyUsd() >= MONTHLY_CAP_USD;
@@ -86,6 +91,7 @@ const finOpsTracker = {
   getMonthlyUsd,
   recordSession,
   recordDetails,
+  recordTextSearch,
   isOverBudget,
   checkBudgetAvailable,
   remainingUsd,

@@ -4,6 +4,7 @@ import Map from "react-map-gl/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { GoogleLogin } from "@react-oauth/google";
 import { useAuth } from "../context/AuthContext";
+import { isOnboarded } from "./OnboardingView";
 import Icon from "../components/Icon";
 
 const MAP_STYLE = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
@@ -50,11 +51,19 @@ const AuthBtn = ({ children, onClick, disabled, variant }) => {
   return <button onClick={onClick} disabled={disabled} style={styles[variant]}>{children}</button>;
 };
 
+/* Survives the Google OAuth redirect (which strips react-router location.state)
+   so a guest who logs in from a shared map lands back on that map, not /dashboard. */
+const POST_LOGIN_KEY = "tp_post_login_dest";
+
 const AuthView = () => {
-  const { signIn, signInWithSupabase, supabaseEnabled, signInWithGoogleToken, signingIn, isAuthenticated, initializing } = useAuth();
+  const { signIn, signInWithSupabase, signInWithEmailLink, supabaseEnabled, signInWithGoogleToken, signingIn, isAuthenticated, initializing } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const dest = location.state?.from || "/dashboard";
+  /* Where to land after login. The Supabase Google flow redirects away to
+     Google and back to /auth, which DROPS react-router's location.state — so
+     we stash the intended destination in sessionStorage before redirecting
+     and read it back here as the fallback. */
+  const dest = location.state?.from || sessionStorage.getItem(POST_LOGIN_KEY) || "/dashboard";
 
   /* Surface a provider error handed back on the redirect
      (…/auth#error_description=…) instead of failing silently. */
@@ -66,9 +75,35 @@ const AuthView = () => {
      tapped). We NEVER silently mock-sign-in on a real backend. */
   const [authErr, setAuthErr] = React.useState("");
 
-  /* OAuth-loop fix — navigate in once we know the user is authenticated. */
+  /* Email magic-link state. */
+  const [email, setEmail] = React.useState("");
+  const [emailBusy, setEmailBusy] = React.useState(false);
+  const [emailSent, setEmailSent] = React.useState(false);
+  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  const sendMagicLink = async () => {
+    if (!emailValid || emailBusy) return;
+    setAuthErr(""); setEmailBusy(true);
+    /* Same destination-persistence as Google: the emailed link returns to /auth
+       in a fresh context, so stash where to land. */
+    if (location.state?.from) sessionStorage.setItem(POST_LOGIN_KEY, location.state.from);
+    try {
+      await signInWithEmailLink(email);
+      setEmailSent(true);
+    } catch (e) {
+      setAuthErr(e?.message || "שליחת הקישור נכשלה. נסו שוב.");
+    } finally {
+      setEmailBusy(false);
+    }
+  };
+
+  /* OAuth-loop fix — navigate in once we know the user is authenticated.
+     A brand-new signed-in user (never onboarded) is routed through the
+     one-time onboarding first; everyone else lands on their destination. */
   React.useEffect(() => {
-    if (!initializing && isAuthenticated) navigate(dest, { replace: true });
+    if (!initializing && isAuthenticated) {
+      sessionStorage.removeItem(POST_LOGIN_KEY);
+      navigate(isOnboarded() ? dest : "/welcome", { replace: true });
+    }
   }, [initializing, isAuthenticated, dest, navigate]);
 
   /* DEMO-ONLY mock sign-in — reachable only when there is NO real backend
@@ -85,6 +120,9 @@ const AuthView = () => {
      back to a mock identity (that was the account-mix-up bug). */
   const doSupabaseGoogle = async () => {
     setAuthErr("");
+    /* Persist the intended destination so it survives the Google redirect
+       (which strips location.state). Cleared once we land in. */
+    if (location.state?.from) sessionStorage.setItem(POST_LOGIN_KEY, location.state.from);
     try {
       await signInWithSupabase(); // browser navigates away on success
     } catch {
@@ -196,6 +234,43 @@ const AuthView = () => {
               </AuthBtn>
             )}
           </div>
+          )}
+
+          {/* ── Email magic-link (passwordless), alongside Google ─── */}
+          {!initializing && supabaseEnabled && (
+            emailSent ? (
+              <div role="status" style={{ marginTop: 14, padding: "14px 14px", borderRadius: 14, background: "rgba(224,83,63,0.06)", border: `1px solid ${T.line}`, textAlign: "center" }}>
+                <div style={{ fontSize: 22, marginBottom: 4 }}>📩</div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: T.ink }}>שלחנו לכם קישור התחברות</div>
+                <div style={{ fontSize: 12.5, color: T.ink3, marginTop: 4, lineHeight: 1.5 }}>
+                  בדקו את המייל <b style={{ color: T.ink2 }} dir="ltr">{email.trim()}</b> ולחצו על הקישור כדי להיכנס. (בדקו גם בספאם.)
+                </div>
+                <button onClick={() => { setEmailSent(false); setEmail(""); }}
+                  style={{ marginTop: 10, border: "none", background: "transparent", color: T.accent, fontWeight: 700, fontFamily: "inherit", fontSize: 12.5, cursor: "pointer", textDecoration: "underline" }}>
+                  שליחה לכתובת אחרת
+                </button>
+              </div>
+            ) : (
+              <>
+                {/* "או" divider */}
+                <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "16px 0 12px" }}>
+                  <div style={{ flex: 1, height: 1, background: T.line }} />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: T.ink4 }}>או</span>
+                  <div style={{ flex: 1, height: 1, background: T.line }} />
+                </div>
+                <input
+                  type="email" inputMode="email" autoComplete="email" dir="ltr"
+                  value={email} onChange={(e) => setEmail(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") sendMagicLink(); }}
+                  placeholder="you@example.com"
+                  style={{ width: "100%", boxSizing: "border-box", height: 50, borderRadius: 12, border: `1px solid ${T.line}`, background: "#fff", padding: "0 14px", fontSize: 15, fontFamily: "inherit", color: T.ink, textAlign: "left" }}
+                />
+                <button onClick={sendMagicLink} disabled={!emailValid || emailBusy}
+                  style={{ width: "100%", height: 50, marginTop: 10, borderRadius: 12, border: "none", background: T.ink, color: "#fff", fontSize: 15, fontWeight: 700, fontFamily: "inherit", cursor: (!emailValid || emailBusy) ? "default" : "pointer", opacity: (!emailValid || emailBusy) ? 0.55 : 1 }}>
+                  {emailBusy ? "שולח…" : "שליחת קישור התחברות למייל"}
+                </button>
+              </>
+            )
           )}
 
           {!initializing && (

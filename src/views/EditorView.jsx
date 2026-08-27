@@ -11,7 +11,11 @@ import StopActionsSheet from "../components/StopActionsSheet";
 import EditorSearchBar from "../components/EditorSearchBar";
 import PlaceInfoCard from "../components/PlaceInfoCard";
 import NoteSheet from "../components/NoteSheet";
-import { boundsForDestination, autocomplete, getDetails, isPlacesEnabled } from "../services/googlePlaces";
+import NearbySearchSheet from "../components/NearbySearchSheet";
+import FavoriteButton from "../components/FavoriteButton";
+import { listFavoriteIds } from "../services/favoritesService";
+import { track } from "../analytics/posthog";
+import { boundsForDestination, autocomplete, getDetails, isPlacesEnabled, nearbySearch } from "../services/googlePlaces";
 import { computeTransit } from "../utils/transit";
 import { dedupeDayStops, categoryEmoji } from "../utils/classify";
 import { readPrefs } from "../services/prefsService";
@@ -1086,6 +1090,28 @@ const EditorView = () => {
   const [trip, setTrip] = useState(null);
   const [error, setError] = useState(null);
   const [activeDay, setActiveDay] = useState(1);
+  /* Favorite state for a PUBLIC map the viewer doesn't own — lets them
+     bookmark it right here (the gallery star, but inside the view-only editor). */
+  const [isFav, setIsFav] = useState(false);
+  /* Live search-result pins on the map (from the search bar's Text Search). */
+  const [searchResults, setSearchResults] = useState([]);
+  /* "מצא לי X באזור" — the origin point whose picker sheet is open (null = closed). */
+  const [nearbyOrigin, setNearbyOrigin] = useState(null);
+  const runNearby = useCallback(async (origin, query) => {
+    const c = origin?.coordinates || (Number.isFinite(origin?.lat) ? { lat: origin.lat, lng: origin.lng } : null);
+    setNearbyOrigin(null);
+    if (!c) return;
+    setFlyToCoord({ lat: c.lat, lng: c.lng }); // recenter on the origin
+    const res = await nearbySearch(c, query);
+    setSearchResults(res);
+    track("nearby_search", { ...query, results: res.length });
+  }, []);
+  useEffect(() => {
+    if (!trip?.public || trip?.role === "owner") return;
+    let live = true;
+    listFavoriteIds().then((ids) => { if (live) setIsFav(ids.has(tripId)); }).catch(() => {});
+    return () => { live = false; };
+  }, [trip?.public, trip?.role, tripId]);
   const [saving, setSaving] = useState(false);
   /* Sprint 22 #6 — TERNARY view-state matrix (supersedes the binary
      design/trip toggle):
@@ -1097,6 +1123,8 @@ const EditorView = () => {
      never editable regardless of mode (saveTrip rejects them anyway). */
   const [mode, setMode] = useState("design");
   const editable = !trip?.readOnly && mode === "design";
+  /* Viewing someone else's PUBLIC map (opened read-only from the gallery). */
+  const isPublicView = !!trip?.public && trip?.role !== "owner";
   /* Sprint 28 #1 — the "טיול" tab is GONE: the workspace tabs are a
      clean binary (תכנון / רשימת נקודות). Active/field mode is now
      entered exclusively through "הפעל מסלול" (trip activation), so the
@@ -1714,7 +1742,9 @@ const EditorView = () => {
         photoUrl: stop.photoUrl || undefined,
         note: stop.note || undefined,
       }]);
-      setInboxPlaces((prev) => (prev ? [...saved, ...prev] : prev));
+      /* Always seed from [] when the bank was never opened (prev === null),
+         so the FIRST saved point immediately shows on the bank button badge. */
+      setInboxPlaces((prev) => [...saved, ...(prev || [])]);
     } catch { /* best-effort — the place remains in the preview flow */ }
     setPendingStop(null);
     setPreviewPlace(null);
@@ -2377,6 +2407,9 @@ const EditorView = () => {
     }));
     return [...assigned, ...unassigned];
   }, [days, inboxPlaces]);
+  /* How many points sit in the bank (unassigned to any day) — drives the bank
+     FAB's count badge + its accent "has content" state. */
+  const bankCount = useMemo(() => unifiedStops.filter((s) => s.assignedDay == null).length, [unifiedStops]);
   const activeDayData = useMemo(
     () => days.find((d) => d.day === activeDay) || null,
     [days, activeDay]
@@ -2601,6 +2634,8 @@ const EditorView = () => {
             }
           }}
           onViewportChange={(b) => { viewportRef.current = b; }}
+          searchResults={searchResults}
+          onSearchResultClick={async (p) => { const d = await getDetails(p.placeId); if (d) handlePreview(d); setSearchResults([]); }}
           /* Sprint 59 #6 — publish live bearing + accept a reset-north signal. */
           onBearingChange={setMapBearing}
           resetNorthKey={northKey}
@@ -2624,7 +2659,7 @@ const EditorView = () => {
             if (i >= 0) setEditTransitIdx(i);
           }}
           /* "מפות נוספות" — the loaded reference map drawn as a teal overlay. */
-          overlayPlaces={overlayMap?.points || []}
+          overlayPlaces={refMapsOpen ? (overlayMap?.points || []) : []}
           overlayColor={overlayMap?.color || "#0C8B94"}
           overlaySelected={overlaySel}
           onOverlaySelect={setOverlaySel}
@@ -2676,7 +2711,7 @@ const EditorView = () => {
 
       {/* Sprint 58 #8 — 👁️ eye toggle: project ALL saved inbox points onto the
           map as subtle gray markers with legible name badges. */}
-      {trip && !isPinning && !inboxMode && !overlayOpen && !mapFabsHidden && !inboxCardMenu && (
+      {trip && !isPinning && !inboxMode && !overlayOpen && !mapFabsHidden && !inboxCardMenu && !refMapsOpen && (
         <button
           onClick={() => setShowAllSaved((v) => {
             const n = !v;
@@ -2695,7 +2730,7 @@ const EditorView = () => {
             transition: "background 0.2s ease, color 0.2s ease",
           }}
         >
-          <Icon name="layers" size={18} strokeWidth={1.85} color={showAllSaved ? "#fff" : "#1E1E24"} />
+          <Icon name="eye" size={18} strokeWidth={1.85} color={showAllSaved ? "#fff" : "#1E1E24"} />
         </button>
       )}
 
@@ -2703,7 +2738,7 @@ const EditorView = () => {
           Shares the right-edge map-control rail (below the compass slot). */}
       {trip && editable && !isPinning && !inboxMode && !overlayOpen && !mapFabsHidden && !inboxCardMenu && (
         <button
-          onClick={() => (refMapsOpen ? closeRefMaps() : setRefMapsOpen(true))}
+          onClick={() => setRefMapsOpen((o) => !o)}
           title="מפות נוספות — טעינת מפה נוספת והעברת נקודות"
           aria-label="מפות נוספות" aria-pressed={refMapsOpen}
           className="tp-press"
@@ -2724,7 +2759,7 @@ const EditorView = () => {
           the map bearing deviates from true north; a tap eases the viewport
           back to 0° so a rotated mobile gesture is instantly corrected. Shares
           the right-edge map-control rail (below the eye toggle). */}
-      {trip && !isPinning && Math.abs(mapBearing) > 1 && !overlayOpen && !mapFabsHidden && !inboxCardMenu && (
+      {trip && !isPinning && Math.abs(mapBearing) > 1 && !overlayOpen && !mapFabsHidden && !inboxCardMenu && !refMapsOpen && (
         <button
           onClick={() => setNorthKey((k) => k + 1)}
           title="איפוס כיוון הצפון" aria-label="איפוס כיוון הצפון"
@@ -2845,6 +2880,7 @@ const EditorView = () => {
               ? <EditorSearchBar
                   onAddStop={(stop) => setPendingStop(stop)}
                   onPreview={handlePreview}
+                  onResults={setSearchResults}
                   activeDay={activeDay}
                   /* Sprint 47 #3 — location-bias cascade: live viewport →
                      trip's destination country → global (null). */
@@ -2854,13 +2890,19 @@ const EditorView = () => {
                 />
               : (
                 /* Read-only / shared trip → a clear "view only" banner instead
-                   of the (edit-only) search bar. */
-                <div style={{ flex: 1, minWidth: 0, height: 48, background: "#fff", borderRadius: 999, padding: "0 16px", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, boxShadow: "0 2px 10px rgba(0,0,0,0.08)", fontSize: 13, fontWeight: 700, color: T.ink2 }}>
-                  <Icon name="eye" size={15} strokeWidth={1.9} color={T.ink3} />
-                  <span dir="auto" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                    צפייה בלבד{trip?.sharedBy ? ` · שותף ע״י ${trip.sharedBy}` : ""}
-                  </span>
-                </div>
+                   of the (edit-only) search bar. A public map the viewer doesn't
+                   own also gets a ⭐ so they can favorite it without leaving. */
+                <>
+                  <div style={{ flex: 1, minWidth: 0, height: 48, background: "#fff", borderRadius: 999, padding: "0 16px", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, boxShadow: "0 2px 10px rgba(0,0,0,0.08)", fontSize: 13, fontWeight: 700, color: T.ink2 }}>
+                    <Icon name="eye" size={15} strokeWidth={1.9} color={T.ink3} />
+                    <span dir="auto" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      צפייה בלבד{trip?.sharedBy ? ` · שותף ע״י ${trip.sharedBy}` : ""}
+                    </span>
+                  </div>
+                  {isPublicView && (
+                    <FavoriteButton tripId={tripId} favorited={isFav} onChange={setIsFav} returnTo={`/map/edit/${tripId}`} size={20} />
+                  )}
+                </>
               )
           )}
         </div>
@@ -2950,7 +2992,7 @@ const EditorView = () => {
           Sprint 48 #2 — while the inbox panel is OPEN the floating trigger is
           unmounted entirely; the panel is dismissed via the header ✕ instead.
           Sprint 54 #4 — also unmounts while a focus-lock modal is engaged. */}
-      {trip && !isPinning && !inboxMode && !focusActive && !overlayOpen && !mapFabsHidden && sheetSnap === "peek" && (
+      {trip && !isPinning && !inboxMode && !focusActive && !overlayOpen && !mapFabsHidden && !refMapsOpen && sheetSnap === "peek" && (
         <button
           onClick={() => { setMode("inbox"); sheetRef.current?.snapTo?.("peek"); }}
           title="בנק הנקודות"
@@ -2969,19 +3011,22 @@ const EditorView = () => {
               ? "calc(env(safe-area-inset-bottom, 0px) + 100px)"
               : "calc(50vh + 16px)",
             display: "inline-flex", alignItems: "center", justifyContent: "center",
-            /* Sprint 57 #1 — premium rounded-full white capsule, no border, an
-               elegant soft shadow, lighter icon stroke. */
+            /* Premium rounded-full capsule. When the bank holds saved points it
+               switches to an accent-tinted fill (+ ring) so the user sees, right
+               after saving, that something now lives in the bank. */
             width: 52, height: 52, borderRadius: "50%",
-            border: "none", background: "#fff", color: "#1E1E24",
+            border: bankCount > 0 ? "1.5px solid #E0533F" : "none",
+            background: bankCount > 0 ? "#E0533F14" : "#fff",
+            color: bankCount > 0 ? "#E0533F" : "#1E1E24",
             boxShadow: "0 2px 8px rgba(0,0,0,0.10)", cursor: "pointer", fontFamily: "inherit",
-            transition: "bottom 320ms cubic-bezier(0.22,1,0.36,1)",
+            transition: "bottom 320ms cubic-bezier(0.22,1,0.36,1), background 0.2s ease, color 0.2s ease",
           }}
         >
-          <Icon name="folder" size={22} strokeWidth={1.75} color="#1E1E24" />
+          <Icon name="folder" size={22} strokeWidth={1.75} color={bankCount > 0 ? "#E0533F" : "#1E1E24"} />
           {/* Sprint 57 #1 — count badge pinned to the capsule's upper-right. */}
-          {unifiedStops.filter((s) => s.assignedDay == null).length > 0 && (
+          {bankCount > 0 && (
             <span style={{ position: "absolute", top: -3, insetInlineStart: -3, minWidth: 20, height: 20, padding: "0 5px", borderRadius: 999, background: "#D94025", color: "#fff", fontSize: 11, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center", border: "2px solid #fff" }}>
-              {unifiedStops.filter((s) => s.assignedDay == null).length}
+              {bankCount}
             </span>
           )}
         </button>
@@ -2991,7 +3036,7 @@ const EditorView = () => {
           timeline text: at peek it rests at bottom:104px (just above the day
           pills row); at half it lifts above the half-sheet; at FULL it is
           hidden entirely (the schedule reading plane owns the screen). */}
-      {trip && !isPinning && !inboxMode && !focusActive && !overlayOpen && !mapFabsHidden && sheetSnap === "peek" && (
+      {trip && !isPinning && !inboxMode && !focusActive && !overlayOpen && !mapFabsHidden && !refMapsOpen && sheetSnap === "peek" && (
         <div style={{
           /* Sprint 54 #4 — above the sheet so the speed-dial and its expansion
              buttons render cleanly instead of clipping behind the day pills. */
@@ -3106,6 +3151,9 @@ const EditorView = () => {
                 <div
                   ref={dayStripRef}
                   className="scrollbar-hide"
+                  /* Opt out of the sheet's drag-capture so a sideways swipe here
+                     scrolls the day strip instead of dragging the whole sheet. */
+                  data-no-sheet-drag
                   style={{
                     display: "flex", gap: 8, direction: "rtl", flex: 1, minWidth: 0,
                     /* Sprint 42 #3 — vertical breathing room so lifted/handled
@@ -3147,7 +3195,7 @@ const EditorView = () => {
                           /* Sprint 56 #2 — flat block day chip: inactive = plain
                              gray text, active = solid charcoal rounded rectangle.
                              No soft circles, no drop shadows. */
-                          flexShrink: 0, position: "relative", minWidth: 50, height: 52, padding: "0 8px", borderRadius: 12,
+                          flexShrink: 0, position: "relative", minWidth: 60, height: 60, padding: "0 10px", borderRadius: 14,
                           border: dropTarget ? `2px dashed ${CHARCOAL}` : (dayEditMode && !on && !beingDragged ? "1px solid #E4E4E8" : "none"),
                           background: (on || beingDragged) ? CHARCOAL : (dropTarget ? "rgba(30,30,36,0.06)" : (dayEditMode ? "#fff" : "transparent")),
                           color: (on || beingDragged) ? "#fff" : T.ink3,
@@ -3157,7 +3205,10 @@ const EditorView = () => {
                           opacity: beingDragged ? 0.9 : (dayDone && !on ? 0.55 : 1),
                           transform: beingDragged ? `translateX(${dayDrag.dx}px) scale(1.05)` : "scale(1)",
                           transition: dayDrag.from >= 0 ? "none" : "transform 0.18s ease, opacity 0.18s ease",
-                          touchAction: "none",
+                          /* Normal mode: pan-x so a swipe that STARTS on a chip still
+                             scrolls the strip (a tap is unaffected). Edit mode: none,
+                             so the pointer-drag reorder owns the gesture. */
+                          touchAction: dayEditMode ? "none" : "pan-x",
                           userSelect: "none", WebkitUserSelect: "none",
                           zIndex: beingDragged ? 5 : "auto",
                         }}>
@@ -4054,6 +4105,13 @@ const EditorView = () => {
               style={{ width: "100%", height: 48, marginTop: 12, borderRadius: 12, border: "none", background: "#1E1E24", color: "#fff", fontSize: 14.5, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7 }}>
               <Icon name="plus" size={16} strokeWidth={2.4} color="#fff" /> הוסף ללו״ז של יום {activeDay}
             </button>
+            {/* "מצא לי X באזור" — search around this saved point. */}
+            {Number.isFinite(inboxCardMenu.lat) && (
+              <button onClick={() => { setNearbyOrigin(inboxCardMenu); setInboxCardMenu(null); }}
+                style={{ width: "100%", height: 44, marginTop: 8, borderRadius: 12, border: `1px solid ${T.line}`, background: "#fff", color: T.ink2, fontSize: 13.5, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7 }}>
+                <Icon name="search" size={15} strokeWidth={2} color={T.ink2} /> מצא מקומות באזור
+              </button>
+            )}
             {/* Open the saved point's real Google Maps listing (place_id/name → pin). */}
             {mapsUrlFor(inboxCardMenu) && (
               <button onClick={() => { const u = mapsUrlFor(inboxCardMenu); if (u) window.open(u, "_blank", "noopener,noreferrer"); }}
@@ -4089,6 +4147,15 @@ const EditorView = () => {
           placeholder="הוסיפו הערה אישית למקום…"
           onSave={(t) => saveNoteAt(noteEditIdx, t)}
           onClose={() => setNoteEditIdx(-1)}
+        />
+      )}
+
+      {/* "מצא לי X באזור" — category picker; picks feed nearbySearch → map pins. */}
+      {nearbyOrigin && (
+        <NearbySearchSheet
+          point={nearbyOrigin}
+          onPick={(q) => runNearby(nearbyOrigin, q)}
+          onClose={() => setNearbyOrigin(null)}
         />
       )}
 
@@ -4268,6 +4335,7 @@ const EditorView = () => {
             if (list.length) deleteAttachmentAt(actionsIdx, list.length - 1);
             setActionsIdx(-1);
           }}
+          onFindNearby={() => setNearbyOrigin(activeDayData.attractions[actionsIdx])}
           onDelete={deleteStop}
           onClose={() => setActionsIdx(-1)}
         />

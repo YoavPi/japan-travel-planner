@@ -55,7 +55,7 @@ const SectionRule = () => (
   <div aria-hidden style={{ height: 1, background: "rgba(20,20,20,0.08)", margin: "6px 0" }} />
 );
 
-const StopActionsSheet = ({ stop, days = [], otherTrips = [], onMove, onCopy, onCrossCopy, onSetNote, onSetLodging, onSetColor, onSetMultiDayHotel, onMoveNextDay, onSplitDay, onCopyName, onDuplicate, onAttach, attachBusy, attachmentCount = 0, onRemoveAttachment, onDelete, onClose }) => {
+const StopActionsSheet = ({ stop, days = [], otherTrips = [], onMove, onCopy, onCrossCopy, onSetNote, onSetLodging, onSetColor, onSetMultiDayHotel, onMoveNextDay, onSplitDay, onCopyName, onDuplicate, onAttach, attachBusy, attachmentCount = 0, onRemoveAttachment, onFindNearby, onDelete, onClose }) => {
   const [mode, setMode] = useState(null); // null | 'move' | 'copy' | 'crosscopy' | 'hoteldays' | 'note'
   /* Cross-trip copy selection state. */
   const [targetTripId, setTargetTripId] = useState("");
@@ -208,6 +208,7 @@ const StopActionsSheet = ({ stop, days = [], otherTrips = [], onMove, onCopy, on
           <div>
             {/* Section 1 — Schedule management */}
             <SectionHeading>ניהול לוח זמנים</SectionHeading>
+            {onFindNearby && <Row icon="🔍" label="מצא מקומות באזור" onClick={() => { onFindNearby(); onClose?.(); }} />}
             <Row icon="↪" label="העברה ליום אחר" onClick={() => setMode("move")} />
             <Row icon="⧉" label="העתקה ליום אחר" onClick={() => setMode("copy")} />
             {/* Sprint 61 #3 — instant duplicate of THIS place into the same day. */}

@@ -271,14 +271,16 @@ const DashboardView = () => {
 
         {/* Filter pills */}
         <section style={{ padding: "0 22px 14px", ...deskNarrow }}>
-          <div style={{ display: "flex", gap: 4, background: P.surface, borderRadius: 999, padding: 4 }}>
+          <div style={{ display: "flex", gap: 3, background: P.surface, borderRadius: 999, padding: 4 }}>
             {FILTERS.map((f) => {
               const on = filter === f.id;
               return (
                 <button key={f.id} onClick={() => setFilter(f.id)}
-                  style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 0", borderRadius: 999, border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 700, background: on ? P.panel : "transparent", color: on ? P.ink : P.ink3, boxShadow: on ? "0 1px 4px rgba(0,0,0,0.10)" : "none" }}>
-                  {f.label}
-                  <span style={{ fontSize: 10.5, fontWeight: 800, background: on ? P.surface2 : "transparent", color: on ? P.ink2 : P.ink4, borderRadius: 999, padding: "1px 7px" }}>{f.n}</span>
+                  style={{ flex: 1, minWidth: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "9px 6px", borderRadius: 999, border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap", background: on ? P.panel : "transparent", color: on ? P.ink : P.ink3, boxShadow: on ? "0 1px 4px rgba(0,0,0,0.10)" : "none" }}>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{f.label}</span>
+                  {f.n != null && (
+                    <span style={{ flexShrink: 0, fontSize: 10.5, fontWeight: 800, background: on ? P.surface2 : "transparent", color: on ? P.ink2 : P.ink4, borderRadius: 999, padding: "1px 7px" }}>{f.n}</span>
+                  )}
                 </button>
               );
             })}
@@ -494,7 +496,7 @@ const DashboardView = () => {
         <PublishToGalleryModal
           trip={publishTrip}
           onClose={() => setPublishTrip(null)}
-          onDone={() => { setPublishTrip(null); }}
+          onDone={() => { setPublishTrip(null); setReloadKey((k) => k + 1); }}
         />
       )}
 

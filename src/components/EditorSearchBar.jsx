@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { isSearchEnabled, autocomplete, getDetails, RateLimitError } from "../services/googlePlaces";
+import { isSearchEnabled, isPlacesEnabled, autocomplete, textSearch, getDetails, RateLimitError } from "../services/googlePlaces";
 import { classifyLocation, ratingToBadge, CATEGORY_META } from "../utils/classify";
 import Icon from "./Icon";
 
@@ -33,8 +33,16 @@ const T = {
   font: "'Noto Sans Hebrew','Inter','Noto Sans JP',system-ui,sans-serif",
 };
 
-const EditorSearchBar = ({ onAddStop, onPreview, activeDay, getBias, onFocusInput, floatResults = false, placeholder }) => {
+const EditorSearchBar = ({ onAddStop, onPreview, activeDay, getBias, onFocusInput, onResults, floatResults = false, placeholder }) => {
   const placesOn = isSearchEnabled();
+  /* Live key → Text Search (results carry coordinates, so they can be plotted
+     on the map). No key → autocomplete/sim (list only, no map markers). */
+  const liveSearch = isPlacesEnabled();
+  /* Keep the latest onResults in a ref so the debounced effect isn't re-created
+     on every render (which would restart the timer). */
+  const onResultsRef = useRef(onResults);
+  onResultsRef.current = onResults;
+  const emitResults = (list) => { if (onResultsRef.current) onResultsRef.current(list || []); };
   const [query, setQuery] = useState("");
   const [preds, setPreds] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -47,25 +55,41 @@ const EditorSearchBar = ({ onAddStop, onPreview, activeDay, getBias, onFocusInpu
   const biasRef = useRef(getBias);
   biasRef.current = getBias;
 
-  /* Debounced autocomplete (live or simulated). */
+  /* Debounced search (live Text Search with coords, or autocomplete/sim). */
   useEffect(() => {
     if (!placesOn) return;
     if (debRef.current) clearTimeout(debRef.current);
-    if (query.trim().length < 2) { setPreds([]); setRlError(""); return; }
+    if (query.trim().length < 2) { setPreds([]); setRlError(""); emitResults([]); return; }
     setBusy(true);
     debRef.current = setTimeout(async () => {
       try {
-        /* Sprint 47 #3 — bias predictions to the visible map / trip country. */
+        /* Bias to the visible map viewport FIRST, then the trip country. */
         const bias = typeof biasRef.current === "function" ? biasRef.current() : null;
-        const res = await autocomplete(query, bias ? { bias } : {});
+        let res;
+        if (liveSearch) {
+          res = await textSearch(query, bias ? { bias } : {});
+          /* Fallback: if Text Search yields nothing (e.g. the legacy Places API
+             isn't enabled for the key), use autocomplete predictions so search
+             still works — those have no coordinates, so no map markers. */
+          if (!res || res.length === 0) res = await autocomplete(query, bias ? { bias } : {});
+        } else {
+          res = await autocomplete(query, bias ? { bias } : {});
+        }
         setPreds(res); setRlError(""); setBusy(false); setOpen(true);
+        /* Publish results (those with coordinates) so the editor can drop map
+           markers, letting the user see where each hit is before picking. */
+        emitResults((res || []).filter((r) => Number.isFinite(r.lat) && Number.isFinite(r.lng)));
       } catch (err) {
-        setBusy(false); setPreds([]); setOpen(true);
+        setBusy(false); setPreds([]); setOpen(true); emitResults([]);
         setRlError(err instanceof RateLimitError ? err.message : "החיפוש נכשל, נסו שוב");
       }
-    }, 300); // Sprint 42 #6 — standard 300ms debounce
+    }, 350);
     return () => debRef.current && clearTimeout(debRef.current);
-  }, [query, placesOn]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, placesOn, liveSearch]);
+
+  /* Clear the map markers when the bar unmounts. */
+  useEffect(() => () => emitResults([]), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* Close on outside click. */
   useEffect(() => {
@@ -80,7 +104,7 @@ const EditorSearchBar = ({ onAddStop, onPreview, activeDay, getBias, onFocusInpu
        PlaceInfoCard) and DO NOT commit a stop here.
      • Legacy fallback (no onPreview): classify + commit directly. */
   const addFromPlace = async (p) => {
-    setOpen(false); setQuery(""); setPreds([]);
+    setOpen(false); setQuery(""); setPreds([]); emitResults([]);
     const d = await getDetails(p.placeId);
     if (!d) return;
     if (onPreview) { onPreview(d); return; }
@@ -132,7 +156,7 @@ const EditorSearchBar = ({ onAddStop, onPreview, activeDay, getBias, onFocusInpu
         />
         {busy && <span style={{ fontSize: 11, color: T.ink4 }}>מחפש…</span>}
         {query && !busy && (
-          <button onClick={() => { setQuery(""); setPreds([]); }} style={{ width: 24, height: 24, borderRadius: "50%", border: "none", background: T.surface, cursor: "pointer", fontSize: 12, fontFamily: "inherit", color: T.ink2 }}>✕</button>
+          <button onClick={() => { setQuery(""); setPreds([]); emitResults([]); }} style={{ width: 24, height: 24, borderRadius: "50%", border: "none", background: T.surface, cursor: "pointer", fontSize: 12, fontFamily: "inherit", color: T.ink2 }}>✕</button>
         )}
       </div>
 
@@ -149,13 +173,19 @@ const EditorSearchBar = ({ onAddStop, onPreview, activeDay, getBias, onFocusInpu
             </div>
           ) : placesOn ? (
             preds.length > 0 ? (
-              preds.map((p) => (
+              preds.map((p, i) => (
                 <button key={p.placeId} onClick={() => addFromPlace(p)}
                   style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "right", padding: "11px 14px", border: "none", borderBottom: `1px solid ${T.line}`, background: "transparent", cursor: "pointer", fontFamily: "inherit" }}>
+                  {/* Numbered chip — matches the numbered marker on the map so the
+                     user can tie each result to its location before picking. */}
+                  {Number.isFinite(p.lat) && (
+                    <span aria-hidden style={{ flexShrink: 0, width: 22, height: 22, borderRadius: "50%", background: T.accent, color: "#fff", fontSize: 11, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{i + 1}</span>
+                  )}
                   <span style={{ flex: 1, minWidth: 0 }}>
                     <span style={{ display: "block", fontSize: 14, fontWeight: 700, color: T.ink }}>{p.primary}</span>
-                    {p.secondary && <span style={{ display: "block", fontSize: 12, color: T.ink3 }}>{p.secondary}</span>}
+                    {p.secondary && <span style={{ display: "block", fontSize: 12, color: T.ink3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.secondary}</span>}
                   </span>
+                  {Number.isFinite(p.rating) && <span style={{ fontSize: 12, fontWeight: 700, color: T.ink2, whiteSpace: "nowrap" }}>★ {p.rating}</span>}
                   <span style={{ fontSize: 12, fontWeight: 700, color: T.accent, whiteSpace: "nowrap" }}>＋ יום {activeDay}</span>
                 </button>
               ))

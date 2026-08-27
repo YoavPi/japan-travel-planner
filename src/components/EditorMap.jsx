@@ -94,6 +94,10 @@ const EditorMap = ({
   savedPlaces = [],
   /* Sprint 58 #8 — render legible name badges beside each saved marker. */
   savedLabels = false,
+  /* Live search results ({placeId,name,lat,lng,rating}) plotted as numbered
+     accent pins so the user sees each hit's location before picking one. */
+  searchResults = [],
+  onSearchResultClick,
   /* Reference-maps overlay — points of ANOTHER map loaded on top, in a
      distinct color so they read as a separate layer (not this trip, not the
      bank). Tapping one flies to it (onOverlayClick) AND opens an info popup
@@ -698,6 +702,28 @@ const EditorMap = ({
                 boxShadow: isSel ? "0 2px 9px rgba(0,0,0,0.4)" : "0 1px 5px rgba(0,0,0,0.28)", transition: "all 0.12s",
               }}><span style={{ transform: "rotate(-45deg)" }}>◆</span></div>
               <span dir="auto" style={{ maxWidth: 120, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontSize: 11, fontWeight: 800, color: "#fff", background: overlayColor, borderRadius: 6, padding: "2px 6px", boxShadow: "0 1px 4px rgba(0,0,0,0.18)" }}>{p.nameHe || p.name}</span>
+            </div>
+          </Marker>
+        );
+      })}
+
+      {/* Live search-result markers — numbered accent pins matching the search
+          dropdown rows, so the user sees WHERE each result sits before picking.
+          A tap previews that result (fly + pin + card) exactly like the list. */}
+      {searchResults.map((p, i) => {
+        if (!Number.isFinite(p.lat) || !Number.isFinite(p.lng)) return null;
+        return (
+          <Marker key={p.placeId || `sr-${i}`} longitude={p.lng} latitude={p.lat} anchor="center"
+            onClick={(e) => { e.originalEvent?.stopPropagation(); if (onSearchResultClick) onSearchResultClick(p); }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer" }}>
+              <div title={p.name} style={{
+                flexShrink: 0, width: 24, height: 24, borderRadius: "50%",
+                background: "#E0533F", color: "#fff",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 12, fontWeight: 800, border: "2px solid #fff",
+                boxShadow: "0 2px 8px rgba(224,83,63,0.5)",
+              }}>{i + 1}</div>
+              <span dir="auto" style={{ maxWidth: 130, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontSize: 11, fontWeight: 800, color: "#fff", background: "#E0533F", borderRadius: 6, padding: "2px 6px", boxShadow: "0 1px 4px rgba(0,0,0,0.18)" }}>{p.name}</span>
             </div>
           </Marker>
         );

@@ -78,6 +78,21 @@ export const authService = {
     return null;
   },
 
+  /* Sprint — Email MAGIC LINK (passwordless). Sends a one-time sign-in link to
+     the address; clicking it lands the user back on /auth with the session in
+     the URL (same handshake as Google OAuth). No password is ever handled.
+     `shouldCreateUser: true` lets first-time addresses sign up on the fly. */
+  async signInWithEmailLink(email) {
+    if (!isSupabaseEnabled()) throw new Error("Supabase is not configured");
+    const clean = String(email || "").trim().toLowerCase();
+    const { error } = await supabase.auth.signInWithOtp({
+      email: clean,
+      options: { shouldCreateUser: true, emailRedirectTo: `${window.location.origin}/auth` },
+    });
+    if (error) throw error;
+    return true;
+  },
+
   /* Current Supabase session user, mapped to the app shape (or null). */
   async getSupabaseSessionUser() {
     if (!isSupabaseEnabled()) return null;
@@ -176,6 +191,13 @@ export const authService = {
      finally clear both storages so no token survives the redirect. */
   signOut() {
     try { if (isSupabaseEnabled()) supabase.auth.signOut().catch(() => {}); } catch { /* ignore */ }
+    /* Device-level preferences that must SURVIVE sign-out — they are not tied to
+       the account and not sensitive: cookie-consent choice, "onboarding seen",
+       and the last-viewed product-update watermark. Without preserving these,
+       the hard purge below makes all three pop up again on the next session. */
+    const KEEP = ["tp_cookie_consent_v1", "tp_onboarded_v1", "last_viewed_sprint"];
+    const preserved = {};
+    try { KEEP.forEach((k) => { const v = localStorage.getItem(k); if (v != null) preserved[k] = v; }); } catch { /* ignore */ }
     try {
       sessionStorage.removeItem(TOKEN_KEY);
       sessionStorage.removeItem(USER_KEY);
@@ -191,6 +213,8 @@ export const authService = {
       try { localStorage.clear(); } catch { /* ignore */ }
       try { sessionStorage.clear(); } catch { /* ignore */ }
     } catch { /* storage unavailable — the redirect below still logs the user out */ }
+    /* Restore the preserved device prefs after the purge. */
+    try { Object.entries(preserved).forEach(([k, v]) => localStorage.setItem(k, v)); } catch { /* ignore */ }
   },
 };
 
