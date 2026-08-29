@@ -91,6 +91,16 @@ check(
   "fetchAllTrips does an unscoped read that RLS's public-read (is_public=true) allows for the gallery. A non-owned row must be dropped unless the user is a real collaborator (collaborators JSONB by email OR trip_collaborators), or every user sees every PUBLIC trip in 'שותפו איתי'."
 );
 
+/* ── ADMIN — the overview endpoint must gate on admin BEFORE any
+   service-role read (never leak all users to a non-admin). ────────────── */
+const adminApi = read("api/admin/overview.js");
+check(
+  "ADMIN: /api/admin/overview returns 403 for non-admins before any service-role read",
+  /ADMIN_EMAILS\.includes\(user\.email\)\)\s*return res\.status\(403\)/.test(adminApi) &&
+    adminApi.indexOf("status(403)") < adminApi.indexOf('svc("/'),
+  "overview.js must check ADMIN_EMAILS.includes(user.email) and return 403 BEFORE the first service-role read (svc(\"/...\"))."
+);
+
 /* ── SUMMARY ── */
 const failed = results.filter((r) => !r.ok);
 console.log("");
