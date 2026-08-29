@@ -60,12 +60,16 @@ async function handler(req, res) {
 
   const trips = await safe("trips", async () => {
     const r = await svc("/rest/v1/trips?select=id,title,owner_id,source,is_public,last_edited");
-    return await r.json();
+    if (!r.ok) throw new Error(`trips ${r.status}`);
+    const j = await r.json();
+    return Array.isArray(j) ? j : [];
   }, []);
 
   const generations = await safe("generations", async () => {
     const r = await svc("/rest/v1/ai_generations?select=user_id,total_tokens,created_at");
-    return await r.json();
+    if (!r.ok) throw new Error(`generations ${r.status}`);
+    const j = await r.json();
+    return Array.isArray(j) ? j : [];
   }, []);
 
   const payload = aggregateOverview({ users, trips, generations, weekStartMs: weekStartMs() });
