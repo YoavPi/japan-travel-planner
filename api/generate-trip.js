@@ -53,6 +53,7 @@ const COOLDOWN_MS = Number(process.env.AI_COOLDOWN_MS || 120000); // 2 min betwe
    refreshed from Google on the next lookup. */
 const CACHE_TTL_MS = Number(process.env.PLACE_CACHE_TTL_MS || 1000 * 60 * 60 * 24 * 183); // ~6 months
 const crypto = require("crypto");
+const { usageFromGemini, generationRow } = require("./_lib/aiUsage");
 
 /* Hard cap: 3–4 real places per day keeps the LLM output small (no truncation)
    AND minimises paid Google Places lookups. relaxed→3, otherwise→4. */
@@ -180,9 +181,14 @@ const lastGenerationAt = async (userId, token) => {
   } catch { return 0; }
 };
 
-const recordGeneration = async (userId, token) => {
-  try { await supaFetch("/rest/v1/ai_generations", { token, method: "POST", body: { user_id: userId }, headers: { Prefer: "return=minimal" } }); }
-  catch { /* best-effort */ }
+const recordGeneration = async (userId, token, meta = {}) => {
+  try {
+    await supaFetch("/rest/v1/ai_generations", {
+      token, method: "POST",
+      body: generationRow(userId, meta),
+      headers: { Prefer: "return=minimal" },
+    });
+  } catch { /* best-effort */ }
 };
 
 /* Log a generation FAILURE for our own daily review — the user only ever sees a
@@ -341,7 +347,8 @@ const callGemini = async (system, user) => {
   const text = Array.isArray(parts) ? parts.map((p) => p.text || "").join("") : "";
   /* Truncated output = JSON cut off mid-structure. Report it so callLLM can try
      to salvage the completed days before giving up. */
-  return { text, truncated: !!cand && cand.finishReason === "MAX_TOKENS" };
+  const usage = usageFromGemini(data);
+  return { text, truncated: !!cand && cand.finishReason === "MAX_TOKENS", usage };
 };
 
 const callAnthropic = async (system, user) => {
@@ -366,13 +373,16 @@ const callLLM = async (payload) => {
   // days → retry. A salvaged plan may have fewer days than asked, which still
   // beats a hard error.
   let lastTruncated = false;
+  let usage = { prompt: null, output: null, total: null };
   for (let attempt = 0; attempt < 2; attempt++) {
     const call = GEMINI_KEY ? await callGemini(system, user) : await callAnthropic(system, user);
     lastTruncated = call.truncated;
+    if (call.usage) usage = call.usage;
     let parsed = extractJson(call.text);
     if (!parsed || !Array.isArray(parsed.days) || parsed.days.length === 0) parsed = salvageJson(call.text);
     if (parsed && Array.isArray(parsed.days) && parsed.days.length > 0) {
-      return parsed; // { description?, days: [{ dayNumber, city, title?, spots }] }
+      parsed.usage = usage;
+      return parsed; // { description?, days: [{ dayNumber, city, title?, spots }], usage }
     }
     // Only retry a cheap, essentially-EMPTY/blocked response (fast). A long
     // truncated reply that salvaged nothing is expensive to re-run and would
@@ -582,7 +592,10 @@ async function handler(req, res) {
     }
 
     // Count this successful generation against the user's weekly quota.
-    await recordGeneration(userId, token);
+    await recordGeneration(userId, token, {
+      usage: draft.usage,
+      kind: (body.refine || "").trim() ? "refine" : "create",
+    });
 
     return res.status(200).json({
       destination,
