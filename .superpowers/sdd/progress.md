@@ -50,3 +50,31 @@ NOTE: implementers do NOT commit (shared messy tree); controller reviews working
 - [x] Task 3: NearbySearchSheet component + test (2 tests pass)
 - [x] Task 4: wire mobile (EditorView + StopActionsSheet) (build clean)
 - [x] Task 5: wire desktop (EditorDesktop) (build clean, 6/6 tests pass)
+
+
+---
+
+# Admin User Dashboard — SDD progress ledger
+Plan: docs/superpowers/plans/2026-08-29-admin-user-dashboard.md
+Branch: saas-builder-local
+BASE (clean checkpoint before Task 1): 9eebec7
+NOTE: working tree has 3 uncommitted deployed fixes (PlaceInfoCard, placePhoto, EditorView) — leave untouched; each task commits only its own files.
+
+## Tasks
+- [ ] Task 1..10
+
+## Log
+Task 1: complete (commit ed77564, review clean — additive SQL, matches plan; DB-run deferred to human)
+Task 2: complete (commit f08b6fb, build clean — one line, only tripService.js)
+Task 3: complete (commit 3ad976e, 5/5 tests pass, 3 files)
+Task 4: complete (commit dcb5450, review clean — spec OK, quality approved; token wiring, test:api 5/5, build OK)
+Task 5: complete (commit 8d88443, 7/7 tests, 2 files)
+Task 6: complete (commit e864189 + fix 6c0e6bf — endpoint; spec OK, gate verified fail-closed; Important r.ok/array-guard fixed; test:api 7/7)
+NOTE: executing Task 8 before Task 7 (Task 7 build depends on AdminView).
+Task 8: complete (commit 0215f83, build OK — AdminView, fields match aggregate payload)
+Task 7: complete (commit 99aad52, build OK — AdminRoute gates non-admin to /dashboard, /admin wired)
+Task 9: complete (commit cf32183, build OK — admin-only side-menu item, gated by isAdminEmail)
+Task 10 plan FIX: critical-check anchor changed SERVICE_KEY→svc("/ (SERVICE_KEY const is declared at top, before 403; svc("/ is the actual read). Validated: 403@1839 < svc@2285.
+Task 10: complete (commit e1c2683 — critical 9/9 incl. ADMIN gate, test:api 7/7, build OK)
+ALL TASKS COMPLETE. Feature commits: 9eebec7..e1c2683
+FINAL REVIEW (opus): READY TO MERGE, no Critical. Fixed Minor §5.3 (349d850, 8/8). Important CAVEAT: run migration BEFORE deploying generate-trip (else ai_generations insert fails → weekly quota stops enforcing). Pagination Minor left (spec non-goal). Feature = 9eebec7..349d850 (12 commits). NOT deployed (pending: migration + env, user-triggered).

@@ -897,8 +897,8 @@ const adminApi = read("api/admin/overview.js");
 check(
   "ADMIN: /api/admin/overview returns 403 for non-admins before any service-role read",
   /ADMIN_EMAILS\.includes\(user\.email\)\)\s*return res\.status\(403\)/.test(adminApi) &&
-    adminApi.indexOf("status(403)") < adminApi.indexOf("SERVICE_KEY"),
-  "overview.js must check ADMIN_EMAILS.includes(user.email) and return 403 BEFORE it ever uses SUPABASE_SERVICE_ROLE_KEY."
+    adminApi.indexOf("status(403)") < adminApi.indexOf('svc("/'),
+  "overview.js must check ADMIN_EMAILS.includes(user.email) and return 403 BEFORE the first service-role read (svc(\"/...\"))."
 );
 ```
 

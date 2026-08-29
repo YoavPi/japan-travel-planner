@@ -5,7 +5,7 @@ import { useDarkMode } from "../utils/theme";
 import Icon from "../components/Icon";
 import SwipeBackContainer from "../components/SwipeBackContainer";
 import useActiveTrip from "../utils/useActiveTrip";
-import useIsDesktop from "../utils/useIsDesktop";
+import useIsDesktop from "../hooks/useIsDesktop";
 import TripOverviewDesktop from "./TripOverviewDesktop";
 
 /* ══════════════════════════════════════════════════════════════

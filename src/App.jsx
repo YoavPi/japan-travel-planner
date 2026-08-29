@@ -10,7 +10,7 @@ import Icon from "./components/Icon";
 import ProtectedRoute from "./components/ProtectedRoute";
 import BottomDock from "./components/BottomDock";
 import SideMenu from "./components/SideMenu";
-import useIsDesktop from "./utils/useIsDesktop";
+import useIsDesktop from "./hooks/useIsDesktop";
 import LandingView from "./views/LandingView";
 import HomePage from "./views/HomePage";
 import ExploreView from "./views/ExploreView";

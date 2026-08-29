@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import { track } from "@vercel/analytics";
-import useIsDesktop from "../utils/useIsDesktop";
+import useIsDesktop from "../hooks/useIsDesktop";
 import EditorView from "./EditorView";
 import EditorDesktop from "./EditorDesktop";
 

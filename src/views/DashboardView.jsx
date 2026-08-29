@@ -13,7 +13,7 @@ import SwipeBackContainer from "../components/SwipeBackContainer";
 import ProductUpdatesModal from "../components/ProductUpdatesModal";
 import AiTripModal from "../components/AiTripModal";
 import useActiveTrip from "../utils/useActiveTrip";
-import useIsDesktop from "../utils/useIsDesktop";
+import useIsDesktop from "../hooks/useIsDesktop";
 import DashboardDesktop from "./DashboardDesktop";
 
 /* ──────────────────────────────────────────────────────────────

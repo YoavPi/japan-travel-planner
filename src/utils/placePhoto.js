@@ -81,7 +81,12 @@ const isStaleGooglePhoto = (s) =>
   typeof s === "string" &&
   /(googleusercontent\.com|maps\.googleapis\.com|maps\.gstatic\.com|\/place\/photo|photo(_?)reference=|PhotoService)/i.test(s);
 
-const storedRealPhoto = (item) => {
+/* A trusted stored photo is a real, NON-expiring http image (e.g. a user
+   upload or a stable CDN url). Google `getUrl()` / PhotoService / lh3 links
+   are short-lived and rejected here — callers should resolve a FRESH photo
+   (utils/usePlacePhotos) and only fall back to this. Exported so every
+   surface can share the exact same "is this stored url trustworthy?" rule. */
+export const storedRealPhoto = (item) => {
   if (!item) return null;
   const p = item.photoUrl || item.photo_url || item.image_url || item.google_photo || item.photo;
   return isHttp(p) && !isStaleGooglePhoto(p) ? p : null;

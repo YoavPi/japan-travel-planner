@@ -5,7 +5,7 @@ import Icon from "../components/Icon";
 import { isPlacesEnabled, autocomplete as placesAutocomplete, getDetails as placesGetDetails } from "../services/googlePlaces";
 import { parseStartDate } from "../utils/tripDates";
 import CalendarRangePicker from "../components/CalendarRangePicker";
-import useIsDesktop from "../utils/useIsDesktop";
+import useIsDesktop from "../hooks/useIsDesktop";
 import { useAuth } from "../context/AuthContext";
 import isAdminEmail from "../utils/isAdmin";
 

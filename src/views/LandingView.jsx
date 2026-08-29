@@ -6,7 +6,7 @@ import useActiveTrip from "../utils/useActiveTrip";
 import tripService from "../services/tripService";
 import HeroRouteAnimation from "../components/HeroRouteAnimation";
 import SwipeBackContainer from "../components/SwipeBackContainer";
-import useIsDesktop from "../utils/useIsDesktop";
+import useIsDesktop from "../hooks/useIsDesktop";
 import LandingDesktop from "./LandingDesktop";
 import SiteFooter from "../components/SiteFooter";
 

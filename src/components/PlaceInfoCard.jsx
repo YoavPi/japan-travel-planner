@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { CATEGORY_META, classifyLocation, ratingToBadge } from "../utils/classify";
 import Icon from "./Icon";
 import usePlacePhotos, { photoKey } from "../utils/usePlacePhotos";
+import { storedRealPhoto } from "../utils/placePhoto";
 import mapsUrlFor from "../utils/mapsUrl";
 
 /* ══════════════════════════════════════════════════════════════
@@ -77,7 +78,13 @@ const PlaceInfoCard = ({ place, days = [], activeDay = 0, onAdd, onSaveToInbox, 
   /* If there's genuinely no real photo we fall back to the category emoji on
      the gradient — never a misleading stock image. */
   const k = photoKey(place);
-  const realPhoto = place.photoUrl || (k && freshPhotos[k]) || null;
+  /* Prefer the FRESHLY-resolved photo (usePlacePhotos: the place's own current
+     Google photo, else Street View), then a genuinely-stored NON-Google image.
+     A raw stored `place.photoUrl` is NEVER trusted first: saved Google getUrl()
+     links expire (→ broken) or can be a stale/wrong image, which is exactly how
+     a saved bank point ended up showing a map tile. This matches every other
+     surface (EditorMap, the bank list + inbox card all resolve fresh first). */
+  const realPhoto = (k && freshPhotos[k]) || storedRealPhoto(place) || null;
 
   const toStop = () => ({
     name: place.name,

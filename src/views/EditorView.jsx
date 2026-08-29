@@ -2639,7 +2639,10 @@ const EditorView = () => {
             setActiveStop(null);
             const idx = returnStopIdx.current;
             if (idx != null && idx >= 0) {
-              sheetRef.current?.snapTo?.("half");
+              /* No mid-state: re-opening a card's schedule expands to FULL, not
+                 the initial-only "half". Once the user has moved the sheet, it
+                 only ever rests peek/full — never returns to the middle. */
+              sheetRef.current?.snapTo?.("full");
               scrollToStopRow(idx, "center");
               returnStopIdx.current = -1;
             }
@@ -3038,7 +3041,7 @@ const EditorView = () => {
             insetInlineStart: 16,
             /* Rest 16px above the sheet's top border for the current snap. */
             bottom: sheetSnap === "peek"
-              ? "calc(env(safe-area-inset-bottom, 0px) + 100px)"
+              ? "calc(env(safe-area-inset-bottom, 0px) + 128px)"
               : "calc(50vh + 16px)",
             display: "inline-flex", alignItems: "center", justifyContent: "center",
             /* Premium rounded-full capsule. When the bank holds saved points it
@@ -3072,7 +3075,7 @@ const EditorView = () => {
              buttons render cleanly instead of clipping behind the day pills. */
           position: "fixed", zIndex: 260, insetInlineEnd: 16,
           bottom: sheetSnap === "peek"
-            ? "calc(env(safe-area-inset-bottom, 0px) + 104px)"
+            ? "calc(env(safe-area-inset-bottom, 0px) + 128px)"
             : "calc(50vh + 16px)",
           display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 12, fontFamily: T.font,
           transition: "bottom 320ms cubic-bezier(0.22,1,0.36,1)",
@@ -3083,7 +3086,7 @@ const EditorView = () => {
                clipped bottom-of-viewport button was removed). */
             ...(editable ? [{ icon: "wrench", label: "עריכת שלד הטיול", onClick: () => navigate(`/create?edit=${trip.id}`) }] : []),
             ...(days.length > 0 ? [{ icon: "barChart", label: "סכם לי את הטיול", onClick: () => setSummaryOpen(true) }] : []),
-            ...(days.length > 1 ? [{ icon: "listOrdered", label: continuousMode ? "תצוגת ימים" : "מסלול רציף", onClick: () => setContinuousMode((v) => { const n = !v; if (n) sheetRef.current?.snapTo?.("half"); return n; }) }] : []),
+            ...(days.length > 1 ? [{ icon: "listOrdered", label: continuousMode ? "תצוגת ימים" : "מסלול רציף", onClick: () => setContinuousMode((v) => { const n = !v; if (n) sheetRef.current?.snapTo?.("full"); return n; }) }] : []),
             { icon: "calendar", label: tripStartDate ? "שינוי תאריכים" : "הגדרת תאריכים", onClick: openDatesModal },
           ].map((a, i) => (
             /* Sprint 57 #1 — premium borderless capsule pill with a soft shadow
@@ -3123,7 +3126,7 @@ const EditorView = () => {
           /* Sprint 54 #4 — above the sheet; unmounts during focus-lock modes. */
           position: "fixed", zIndex: 260, left: "50%", transform: "translateX(-50%)",
           bottom: sheetSnap === "peek"
-            ? "calc(env(safe-area-inset-bottom, 0px) + 104px)"
+            ? "calc(env(safe-area-inset-bottom, 0px) + 128px)"
             : "calc(50vh + 16px)",
           display: "flex", gap: 12, fontFamily: T.font,
           transition: "bottom 320ms cubic-bezier(0.22,1,0.36,1)",
@@ -3139,7 +3142,7 @@ const EditorView = () => {
             <Icon name={dayEditMode ? "check" : "arrowUpDown"} size={21} strokeWidth={1.85} color={dayEditMode ? "#fff" : "#1E1E24"} />
           </button>
           <button
-            onClick={() => setContinuousMode((v) => { const next = !v; if (next) sheetRef.current?.snapTo?.("half"); return next; })}
+            onClick={() => setContinuousMode((v) => { const next = !v; if (next) sheetRef.current?.snapTo?.("full"); return next; })}
             title={continuousMode ? "חזרה לתצוגת ימים" : "תצוגת מסלול רציף"}
             aria-label="מסלול רציף" aria-pressed={continuousMode}
             className={`tp-press${continuousMode ? " tp-focus-glow" : ""}`}
