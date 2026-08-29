@@ -52,3 +52,15 @@ test("orders users by last activity desc and tolerates orphan owner ids", () => 
   assert.strictEqual(out.kpis.users, 2); // orphan owner materialized
   assert.strictEqual(out.users[0].id, "zzz"); // most recent activity first
 });
+
+test("a generation updates lastActiveAt and active-this-week", () => {
+  const out = aggregateOverview({
+    users: [{ id: "a", email: "a@x.com", created_at: before, last_sign_in_at: before }],
+    trips: [],
+    generations: [{ user_id: "a", total_tokens: 50, created_at: inWeek }],
+    weekStartMs: WEEK,
+  });
+  const a = out.users.find((u) => u.id === "a");
+  assert.strictEqual(a.lastActiveAt, inWeek);
+  assert.strictEqual(out.kpis.activeThisWeek, 1);
+});

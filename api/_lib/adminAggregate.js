@@ -37,6 +37,7 @@ function aggregateOverview({ users = [], trips = [], generations = [], weekStart
     const tok = Number.isFinite(g.total_tokens) ? g.total_tokens : 0;
     r.tokens.total += tok;
     if (weekStartMs && ts(g.created_at) >= weekStartMs) r.tokens.thisWeek += tok;
+    if (ts(g.created_at) > ts(r.lastActiveAt)) r.lastActiveAt = g.created_at;
   }
 
   const list = [...byId.values()].sort((a, b) => ts(b.lastActiveAt) - ts(a.lastActiveAt));
