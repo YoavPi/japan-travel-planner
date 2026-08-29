@@ -28,7 +28,8 @@
     "eject": "react-scripts eject",
     "critical": "node scripts/critical-checks.js",
     "verify:prod": "node scripts/verify-prod.js",
-    "preflight": "node scripts/critical-checks.js && CI=true react-scripts build"
+    "preflight": "node scripts/critical-checks.js && CI=true react-scripts build",
+    "test:api": "node --test api/_lib/"
   },
   "eslintConfig": {
     "extends": [
