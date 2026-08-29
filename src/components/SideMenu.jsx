@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useDarkMode } from "../utils/theme";
 import Icon from "./Icon";
+import isAdminEmail from "../utils/isAdmin";
 
 /* ══════════════════════════════════════════════════════════════
    SideMenu — slide-in navigation drawer (hamburger menu).
@@ -83,6 +84,9 @@ const SideMenu = ({ open, onClose }) => {
               <Item icon="plus"     label="מסלול חדש" onClick={() => go("/create")} />
               <Item icon="bell"     label="התראות" onClick={() => go("/notifications")} />
               <Item icon="settings" label="הגדרות וניהול" onClick={() => go("/settings")} />
+              {isAdminEmail(user?.email) && (
+                <Item icon="shield" label="ניהול (אדמין)" onClick={() => go("/admin")} />
+              )}
               <Item icon="pin"      label="טיול לדוגמה (יפן)" onClick={() => go("/japan")} />
             </>
           ) : (
