@@ -302,20 +302,34 @@ export const tripService = {
          mine. "המפות שלי" = maps I created; a map others shared with me lives
          under "שותפו איתי". */
       const email = (sbUser.email || "").toLowerCase();
+      /* Trip ids where I am a table-collaborator (the other genuine sharing
+         source besides the JSONB `collaborators`). Used to tell a REAL share
+         apart from a merely-PUBLIC trip: the unscoped read also returns every
+         is_public=true trip (the gallery's public-read RLS), and those must NOT
+         land in "שותפו איתי" just because I have an account. */
+      let collabIds = new Set();
+      try {
+        const { data: tc } = await supabase.from("trip_collaborators").select("trip_id").eq("user_id", sbUser.id);
+        collabIds = new Set((tc || []).map((r) => r.trip_id));
+      } catch { /* table may not exist in some envs — JSONB check still applies */ }
       return (data || []).map((row) => {
         const trip = rowToTrip(row);
         if (!trip) return null;
         const { data: _d, ...rest } = trip;
         const mine = row.owner_id ? row.owner_id === sbUser.id : (!rest.owner?.id || rest.owner.id === sbUser.id);
         if (mine) return { ...rest, role: "owner", shared: false };
+        /* Genuine share = I'm in the collaborators JSONB (by email) OR the
+           trip_collaborators table. If neither, this row is only visible because
+           it's PUBLIC — exclude it from the dashboard's shared list. */
+        const jsonbCollab = Array.isArray(row.collaborators)
+          ? row.collaborators.find((c) => (c.email || "").toLowerCase() === email)
+          : null;
+        if (!jsonbCollab && !collabIds.has(row.id)) return null;
         /* SHARED trip — resolve the REAL per-user role from the collaborators
            JSONB by email (same logic as fetchTripById). Previously every shared
            trip was hardcoded role:"edit", so a VIEW collaborator saw an "עריכה"
            button and edit affordances they didn't actually have. */
-        const collab = Array.isArray(row.collaborators)
-          ? row.collaborators.find((c) => (c.email || "").toLowerCase() === email)
-          : null;
-        const canEdit = collab?.role === "edit";
+        const canEdit = jsonbCollab?.role === "edit";
         return {
           ...rest,
           role: canEdit ? "edit" : "view",

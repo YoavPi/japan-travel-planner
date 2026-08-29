@@ -140,6 +140,11 @@ const PlaceInfoCard = ({ place, days = [], activeDay = 0, onAdd, onSaveToInbox, 
             <span dir="auto" style={{ display: "block", fontSize: 15, fontWeight: 800, color: "#0D0F11", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{place.name}</span>
             <span style={{ display: "block", fontSize: 11.5, color: "#8B9198" }}>הזיזו את המפה לאישור הנקודה</span>
           </span>
+          {/* Close directly from the collapsed state (the expanded X was hidden here). */}
+          <button onClick={onClose} aria-label="סגירה"
+            style={{ flexShrink: 0, width: 34, height: 34, borderRadius: "50%", border: "none", background: "#F6F6F4", color: "#2A3036", cursor: "pointer", fontFamily: FONT, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+            <Icon name="x" size={15} strokeWidth={2.2} />
+          </button>
         </div>
       )}
 

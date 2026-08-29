@@ -1095,15 +1095,21 @@ const EditorView = () => {
   const [isFav, setIsFav] = useState(false);
   /* Live search-result pins on the map (from the search bar's Text Search). */
   const [searchResults, setSearchResults] = useState([]);
-  /* "מצא לי X באזור" — the origin point whose picker sheet is open (null = closed). */
+  /* "מצא לי X באזור" — the origin point whose picker sheet is open (null = closed)
+     and the origin coordinate the map auto-fits around once results arrive. */
   const [nearbyOrigin, setNearbyOrigin] = useState(null);
+  const [searchOrigin, setSearchOrigin] = useState(null);
   const runNearby = useCallback(async (origin, query) => {
     const c = origin?.coordinates || (Number.isFinite(origin?.lat) ? { lat: origin.lat, lng: origin.lng } : null);
     setNearbyOrigin(null);
     if (!c) return;
-    setFlyToCoord({ lat: c.lat, lng: c.lng }); // recenter on the origin
+    /* Close any open point card + collapse the schedule sheet so the results
+       + map aren't hidden behind them. */
+    setActiveStop(null); setPreviewPlace(null); setInboxCardMenu(null);
+    sheetRef.current?.snapTo?.("peek");
+    setSearchOrigin(c);
     const res = await nearbySearch(c, query);
-    setSearchResults(res);
+    setSearchResults(res); // EditorMap fits to origin + results (extra bottom pad clears the peek sheet)
     track("nearby_search", { ...query, results: res.length });
   }, []);
   useEffect(() => {
@@ -1306,7 +1312,10 @@ const EditorView = () => {
      Sprint 60 #2 — the saved-marker detail card (`inboxCardMenu`) is now part
      of this guard too, so tapping a gray saved marker also fully unmounts the
      z-260 FAB stack + fan + anchor (no controls floating over the card). */
-  const mapFabsHidden = !!activeStop || !!previewPlace || !!inboxCardMenu;
+  /* True while the schedule sheet is being dragged — hides the floating map FABs
+     so they don't overlap the moving sheet (the "drag makes a problem" glitch). */
+  const [sheetDragging, setSheetDragging] = useState(false);
+  const mapFabsHidden = !!activeStop || !!previewPlace || !!inboxCardMenu || sheetDragging;
   /* Sprint 50 #3 — global focus-lock context. Either "מסלול רציף" (continuous)
      or "סידור ימים" (day reorder) engages an unbreakable editing framework:
      the active FAB pulses, a sticky top banner appears, and the lock clears on
@@ -1453,8 +1462,10 @@ const EditorView = () => {
     ));
     setPreviewPlace(null);
     setFlyToCoord(null);
-    sheetRef.current?.snapTo?.("full"); // Sprint 38 #5 — 2-state during usage
-  }, [trip, activeDay, commitDays]);
+    /* Keep the map (+ remaining nearby result pins) visible so the user can add
+       several in a row; otherwise collapse to the schedule as before. */
+    sheetRef.current?.snapTo?.(searchResults.length > 0 ? "peek" : "full");
+  }, [trip, activeDay, commitDays, searchResults.length]);
 
   const handleReorder = useCallback((newStops) => {
     commitDays((days) => days.map((d) => d.day === activeDay ? { ...d, attractions: newStops } : d));
@@ -1493,19 +1504,15 @@ const EditorView = () => {
   /* Sprint 57 #3 — "search saved points around THIS stop": centre the map on
      the stop, apply a spatial box around its coordinates, and reveal the
      Places-Inbox saved markers residing in that cluster. */
+  /* "מצא לי X באזור" from a stop's map card — opens the category picker (was the
+     old saved-points-nearby query). Clearing the geo-filter keeps that state
+     used and removes any stale saved-point filter. */
   const searchAroundStop = useCallback((stop) => {
     const c = stop?.coordinates || (Number.isFinite(stop?.lat) ? { lat: stop.lat, lng: stop.lng } : null);
     if (!c || !Number.isFinite(c.lat) || !Number.isFinite(c.lng)) return;
-    setFlyToCoord({ lat: c.lat, lng: c.lng });
-    const d = 0.03; // ~3km cluster box centred on the stop
-    setInboxGeoFilter({ west: c.lng - d, south: c.lat - d, east: c.lng + d, north: c.lat + d });
-    /* Ensure the saved-points list is loaded even if the inbox was never opened. */
-    setInboxPlaces((prev) => {
-      if (prev === null) listInboxPlaces().then((list) => { if (list && list.length) setInboxPlaces(list); }).catch(() => {});
-      return prev;
-    });
-    setActiveStop(null); // drop the card so the revealed markers are visible
-    sheetRef.current?.snapTo?.("peek");
+    setInboxGeoFilter(null);
+    setActiveStop(null); // drop the card
+    setNearbyOrigin(stop); // open the nearby-places picker
   }, []);
 
   /* Sprint 34 — ASSIGN an unassigned inbox place to a day (single-home
@@ -2420,6 +2427,10 @@ const EditorView = () => {
        drops any active focus-lock (continuous / reorder) back to standard view. */
     if (focusActive) clearFocusModes();
     setActiveDay(n);
+    /* Scroll the tapped day chip to the CENTER of the strip so the neighbours on
+       both sides are reachable. */
+    const di = days.findIndex((d) => d.day === n);
+    if (di >= 0) { try { dayChipRefs.current[di]?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" }); } catch { /* noop */ } }
     /* The map flies to the day's first coordinate (driven by the activeDay
        change); the schedule sheet MINIMIZES to peek so the map + the day's
        route own the screen. The user pulls the sheet up when they want the
@@ -2635,7 +2646,9 @@ const EditorView = () => {
           }}
           onViewportChange={(b) => { viewportRef.current = b; }}
           searchResults={searchResults}
-          onSearchResultClick={async (p) => { const d = await getDetails(p.placeId); if (d) handlePreview(d); setSearchResults([]); }}
+          searchOrigin={searchOrigin}
+          searchFitPadding={{ top: 100, bottom: 180, left: 40, right: 40 }}
+          onSearchResultClick={async (p) => { const d = await getDetails(p.placeId); if (d) handlePreview(d); /* keep the other result pins so several can be reviewed/added */ }}
           /* Sprint 59 #6 — publish live bearing + accept a reset-north signal. */
           onBearingChange={setMapBearing}
           resetNorthKey={northKey}
@@ -2670,12 +2683,29 @@ const EditorView = () => {
         />
       </div>
 
+      {/* "מצא לי X באזור" — while result pins are shown, a clear chip lets the
+          user review/add several before explicitly ending the search. */}
+      {trip && !isPinning && searchResults.length > 0 && (
+        <button
+          onClick={() => { setSearchResults([]); setSearchOrigin(null); }}
+          className="tp-press"
+          style={{
+            position: "fixed", top: "calc(env(safe-area-inset-top, 0px) + 74px)", insetInlineStart: "50%", transform: "translateX(-50%)",
+            zIndex: 102, height: 34, padding: "0 14px", borderRadius: 999, border: "none",
+            background: "#1E1E24", color: "#fff", fontSize: 12.5, fontWeight: 800, cursor: "pointer",
+            fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6, boxShadow: "0 4px 14px rgba(0,0,0,0.25)",
+          }}
+        >
+          ✕ נקה תוצאות ({searchResults.length})
+        </button>
+      )}
+
       {/* Map Lock toggle — restores a dedicated "נעילת מפה" control that
           dynamically freezes/restores the viewport pan & zoom.
           Sprint 18.6: lifted into the top header row (insetInlineEnd) so it
           sits cleanly ABOVE the absolute search-bar omnibox wrapper (top:64)
           and never overlaps the autocomplete results that drop below it. */}
-      {trip && !isPinning && !inboxMode && !overlayOpen && !mapFabsHidden && !inboxCardMenu && (
+      {trip && !isPinning && !inboxMode && !overlayOpen && !mapFabsHidden && !inboxCardMenu && !refMapsOpen && (
         <button
           onClick={() => setMapLocked((v) => !v)}
           title={mapLocked ? "המפה נעולה — לחצו לשחרור" : "נעילת מפה (הקפאת תזוזה וזום)"}
@@ -2709,8 +2739,8 @@ const EditorView = () => {
         </button>
       )}
 
-      {/* Sprint 58 #8 — 👁️ eye toggle: project ALL saved inbox points onto the
-          map as subtle gray markers with legible name badges. */}
+      {/* 👁️ eye toggle — show/hide ALL saved bank points on the map (distinct
+          from the folder FAB, which OPENS the bank). */}
       {trip && !isPinning && !inboxMode && !overlayOpen && !mapFabsHidden && !inboxCardMenu && !refMapsOpen && (
         <button
           onClick={() => setShowAllSaved((v) => {
@@ -2736,7 +2766,7 @@ const EditorView = () => {
 
       {/* "מפות נוספות" — load another map's points as a teal overlay + transfer.
           Shares the right-edge map-control rail (below the compass slot). */}
-      {trip && editable && !isPinning && !inboxMode && !overlayOpen && !mapFabsHidden && !inboxCardMenu && (
+      {trip && editable && !isPinning && !inboxMode && !overlayOpen && !mapFabsHidden && !inboxCardMenu && !refMapsOpen && (
         <button
           onClick={() => setRefMapsOpen((o) => !o)}
           title="מפות נוספות — טעינת מפה נוספת והעברת נקודות"
@@ -3088,7 +3118,7 @@ const EditorView = () => {
       {/* Sprint 46 #2 — icon-only map FABs for Day Reorder (⇅) + Continuous
           Route (🔢), floating centred above the peek sheet. Active state tints
           the button green for instant visual verification. 44px touch area. */}
-      {trip && editable && !inboxMode && !isPinning && !focusActive && !overlayOpen && !mapFabsHidden && sheetSnap === "peek" && days.length > 1 && (
+      {trip && editable && !inboxMode && !isPinning && !focusActive && !overlayOpen && !mapFabsHidden && !refMapsOpen && sheetSnap === "peek" && days.length > 1 && (
         <div style={{
           /* Sprint 54 #4 — above the sheet; unmounts during focus-lock modes. */
           position: "fixed", zIndex: 260, left: "50%", transform: "translateX(-50%)",
@@ -3130,6 +3160,7 @@ const EditorView = () => {
         <EditorBottomSheet
           ref={sheetRef}
           defaultSnap="half"
+          onDraggingChange={setSheetDragging}
           /* Sprint 60 #1 — MUTUALLY EXCLUSIVE bottom viewport states: the Daily
              Schedule Sheet and the map-first inbox carousel can never occupy
              the bottom area together. Opening the inbox force-collapses the
@@ -3308,15 +3339,23 @@ const EditorView = () => {
                 groupedByCity.map((g) => (
                   <div key={g.city} style={{ marginBottom: 20 }}>
                     <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: g.color, margin: "8px 0 8px" }}>{g.city}</div>
-                    {g.items.map((a, i) => (
-                      <div key={`${a.place_id || a.id || a.name}-${i}`} style={{ display: "flex", gap: 12, padding: "9px 0", borderBottom: `1px solid ${T.line}` }}>
+                    {g.items.map((a, i) => {
+                      const c = a.coordinates;
+                      const clickable = c && Number.isFinite(c.lat) && Number.isFinite(c.lng);
+                      return (
+                      <div key={`${a.place_id || a.id || a.name}-${i}`}
+                        onClick={clickable ? () => { setActiveStop(a); setFlyToCoord({ lat: c.lat, lng: c.lng }); sheetRef.current?.snapTo?.("peek"); } : undefined}
+                        className={clickable ? "tp-press" : undefined}
+                        style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 0", borderBottom: `1px solid ${T.line}`, cursor: clickable ? "pointer" : "default" }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 14.5, fontWeight: 700, color: T.ink, direction: "ltr", textAlign: "right" }}>{a.name}</div>
                           {a.nameHe && a.nameHe !== a.name && <div style={{ fontSize: 12, color: T.ink3 }}>{a.nameHe}</div>}
                           <div style={{ fontSize: 11, color: T.ink4, marginTop: 2 }}>יום {a._day}{a.category ? ` · ${a.category}` : ""}</div>
                         </div>
+                        {clickable && <Icon name="pin" size={15} strokeWidth={2} color={T.ink4} />}
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ))
               ) : (
@@ -3619,7 +3658,7 @@ const EditorView = () => {
           activeDay={days.findIndex((d) => d.day === activeDay)}
           onAdd={handleAddFromPreview}
           onSaveToInbox={(stop) => saveStopToInbox(stop)}
-          onClose={() => { setPreviewPlace(null); setFlyToCoord(null); sheetRef.current?.snapTo?.("full"); }}
+          onClose={() => { setPreviewPlace(null); setFlyToCoord(null); /* while nearby result pins are shown, stay collapsed so the map + pins remain visible */ sheetRef.current?.snapTo?.(searchResults.length > 0 ? "peek" : "full"); }}
         />
       )}
 

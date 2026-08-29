@@ -85,6 +85,11 @@ check(
   /owner|user_id|userId|auth\.uid|getUser/.test(trip),
   "Trip reads/writes should be scoped to the signed-in user."
 );
+check(
+  "SHARING: fetchAllTrips excludes non-collaborator public trips",
+  /!jsonbCollab\s*&&\s*!collabIds\.has\([^)]*\)\)\s*return null/.test(trip),
+  "fetchAllTrips does an unscoped read that RLS's public-read (is_public=true) allows for the gallery. A non-owned row must be dropped unless the user is a real collaborator (collaborators JSONB by email OR trip_collaborators), or every user sees every PUBLIC trip in 'שותפו איתי'."
+);
 
 /* ── SUMMARY ── */
 const failed = results.filter((r) => !r.ok);

@@ -22,7 +22,7 @@ const FLING = 0.45; // px/ms
 
 /* Sprint 38 #5 — the collapsed ("peek") state is now a fixed ~80px sliver
    showing only the active-day header, not a percentage. */
-const COLLAPSED_PX = 84;
+const COLLAPSED_PX = 108;
 
 /* "full" stops right below the floating search omnibox (top:64, 48px tall
    → bottom ≈ 112) so an expanded sheet covers the ENTIRE map while leaving
@@ -34,7 +34,7 @@ const offsetFor = (snap, vh) =>
     : snap === "peek" ? vh - COLLAPSED_PX
       : vh - vh * SNAP_FRACTION[snap]; // half (initial orientation only)
 
-const EditorBottomSheet = forwardRef(({ header, children, defaultSnap = "half", onSnapChange }, ref) => {
+const EditorBottomSheet = forwardRef(({ header, children, defaultSnap = "half", onSnapChange, onDraggingChange }, ref) => {
   const [snap, setSnapState] = useState(defaultSnap);
   const [translateY, setTranslateY] = useState(null);
   const [dragging, setDragging] = useState(false);
@@ -54,6 +54,13 @@ const EditorBottomSheet = forwardRef(({ header, children, defaultSnap = "half", 
   useEffect(() => {
     if (onSnapChange) onSnapChange(snap);
   }, [snap, onSnapChange]);
+
+  /* Report drag start/end so the editor can hide the floating map FABs WHILE the
+     sheet is moving — otherwise the peek-anchored FABs overlap the sheet
+     mid-drag and look broken. */
+  useEffect(() => {
+    if (onDraggingChange) onDraggingChange(dragging);
+  }, [dragging, onDraggingChange]);
 
   useEffect(() => {
     const apply = () => {

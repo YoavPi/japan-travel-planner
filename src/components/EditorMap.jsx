@@ -98,6 +98,12 @@ const EditorMap = ({
      accent pins so the user sees each hit's location before picking one. */
   searchResults = [],
   onSearchResultClick,
+  /* Origin point of a "מצא לי X באזור" search — included in the auto-fit so the
+     nearby results AND the point they surround are framed on screen together. */
+  searchOrigin = null,
+  /* Optional padding override for the search auto-fit (mobile passes extra
+     bottom so results aren't framed under the bottom sheet). */
+  searchFitPadding = null,
   /* Reference-maps overlay — points of ANOTHER map loaded on top, in a
      distinct color so they read as a separate layer (not this trip, not the
      bank). Tapping one flies to it (onOverlayClick) AND opens an info popup
@@ -497,6 +503,38 @@ const EditorMap = ({
     } catch { /* noop */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [savedSig]);
+
+  /* "מצא לי X באזור" — when nearby results appear, FRAME the origin point + all
+     result pins so they're on screen at once (results are otherwise off-view).
+     Runs once per result set (keyed on the signature); overrides holdView. */
+  const searchSig = useMemo(
+    () => searchResults.map((p) => p.placeId || `${p.lat},${p.lng}`).join("|"),
+    [searchResults]
+  );
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !searchSig) return;
+    const coords = searchResults
+      .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng))
+      .map((p) => ({ lat: p.lat, lng: p.lng }));
+    if (searchOrigin && Number.isFinite(searchOrigin.lat) && Number.isFinite(searchOrigin.lng)) {
+      coords.push({ lat: searchOrigin.lat, lng: searchOrigin.lng });
+    }
+    if (coords.length === 0) return;
+    let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
+    coords.forEach((c) => {
+      minLng = Math.min(minLng, c.lng); maxLng = Math.max(maxLng, c.lng);
+      minLat = Math.min(minLat, c.lat); maxLat = Math.max(maxLat, c.lat);
+    });
+    try {
+      if (minLng === maxLng && minLat === maxLat) {
+        map.flyTo({ center: [minLng, minLat], zoom: SINGLE_STOP_ZOOM, duration: 700 });
+      } else {
+        map.fitBounds([[minLng, minLat], [maxLng, maxLat]], { padding: searchFitPadding || fitPadding || FIT_PADDING, maxZoom: 16, duration: 700 });
+      }
+    } catch { /* noop */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchSig]);
 
   /* Sprint 44 #3 — sync the parent's active stop into the local detail card +
      marker highlight. Matches by identity, then coordinates, so a timeline tap
@@ -995,7 +1033,7 @@ const EditorMap = ({
           {onSearchAround && selected.stop.coordinates && Number.isFinite(selected.stop.coordinates.lat) && (
             <button onClick={() => onSearchAround(selected.stop)} className="tp-press"
               style={{ marginTop: 10, width: "100%", height: 46, borderRadius: 999, border: "1.5px solid #E4E4E8", background: "#fff", color: "#1E1E24", fontSize: 13.5, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}>
-              <Icon name="search" size={16} strokeWidth={2} color="#1E1E24" /> חפש נקודות ששמרתי באזור זה
+              <Icon name="search" size={16} strokeWidth={2} color="#1E1E24" /> מצא מקומות באזור
             </button>
           )}
 

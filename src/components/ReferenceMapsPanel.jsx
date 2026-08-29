@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import tripService from "../services/tripService";
 import { listFavoriteTrips } from "../services/favoritesService";
 import Icon from "./Icon";
@@ -69,6 +69,18 @@ const ReferenceMapsPanel = ({ open, onClose, dark = false, desktop = false, curr
   const [selected, setSelected] = useState(() => new Set());
   const [error, setError] = useState("");
   const [minimized, setMinimized] = useState(false); // mobile: peek so the map shows
+  /* Drag (not tap) to minimize/expand the mobile grabber — a stray tap while
+     scrolling the list no longer collapses the sheet. */
+  const grabRef = useRef({ y: 0, active: false });
+  const onGrabDown = (e) => { grabRef.current = { y: e.clientY, active: true }; try { e.currentTarget.setPointerCapture?.(e.pointerId); } catch { /* noop */ } };
+  const onGrabUp = (e) => {
+    if (!grabRef.current.active) return;
+    const dy = e.clientY - grabRef.current.y;
+    grabRef.current.active = false;
+    if (dy > 22) setMinimized(true);        // dragged down → minimize
+    else if (dy < -22) setMinimized(false); // dragged up → expand
+    /* a near-static press (tap) intentionally does nothing */
+  };
   const addedSet = addedKeys || new Set(); // which keys were already added (from parent)
 
   const favs = favorites || new Set();
@@ -149,13 +161,14 @@ const ReferenceMapsPanel = ({ open, onClose, dark = false, desktop = false, curr
       {!desktop && !minimized && <div onClick={close} style={{ position: "fixed", inset: 0, zIndex: 205, background: "rgba(8,10,14,0.35)" }} />}
       <div dir="rtl" className={desktop ? "" : "tp-sheet-up"} style={{ ...shell, background: T.panel, color: T.ink, fontFamily: FONT, display: "flex", flexDirection: "column" }}>
 
-        {/* Mobile grabber — tap to minimize (peek at the map) / expand. */}
+        {/* Mobile grabber — DRAG up/down to expand/minimize (peek at the map). */}
         {!desktop && (
-          <button onClick={() => setMinimized((v) => !v)} aria-label={minimized ? "הרחבה" : "מזעור"}
-            style={{ flexShrink: 0, border: "none", background: "transparent", cursor: "pointer", padding: "9px 0 5px", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+          <div onPointerDown={onGrabDown} onPointerUp={onGrabUp} onPointerCancel={() => { grabRef.current.active = false; }}
+            aria-label={minimized ? "גררו להרחבה" : "גררו למזעור"}
+            style={{ flexShrink: 0, cursor: "grab", touchAction: "none", padding: "9px 0 5px", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
             <span style={{ width: 40, height: 5, borderRadius: 999, background: T.line }} />
-            <span style={{ fontSize: 10.5, fontWeight: 700, color: T.ink3 }}>{minimized ? "הקישו להרחבה" : "הקישו למזעור — לראות על המפה"}</span>
-          </button>
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: T.ink3 }}>{minimized ? "גררו למעלה להרחבה" : "גררו למטה למזעור — לראות על המפה"}</span>
+          </div>
         )}
 
         {/* Header */}

@@ -122,15 +122,19 @@ export default function EditorDesktop() {
   const viewportRef = useRef(null);
   /* Live search-result pins on the map (from the search bar's Text Search). */
   const [searchResults, setSearchResults] = useState([]);
-  /* "מצא לי X באזור" — the origin point whose picker sheet is open (null = closed). */
+  /* "מצא לי X באזור" — the origin point whose picker sheet is open (null = closed)
+     and the origin coordinate the map auto-fits around once results arrive. */
   const [nearbyOrigin, setNearbyOrigin] = useState(null);
+  const [searchOrigin, setSearchOrigin] = useState(null);
   const runNearby = async (origin, query) => {
     const c = origin?.coordinates || (Number.isFinite(origin?.lat) ? { lat: origin.lat, lng: origin.lng } : null);
     setNearbyOrigin(null);
     if (!c) return;
-    setFlyToCoord({ lat: c.lat, lng: c.lng });
+    /* Close the origin's anchored card so it doesn't cover the results. */
+    setPreview(null); setFocusStop(null);
+    setSearchOrigin(c);
     const res = await nearbySearch(c, query);
-    setSearchResults(res);
+    setSearchResults(res); // EditorMap fits to origin + results
     track("nearby_search", { ...query, results: res.length });
   };
   /* Skeleton editing: the dates modal (start/end → day count) + per-day delete. */
@@ -1037,7 +1041,8 @@ export default function EditorDesktop() {
             flyToCoord={flyToCoord}
             onViewportChange={(b) => { viewportRef.current = b; }}
             searchResults={searchResults}
-            onSearchResultClick={async (p) => { const d = await getDetails(p.placeId); if (d) openPreview(d); setSearchResults([]); }}
+            searchOrigin={searchOrigin}
+            onSearchResultClick={async (p) => { const d = await getDetails(p.placeId); if (d) openPreview(d); /* keep the other result pins so several can be reviewed/added */ }}
             cropOnClick={true}
             holdView={!!preview || !!focusStop || inboxOpen || refMapsOpen}
             /* "מפות נוספות" — the loaded reference map drawn as a teal overlay. */
@@ -1073,6 +1078,15 @@ export default function EditorDesktop() {
             style={{ position: "absolute", top: 16, insetInlineStart: 16, zIndex: 15, width: 42, height: 42, borderRadius: 12, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", border: `1px solid rgba(255,255,255,0.6)`, boxShadow: "0 4px 18px rgba(0,0,0,0.16)", background: showAllSaved ? CHARCOAL : "rgba(255,255,255,0.82)", backdropFilter: "blur(18px) saturate(180%)", WebkitBackdropFilter: "blur(18px) saturate(180%)" }}>
             <Icon name="eye" size={19} strokeWidth={1.9} color={showAllSaved ? "#fff" : T.ink} />
           </button>
+
+          {/* "מצא לי X באזור" — clear-results chip; result pins persist until this
+              (or a new search) so several can be reviewed/added. */}
+          {searchResults.length > 0 && (
+            <button onClick={() => { setSearchResults([]); setSearchOrigin(null); }} className="tp-press"
+              style={{ position: "absolute", top: 16, insetInlineStart: 66, zIndex: 16, height: 42, padding: "0 16px", borderRadius: 999, border: "none", background: CHARCOAL, color: "#fff", fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 7, boxShadow: "0 4px 18px rgba(0,0,0,0.2)" }}>
+              ✕ נקה תוצאות ({searchResults.length})
+            </button>
+          )}
 
           {/* Active-day ⇄ whole-trip map toggle (a desktop-only overview). */}
           <div className="tp-frost" style={{ position: "absolute", top: 12, left: "50%", transform: "translateX(-50%)", zIndex: 15, display: "inline-flex", background: "rgba(255,255,255,0.8)", backdropFilter: "blur(18px) saturate(180%)", WebkitBackdropFilter: "blur(18px) saturate(180%)", borderRadius: 999, border: `1px solid rgba(255,255,255,0.6)`, boxShadow: "0 4px 18px rgba(0,0,0,0.14)", padding: 3, fontFamily: T.font }}>

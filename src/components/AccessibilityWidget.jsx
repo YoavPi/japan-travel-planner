@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { useDarkMode } from "../utils/theme";
 
 /* ══════════════════════════════════════════════════════════════
@@ -68,8 +69,14 @@ const Row = ({ emoji, label, active, onClick }) => (
 
 const AccessibilityWidget = () => {
   const { dark, setDark } = useDarkMode();
+  const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
   const [s, setS] = useState(read);
+  /* Hide the floating widget in the full-screen map editor — there it overlaps
+     the day tabs / map controls. The a11y adjustments (persisted) and the legal
+     accessibility STATEMENT (linked in the footer of every public page) remain;
+     only the FAB is suppressed here. */
+  const hideFab = /^\/map(\/|$)/.test(pathname);
   const panelRef = useRef(null);
 
   // Inject the stylesheet once.
@@ -95,6 +102,10 @@ const AccessibilityWidget = () => {
   const set = (patch) => setS((prev) => ({ ...prev, ...patch }));
   const bumpZoom = (dir) => set({ zoom: Math.min(150, Math.max(90, s.zoom + dir * 10)) });
   const reset = () => { setS({ ...DEFAULTS }); if (dark) setDark(false); };
+
+  /* Effects above still applied the persisted a11y classes; only the FAB is
+     suppressed in the editor. */
+  if (hideFab) return null;
 
   return (
     <>
