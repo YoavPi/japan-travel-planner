@@ -21,6 +21,8 @@ import DashboardView from "./views/DashboardView";
 import WizardView from "./views/WizardView";
 /* /profile redirects to /dashboard (see <Navigate> route below). */
 import SettingsView from "./views/SettingsView";
+import AdminRoute from "./components/AdminRoute";
+import AdminView from "./views/AdminView";
 import NotificationsView from "./views/NotificationsView";
 import ResponsiveEditor from "./views/ResponsiveEditor";
 import TripOverviewView from "./views/TripOverviewView";
@@ -104,6 +106,14 @@ const AnimatedRoutes = () => {
         />
         {/* Legacy /profile alias — folded into /dashboard. */}
         <Route path="/profile" element={<Navigate to="/dashboard" replace />} />
+        <Route
+          path="/admin"
+          element={
+            <AdminRoute>
+              <AdminView />
+            </AdminRoute>
+          }
+        />
         <Route
           path="/settings"
           element={
