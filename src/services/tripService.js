@@ -661,6 +661,7 @@ export const tripService = {
         settings: cleanSettings,
         data: trip.data,
         last_edited: nowISO(),
+        source: seedDays ? "ai" : "wizard",
       };
       /* Hotfix — INSERT WITHOUT a RETURNING `.select()`.
          `.insert(row).select()` makes PostgREST read the new row back, which
