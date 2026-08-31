@@ -14,9 +14,10 @@ export default function TripFilesSheet({
   open, onClose, tripData, files, dayCount, editable, busy,
   onUpload, onRename, onMove, onDelete,
 }) {
-  const dark = useDarkMode();
+  const { dark } = useDarkMode();
   const inputRef = useRef(null);
   const [pendingDay, setPendingDay] = useState(undefined); // undefined = picker not shown
+  const [showPicker, setShowPicker] = useState(false);
   const [err, setErr] = useState("");
   const [renaming, setRenaming] = useState(null);   // FileRow
   const [menuFor, setMenuFor] = useState(null);     // FileRow
@@ -31,8 +32,14 @@ export default function TripFilesSheet({
     : { sheet: "#FFFFFF", ink: "#1E1E24", ink2: "#6B7280", line: "#E7E8EC", row: "#F7F8FA", accent: "#E0533F" };
 
   const totalCount = groups.reduce((n, g) => n + g.items.length, 0);
+  const dayNums = Array.from({ length: Math.max(0, dayCount || 0) }, (_, i) => i + 1);
 
-  const pickFile = (day) => { setErr(""); setPendingDay(day); inputRef.current && (inputRef.current.value = "", inputRef.current.click()); };
+  const pickFile = (day) => {
+    setErr("");
+    setShowPicker(false);
+    setPendingDay(day);
+    inputRef.current && (inputRef.current.value = "", inputRef.current.click());
+  };
 
   const onPicked = (e) => {
     const f = e.target.files && e.target.files[0];
@@ -54,7 +61,7 @@ export default function TripFilesSheet({
       <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.42)" }} />
       <div role="dialog" aria-label="קבצי הטיול" style={{
         position: "relative", background: P.sheet, color: P.ink,
-        borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: "85vh",
+        borderStartStartRadius: 20, borderStartEndRadius: 20, maxHeight: "85vh",
         display: "flex", flexDirection: "column", boxShadow: "0 -12px 40px rgba(0,0,0,0.3)",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "16px 18px 10px", borderBottom: `1px solid ${P.line}` }}>
@@ -64,10 +71,27 @@ export default function TripFilesSheet({
 
         <div style={{ overflowY: "auto", padding: "12px 18px 22px" }}>
           {editable && (
-            <button onClick={() => pickFile(null)} disabled={busy}
-              style={{ width: "100%", minHeight: 48, borderRadius: 12, border: `1.5px dashed ${P.accent}`, background: "transparent", color: P.accent, fontSize: 14, fontWeight: 800, cursor: busy ? "default" : "pointer", marginBottom: 6 }}>
-              {busy ? "מעלה…" : "➕ הוסף קובץ כללי"}
-            </button>
+            <div style={{ position: "relative", marginBottom: 6 }}>
+              <button onClick={() => setShowPicker((v) => !v)} disabled={busy}
+                aria-haspopup="menu" aria-expanded={showPicker}
+                style={{ width: "100%", minHeight: 48, borderRadius: 12, border: `1.5px dashed ${P.accent}`, background: "transparent", color: P.accent, fontSize: 14, fontWeight: 800, cursor: busy ? "default" : "pointer" }}>
+                {busy ? "מעלה…" : "➕ הוסף קובץ"}
+              </button>
+              {showPicker && !busy && (
+                <div role="menu" style={{
+                  position: "absolute", insetInlineStart: 0, insetInlineEnd: 0, insetBlockStart: 52,
+                  background: P.sheet, border: `1px solid ${P.line}`, borderRadius: 12,
+                  boxShadow: "0 10px 30px rgba(0,0,0,0.25)", padding: 6, zIndex: 3,
+                  maxHeight: 260, overflowY: "auto",
+                }}>
+                  <div style={{ fontSize: 11, color: P.ink2, padding: "4px 10px" }}>הוסף אל…</div>
+                  <button onClick={() => pickFile(null)} style={menuItem(P)}>כללי</button>
+                  {dayNums.map((d) => (
+                    <button key={d} onClick={() => pickFile(d)} style={menuItem(P)}>{`יום ${d}`}</button>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
           {err && <div role="alert" style={{ color: P.accent, fontSize: 12.5, fontWeight: 700, margin: "4px 2px 8px" }}>{err}</div>}
           <input ref={inputRef} data-testid="trip-files-input" type="file" accept={ACCEPT} style={{ display: "none" }} onChange={onPicked} />
@@ -75,7 +99,9 @@ export default function TripFilesSheet({
           {groups.map((g) => (
             (g.items.length > 0 || g.key === "general") && (
               <section key={g.key} style={{ marginTop: 16 }}>
-                <h3 style={{ fontSize: 12.5, fontWeight: 800, color: P.ink2, margin: "0 0 8px" }}>{g.title}</h3>
+                <h3 style={{ fontSize: 12.5, fontWeight: 800, color: P.ink2, margin: "0 0 8px" }}>
+                  {g.day == null ? g.title : <>יום <span>{g.day}</span></>}
+                </h3>
                 {g.items.length === 0 && (
                   <div style={{ fontSize: 12.5, color: P.ink2, padding: "8px 2px" }}>אין עדיין קבצים כלליים.</div>
                 )}
@@ -83,7 +109,7 @@ export default function TripFilesSheet({
                   const kind = fileKind(row.type, row.name);
                   const key = row.kind === "general" ? row.id : `${row.dayNum}:${row.stopIdx}:${row.fi}`;
                   return (
-                    <div key={key} style={{ display: "flex", alignItems: "center", gap: 10, background: P.row, borderRadius: 12, padding: "10px 12px", marginBottom: 8, minHeight: 56 }}>
+                    <div key={key} style={{ position: "relative", display: "flex", alignItems: "center", gap: 10, background: P.row, borderRadius: 12, padding: "10px 12px", marginBottom: 8, minHeight: 56 }}>
                       <span aria-hidden style={{ fontSize: 20 }}>{fileEmoji(kind)}</span>
                       <button onClick={() => setViewing(row)} style={{ flex: 1, minWidth: 0, textAlign: "start", border: "none", background: "transparent", color: P.ink, cursor: "pointer", fontFamily: "inherit", padding: 0 }}>
                         {renaming && renaming._k === key ? (
@@ -115,12 +141,12 @@ export default function TripFilesSheet({
                       )}
 
                       {menuFor && menuFor._k === key && (
-                        <div role="menu" style={{ position: "absolute", insetInlineEnd: 18, background: P.sheet, border: `1px solid ${P.line}`, borderRadius: 12, boxShadow: "0 10px 30px rgba(0,0,0,0.25)", padding: 6, zIndex: 2 }}>
+                        <div role="menu" style={{ position: "absolute", insetInlineEnd: 8, insetBlockStart: 48, maxHeight: 260, overflowY: "auto", background: P.sheet, border: `1px solid ${P.line}`, borderRadius: 12, boxShadow: "0 10px 30px rgba(0,0,0,0.25)", padding: 6, zIndex: 2 }}>
                           {row.kind === "general" && (
                             <>
                               <div style={{ fontSize: 11, color: P.ink2, padding: "4px 10px" }}>העבר ל…</div>
                               <button onClick={() => { onMove(row, null); setMenuFor(null); }} style={menuItem(P)}>כללי</button>
-                              {Array.from({ length: dayCount }, (_, i) => i + 1).map((d) => (
+                              {dayNums.map((d) => (
                                 <button key={d} onClick={() => { onMove(row, d); setMenuFor(null); }} style={menuItem(P)}>{`יום ${d}`}</button>
                               ))}
                               <div style={{ height: 1, background: P.line, margin: "6px 0" }} />
@@ -150,7 +176,7 @@ export default function TripFilesSheet({
 }
 
 const menuItem = (P) => ({
-  display: "block", width: "100%", textAlign: "start", minHeight: 40, padding: "0 12px",
+  display: "block", width: "100%", textAlign: "start", minHeight: 44, padding: "0 12px",
   border: "none", background: "transparent", color: P.ink, fontFamily: "inherit",
   fontSize: 13, fontWeight: 700, cursor: "pointer", borderRadius: 8,
 });

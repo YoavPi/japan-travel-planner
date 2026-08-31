@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import TripFilesSheet from "./TripFilesSheet";
 
 const tripData = [
@@ -61,6 +61,15 @@ test("upload rejects a disallowed type without calling onUpload", () => {
   fireEvent.change(input, { target: { files: [new File(["x"], "a.zip", { type: "application/zip" })] } });
   expect(baseProps.onUpload).not.toHaveBeenCalled();
   expect(screen.getByText(/סוג קובץ/)).toBeInTheDocument();
+});
+
+test("upload picker: choosing a day passes that day to onUpload", () => {
+  render(<TripFilesSheet {...baseProps} />);
+  fireEvent.click(screen.getByText(/הוסף קובץ/));
+  fireEvent.click(screen.getByText("יום 2"));       // the picker option
+  const input = screen.getByTestId("trip-files-input");
+  fireEvent.change(input, { target: { files: [new File(["x"], "a.pdf", { type: "application/pdf" })] } });
+  expect(baseProps.onUpload).toHaveBeenCalledWith(expect.any(File), 2);
 });
 
 test("read-only: no upload button, no ⋯ menu", () => {
