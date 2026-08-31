@@ -184,7 +184,7 @@ const MapCard = ({ trip, index = 0, dark = false, active = false, onOpen, onCopy
 
   const MenuItem = ({ icon, label, danger, onClick }) => (
     <button onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onClick && onClick(); }}
-      style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "right", padding: "11px 14px", border: "none", background: "transparent", cursor: "pointer", fontFamily: FONT, fontSize: 13.5, fontWeight: 600, color: danger ? DANGER : P.ink, borderBottom: `1px solid ${P.line}` }}>
+      style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "right", padding: "11px 14px", borderTop: "none", borderInlineStart: "none", borderInlineEnd: "none", background: "transparent", cursor: "pointer", fontFamily: FONT, fontSize: 13.5, fontWeight: 600, color: danger ? DANGER : P.ink, borderBottom: `1px solid ${P.line}` }}>
       <span style={{ width: 18, display: "inline-flex", alignItems: "center", justifyContent: "center", color: danger ? DANGER : P.ink3 }}>
         <Icon name={icon} size={15} strokeWidth={1.9} />
       </span>{label}

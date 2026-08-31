@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import SiteFooter from "./SiteFooter";
+import { setDocTitle, DEFAULT_TITLE } from "../utils/docTitle";
 
 /* ══════════════════════════════════════════════════════════════
    LegalLayout — readable shell for the static legal/info pages
@@ -41,6 +42,10 @@ export const Li = ({ children }) => (
 const LegalLayout = ({ title, updated, children }) => {
   const navigate = useNavigate();
   useEffect(() => { window.scrollTo(0, 0); }, []);
+  useEffect(() => {
+    setDocTitle(title ? `${title} · מסלול` : DEFAULT_TITLE);
+    return () => setDocTitle(DEFAULT_TITLE);
+  }, [title]);
 
   return (
     <div dir="rtl" style={{ minHeight: "100vh", background: T.page, fontFamily: T.font, color: T.ink }}>

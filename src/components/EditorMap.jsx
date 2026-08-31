@@ -879,6 +879,11 @@ const EditorMap = ({
                   borderRadius: 8, padding: "2px 7px",
                   boxShadow: "0 2px 6px rgba(0,0,0,0.18)",
                   fontFamily: "'Noto Sans Hebrew','Inter',sans-serif",
+                  /* D6 — alternate the label a few px up/down by stop index so two
+                     geographically-adjacent stops (a common itinerary pattern, e.g.
+                     a cafe next to a shrine) don't stack their name bubbles on the
+                     same screen row and read as one overlapping blob. */
+                  transform: `translateY(${i % 2 ? 9 : -9}px)`,
                 }}>{label}</span>
               )}
             </div>

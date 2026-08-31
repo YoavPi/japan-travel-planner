@@ -32,7 +32,7 @@ const Row = ({ icon, label, danger, onClick, last }) => (
   <button onClick={onClick}
     style={{
       display: "flex", alignItems: "center", gap: 12, width: "100%",
-      padding: "13px 16px", border: "none", background: "transparent",
+      padding: "13px 16px", borderTop: "none", borderInlineStart: "none", borderInlineEnd: "none", background: "transparent",
       cursor: "pointer", fontFamily: "inherit", textAlign: "right",
       color: danger ? "#C0392B" : "#0D0F11", fontSize: 15, fontWeight: 600,
       borderBottom: last ? "none" : "1px solid rgba(20,20,20,0.05)",

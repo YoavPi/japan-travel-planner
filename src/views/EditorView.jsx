@@ -1365,8 +1365,10 @@ const EditorView = () => {
      float over an action sheet, the summary, or an insert prompt. */
   /* Sprint 58 #1/#2 — ANY central dialog/modal that must fully suppress the map
      FABs (welcome, dates, summary, actions, insert prompt, note/transit sheets,
-     long-press menu). Combined with the peek-only sheet rule below. */
-  const overlayOpen = actionsIdx >= 0 || summaryOpen || insertAt >= 0 || !!ctxMenu || datesModalOpen || noteEditIdx >= 0 || editTransitIdx >= 0 || onboardOpen || confirmExit;
+     long-press menu). Combined with the peek-only sheet rule below.
+     The "מצא ליד" nearby-search sheet (z120) belongs here too — without it the
+     z260 map FABs float on top of the sheet's chips + search bar. */
+  const overlayOpen = actionsIdx >= 0 || summaryOpen || insertAt >= 0 || !!ctxMenu || datesModalOpen || noteEditIdx >= 0 || editTransitIdx >= 0 || onboardOpen || confirmExit || !!nearbyOrigin;
 
   /* Generic day-array mutator → updates local state + persists.
      `mutate(daysCopy)` returns the new days array. */
@@ -4097,7 +4099,7 @@ const EditorView = () => {
           <div className="tp-fade" style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)" }} />
           <div className="tp-pop" style={{ position: "relative", width: "100%", maxWidth: 380, background: "#fff", borderRadius: 22, padding: "26px 24px", boxShadow: "0 30px 80px rgba(0,0,0,0.4)", textAlign: "center", fontFamily: T.font }}>
             <div style={{ fontSize: 42, marginBottom: 8 }}>🗾</div>
-            <div style={{ fontSize: 19, fontWeight: 800, color: T.ink, marginBottom: 12, lineHeight: 1.3 }}>ברוכים הבאים ל-Japan Trip Explorer!</div>
+            <div style={{ fontSize: 19, fontWeight: 800, color: T.ink, marginBottom: 12, lineHeight: 1.3 }}>ברוכים הבאים למסלול!</div>
             <div style={{ fontSize: 14, color: T.ink2, lineHeight: 1.65, marginBottom: 22 }}>
               מפה זו מיועדת לתכנון הטיול שלכם. ניתן לחפש ולמצוא מקומות ישירות מגוגל, אך מומלץ לחפש מקום שמעניין אתכם, להבין את המיקום המדויק שלו, ואז לאתר ולשמור אותו כאן למסלול.
             </div>

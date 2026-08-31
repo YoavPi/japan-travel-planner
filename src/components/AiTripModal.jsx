@@ -326,7 +326,7 @@ const AiTripModal = ({ open, onClose, dark = false }) => {
                     <div style={{ padding: "13px 14px", fontSize: 13, color: T.ink3, lineHeight: 1.5 }}>לא נמצא יעד תואם. נסו איות אחר או שם באנגלית.</div>
                   ) : destPreds.map((p) => (
                     <button key={p.placeId} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pickDest(p)}
-                      style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "right", padding: "11px 14px", border: "none", borderBottom: `1px solid ${T.line}`, background: "transparent", cursor: "pointer", fontFamily: "inherit", color: T.ink }}>
+                      style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "right", padding: "11px 14px", borderTop: "none", borderInlineStart: "none", borderInlineEnd: "none", borderBottom: `1px solid ${T.line}`, background: "transparent", cursor: "pointer", fontFamily: "inherit", color: T.ink }}>
                       <span aria-hidden style={{ fontSize: 15, flexShrink: 0 }}>📍</span>
                       <span style={{ minWidth: 0, flex: 1 }}>
                         <span style={{ display: "block", fontSize: 14.5, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.primary}</span>

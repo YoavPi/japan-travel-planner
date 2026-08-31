@@ -175,7 +175,7 @@ const EditorSearchBar = ({ onAddStop, onPreview, activeDay, getBias, onFocusInpu
             preds.length > 0 ? (
               preds.map((p, i) => (
                 <button key={p.placeId} onClick={() => addFromPlace(p)}
-                  style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "right", padding: "11px 14px", border: "none", borderBottom: `1px solid ${T.line}`, background: "transparent", cursor: "pointer", fontFamily: "inherit" }}>
+                  style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "right", padding: "11px 14px", borderTop: "none", borderInlineStart: "none", borderInlineEnd: "none", borderBottom: `1px solid ${T.line}`, background: "transparent", cursor: "pointer", fontFamily: "inherit" }}>
                   {/* Numbered chip — matches the numbered marker on the map so the
                      user can tie each result to its location before picking. */}
                   {Number.isFinite(p.lat) && (

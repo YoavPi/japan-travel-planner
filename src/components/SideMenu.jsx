@@ -24,7 +24,7 @@ const SideMenu = ({ open, onClose }) => {
 
   const Item = ({ icon, label, onClick, danger }) => (
     <button onClick={onClick}
-      style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "14px 18px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "right", color: danger ? P.danger : P.ink, fontSize: 15, fontWeight: 600, borderBottom: `1px solid ${P.line}` }}>
+      style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "14px 18px", borderTop: "none", borderInlineStart: "none", borderInlineEnd: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "right", color: danger ? P.danger : P.ink, fontSize: 15, fontWeight: 600, borderBottom: `1px solid ${P.line}` }}>
       <span style={{ width: 34, height: 34, borderRadius: 10, background: danger ? "rgba(192,57,43,0.12)" : P.surface, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: danger ? P.danger : P.ink2 }}>
         <Icon name={icon} size={17} strokeWidth={1.9} />
       </span>

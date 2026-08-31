@@ -84,8 +84,13 @@ const Pip = ({ state }) => (
   <span style={{ width: state === "active" ? 22 : 7, height: 7, borderRadius: 999, background: state === "done" ? T.ink : state === "active" ? T.accent : "rgba(20,20,20,0.14)", transition: "all 0.2s" }} />
 );
 
+/* Bottom padding reserves the floating-controls band (ActiveTripBar +
+   AccessibilityWidget FAB, both position:fixed at ~bottom:18–20) so the
+   primary action is never covered on the focused /create flow — the
+   same 96px dock-clearance convention the chrome'd screens use
+   (see DESIGN.md "Floating dock"). */
 const Cta = ({ children, onClick, disabled }) => (
-  <div style={{ padding: "12px 18px 24px" }}>
+  <div style={{ padding: "12px 18px 96px" }}>
     <button onClick={onClick} disabled={disabled}
       style={{ width: "100%", height: 56, borderRadius: 999, border: "none", background: disabled ? "#D1CCC5" : T.ink, color: "#fff", fontSize: 16, fontWeight: 700, cursor: disabled ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "inherit" }}>
       {children}
@@ -525,7 +530,7 @@ const WizardView = () => {
                   )}
                   {destPreds.map((p) => (
                     <button key={p.placeId} onClick={() => pickGoogleDest(p)}
-                      style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "11px 14px", border: "none", borderBottom: `1px solid ${T.line}`, background: "#fff", cursor: "pointer", fontFamily: "inherit", textAlign: "right" }}>
+                      style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "11px 14px", borderTop: "none", borderInlineStart: "none", borderInlineEnd: "none", borderBottom: `1px solid ${T.line}`, background: "#fff", cursor: "pointer", fontFamily: "inherit", textAlign: "right" }}>
                       <span aria-hidden style={{ color: T.ink3, display: "inline-flex", flexShrink: 0 }}><Icon name="map" size={15} /></span>
                       <span style={{ flex: 1, minWidth: 0 }}>
                         <span style={{ fontSize: 14.5, fontWeight: 700, color: T.ink }}>{p.primary}</span>

@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { readPrefs, writePrefs } from "../services/prefsService";
 import { useDarkMode } from "../utils/theme";
 import Icon from "../components/Icon";
+import { LATEST_SPRINT } from "../data/releaseNotes";
 
 /* ──────────────────────────────────────────────────────────────
    SettingsView — "הגדרות וניהול". Dark-mode aware. The dark
@@ -118,7 +119,7 @@ const SettingsView = () => {
           </Group>
 
           <div style={{ textAlign: "center", fontSize: 12, color: P.ink4, marginTop: 18 }}>
-            גרסה 3.0.0 · תכנון מסלולים
+            עדכון {LATEST_SPRINT} · תכנון מסלולים
           </div>
         </div>
       </div>

@@ -64,6 +64,24 @@ For a full QA pass (layout/RTL/a11y, live-deploy check), use the `qa` agent — 
 - Current working branch is `saas-builder-local`, not `main` — check `git branch` before assuming.
 - Prefer small, verifiable changes with a build/test check after each one over large batched edits.
 
+## Sub-agents
+
+Nine project agents live in `.claude/agents/`. Dispatch the narrowest one that fits; `architect` before anything non-trivial.
+
+| agent | use it for |
+|---|---|
+| `architect` | design/plan a non-trivial change before coding (no code, read-only) |
+| `builder` | implement a scoped React feature/fix not owned by a specialist |
+| `ai-engineer` | the Gemini generate-trip pipeline only (cost/usage tracking) |
+| `db-architect` | Supabase schema, RLS, migrations |
+| `growth` | PostHog/analytics, SEO/meta, the visitor→signup funnel |
+| `copywriter` | Hebrew-first RTL user-facing text, CONTENT_AUDIT.md, trip content |
+| `ui-impeccable` | fast design-system compliance pass on a UI diff |
+| `qa` | tests, `npm run critical`, layout/RTL/a11y audit, manual test plan |
+| `deploy-sentinel` | pre-deploy safety gate (clean tree, right branch, checks green) |
+
+**Work log:** after any sub-agent returns, the main session appends one line to [WORKLOG.md](WORKLOG.md) (`DATE | agent | task | files | result`) and names the agent(s) used in its reply. Sub-agents don't write to the log themselves.
+
 ## More information
 
 - Product: [PRODUCT.md](PRODUCT.md)

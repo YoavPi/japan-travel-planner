@@ -108,7 +108,7 @@ const ShareSheet = ({ trip, onClose }) => {
                     {ROLE_HE[r]}
                   </button>
                 ))}
-                <button onClick={() => { setRole(p.id, "remove"); setOpen(false); }} style={{ display: "block", width: "100%", textAlign: "right", padding: "10px 12px", border: "none", borderTop: `1px solid ${T.line}`, background: "transparent", cursor: "pointer", fontFamily: "inherit", fontSize: 13, color: "#C0392B" }}>
+                <button onClick={() => { setRole(p.id, "remove"); setOpen(false); }} style={{ display: "block", width: "100%", textAlign: "right", padding: "10px 12px", borderBottom: "none", borderInlineStart: "none", borderInlineEnd: "none", borderTop: `1px solid ${T.line}`, background: "transparent", cursor: "pointer", fontFamily: "inherit", fontSize: 13, color: "#C0392B" }}>
                   הסרת גישה
                 </button>
               </div>

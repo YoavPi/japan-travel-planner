@@ -22,6 +22,7 @@ import mapsUrlFor from "../utils/mapsUrl";
 import { photoStrict, onPhotoErrorStrict } from "../utils/placePhoto";
 import { readPrefs } from "../services/prefsService";
 import usePlacePhotos, { photoKey } from "../utils/usePlacePhotos";
+import { computeTransit } from "../utils/transit";
 
 /* Stable per-object identity for Reorder keys/values: a stop's array index
    changes as it's dragged, so we key by the attraction object itself via a
@@ -68,30 +69,15 @@ const T = {
 const CITY_COLORS = ["#1E1E24", "#C0392B", "#2E7D57", "#5B6BB5", "#B5762E", "#8E5BA6"];
 /* A faint translucent tint of a hex color — used for the whole-trip day
    header bands so each day reads as its own section. */
-/* Straight-line (haversine) km between two {lat,lng} points. */
-const haversineKm = (A, B) => {
-  if (!A || !B || !Number.isFinite(A.lat) || !Number.isFinite(B.lat)) return null;
-  const R = 6371, toRad = (d) => (d * Math.PI) / 180;
-  const dLat = toRad(B.lat - A.lat), dLng = toRad(B.lng - A.lng);
-  const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(A.lat)) * Math.cos(toRad(B.lat)) * Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
-};
-/* An ESTIMATED leg between two stops from the straight-line distance. Roads
-   aren't straight, so we inflate ×1.3; short hops read as a walk, longer as a
-   drive. It's a rough planning estimate (no routing API), clearly marked "~". */
+/* Estimated leg from the previous located stop — delegates to the same
+   computeTransit(a, b) used by the mobile editor (utils/transit.js) so the
+   distance/mode/time shown here always matches mobile for the same pair
+   (previously this duplicated the calculation with a different formula —
+   see D4 in docs/QA-TEST-PLAN.md). */
 const legEstimate = (A, B, units = "km") => {
-  const straight = haversineKm(A, B);
-  if (straight == null) return null;
-  const km = straight * 1.3;
-  const walk = km <= 1.6;
-  const speed = walk ? 4.8 : km < 12 ? 26 : 70; // km/h: walk / city drive / intercity
-  const mins = Math.max(1, Math.round((km / speed) * 60));
-  /* Distance formatted in the user's chosen unit (Settings → יחידות מרחק). */
-  const dist = units === "mi"
-    ? (() => { const mi = km * 0.621371; return mi < 0.19 ? `${Math.round(mi * 5280)} ft` : `${mi.toFixed(mi < 10 ? 1 : 0)} מייל`; })()
-    : (km < 1 ? `${Math.round(km * 1000)} מ׳` : `${km.toFixed(km < 10 ? 1 : 0)} ק״מ`);
-  const time = mins >= 60 ? `${Math.floor(mins / 60)}:${String(mins % 60).padStart(2, "0")} שעות` : `${mins} דק׳`;
-  return { walk, label: `${walk ? "🚶" : "🚗"} ~${time} · ${dist}` };
+  const seg = computeTransit(A, B, null, units);
+  if (!seg) return null;
+  return { walk: seg.mode === "walk", label: `${seg.emoji} ${seg.minutesLabel} · ${seg.distLabel}` };
 };
 
 const hexTint = (hex, a = 0.08) => {
@@ -913,7 +899,7 @@ export default function EditorDesktop() {
                   {/* Day header bar — city-tinted, clearly separates each day. */}
                   <button onClick={() => { setShowAllOnMap(false); setActiveDay(d.day); }}
                     className="tp-desk-row"
-                    style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "start", border: "none", borderInlineStart: `3px solid ${dc}`, background: hexTint(dc, 0.08), cursor: "pointer", fontFamily: "inherit", padding: "9px 12px" }}>
+                    style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "start", borderTop: "none", borderBottom: "none", borderInlineEnd: "none", borderInlineStart: `3px solid ${dc}`, background: hexTint(dc, 0.08), cursor: "pointer", fontFamily: "inherit", padding: "9px 12px" }}>
                     <span style={{ flexShrink: 0, width: 24, height: 24, borderRadius: 7, background: dc, color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800 }}>{d.day}</span>
                     <span style={{ fontSize: 14, fontWeight: 800, color: T.ink }}>{d.cityHe || d.city || `יום ${d.day}`}</span>
                     <span style={{ marginInlineStart: "auto", fontSize: 11, fontWeight: 700, color: T.ink4 }}>{(items.filter((it) => it.kind === "stop")).length} תחנות</span>

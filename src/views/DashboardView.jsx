@@ -434,7 +434,7 @@ const DashboardView = () => {
               { icon: "download", label: "מפות לא־מקוונות", sub: "זמינות גם בלי רשת" },
             ].map((r, i) => (
               <button key={r.label} onClick={() => navigate("/settings")} className="tp-press"
-                style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderTop: i ? `1px solid ${P.line}` : "none", width: "100%", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit", textAlign: "right" }}>
+                style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderTop: i ? `1px solid ${P.line}` : "none", width: "100%", background: "transparent", borderBottom: "none", borderInlineStart: "none", borderInlineEnd: "none", cursor: "pointer", fontFamily: "inherit", textAlign: "right" }}>
                 <span style={{ width: 34, height: 34, borderRadius: 10, background: P.surface, display: "flex", alignItems: "center", justifyContent: "center", color: P.ink2 }}>
                   <Icon name={r.icon} size={17} strokeWidth={1.9} />
                 </span>

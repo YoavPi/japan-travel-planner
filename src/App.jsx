@@ -59,6 +59,15 @@ const LandingGate = () => {
      /map              → ExploreView (read-only Japan example;
                                       ?demo=1 / ?city / ?day deep-links)
      /auth             → AuthView     (mock Google SSO)
+     /gallery          → GalleryView  (public — published trips grid)
+     /g/:tripId        → PublicMapView (public read-only viewer; LOGGED-OUT
+                                       visitors get the map + a 30%-gated
+                                       timeline. SIGNED-IN visitors are
+                                       redirected to /map/edit/:tripId, which
+                                       RLS public-read renders view-only —
+                                       the polished "צפייה בלבד" experience.
+                                       This redirect is by design, see
+                                       PublicMapView.jsx.)
      /dashboard        → DashboardView (protected — trip grid)
      /map/edit/:tripId → EditorView   (protected — workspace shell)
 
@@ -284,6 +293,12 @@ const ActiveTripBar = () => {
     (readOnly && pathname === "/map");
   if (onActiveTrip) return null;
 
+  /* Focused full-screen flows suppress the shortcut for the same reason
+     AppChrome hides the dock there: the wizard (/create) and onboarding
+     (/welcome) own the whole viewport, and the floating bar otherwise
+     overlaps their bottom-anchored primary CTA + the a11y FAB. */
+  if (pathname === "/create" || pathname === "/welcome") return null;
+
   /* Lift above the dock on the primary SaaS screens; otherwise hug
      the bottom edge (editor/wizard hide the dock). */
   const liftedAboveDock = SHOW_CHROME(pathname);
@@ -364,7 +379,8 @@ const ActiveTripBar = () => {
                 className="tp-press"
                 style={{
                   display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "right",
-                  padding: "12px 14px", border: "none", borderTop: i ? "1px solid rgba(20,20,20,0.06)" : "none",
+                  padding: "12px 14px", borderInlineStart: "none", borderInlineEnd: "none", borderBottom: "none",
+                  borderTop: i ? "1px solid rgba(20,20,20,0.06)" : "none",
                   background: "transparent", cursor: "pointer", fontFamily: FONT, fontSize: 13.5,
                   fontWeight: 700, color: m.danger ? "#C0392B" : "#0D0F11",
                 }}

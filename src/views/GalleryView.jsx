@@ -204,7 +204,8 @@ const GalleryView = () => {
                       onMouseDown={(e) => { e.preventDefault(); pickDest(p); }}
                       style={{
                         display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2,
-                        width: "100%", textAlign: "right", padding: "10px 14px", border: "none",
+                        width: "100%", textAlign: "right", padding: "10px 14px",
+                        borderTop: "none", borderInlineStart: "none", borderInlineEnd: "none",
                         borderBottom: `1px solid ${T.line}`, background: "#fff", cursor: "pointer", fontFamily: "inherit",
                       }}
                     >
