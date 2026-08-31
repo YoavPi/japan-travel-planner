@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import tripService from "../services/tripService";
 import { dedupeDayStops } from "../utils/classify";
 import { listInboxPlaces, addInboxPlaces, removeInboxPlace, updateInboxPlace, fetchMockGoogleSavedPlaces } from "../services/googleSavedPlaces";
-import { addGeneralFile, updateGeneralFile, removeGeneralFile, renameStopAttachment } from "../utils/tripFiles";
+import { addGeneralFile, updateGeneralFile, removeGeneralFile, renameStopAttachment, remapFileDays } from "../utils/tripFiles";
 
 /* ══════════════════════════════════════════════════════════════
    useEditorState — the shared "brain" of the trip editor.
@@ -361,15 +361,26 @@ export default function useEditorState(tripId) {
   const deleteDay = useCallback((dayNum) => {
     const curLen = (trip?.data?.tripData || []).length;
     if (curLen <= 1) return;
-    commitDays((arr) => {
-      if (arr.length <= 1) return arr;
+    /* One atomic save: renumber the days AND remap data.files[].day in the
+       same commitData write, so a general file tagged to a shifted/removed
+       day can never point at the wrong day (or a day that no longer exists). */
+    commitData((data) => {
+      const arr = data.tripData || [];
+      if (arr.length <= 1) return data;
       const filtered = arr.filter((d) => d.day !== dayNum);
-      if (filtered.length === arr.length) return arr;
-      return filtered.map((d, i) => ({ ...d, day: i + 1 }));
+      if (filtered.length === arr.length) return data;
+      const mapping = { [dayNum]: null };
+      filtered.forEach((d, i) => { mapping[d.day] = i + 1; });
+      const renumbered = filtered.map((d, i) => ({ ...d, day: i + 1 }));
+      return {
+        ...data,
+        tripData: renumbered,
+        files: remapFileDays(data.files, mapping, renumbered.length),
+      };
     });
     const newLen = Math.max(1, curLen - 1);
     setActiveDay((cur) => Math.min(Math.max(1, cur > dayNum ? cur - 1 : cur), newLen));
-  }, [trip, commitDays]);
+  }, [trip, commitData]);
 
   /* Set/modify the trip's calendar start date (settings.startDate). */
   const saveStartDate = useCallback((iso) => {
@@ -394,8 +405,11 @@ export default function useEditorState(tripId) {
     const e = endISO ? new Date(endISO) : null;
     const newCount = (s && e && e >= s) ? Math.round((e - s) / 86400000) + 1 : null;
     if (newCount && newCount >= 1) {
-      commitDays((arr) => {
-        let next = arr.map((d) => ({ ...d, attractions: [...(d.attractions || [])] }));
+      /* Atomic: grow/shrink the day array AND, when shrinking, drop any general
+         file whose `day` now exceeds the trip length back to כללי (day:null) —
+         same commitData write as the renumber. */
+      commitData((data) => {
+        let next = (data.tripData || []).map((d) => ({ ...d, attractions: [...(d.attractions || [])] }));
         const cur = next.length;
         if (newCount > cur) {
           const last = next[cur - 1] || {};
@@ -407,11 +421,17 @@ export default function useEditorState(tripId) {
           dropped.forEach((d) => { foldTarget.attractions = [...foldTarget.attractions, ...(d.attractions || [])]; });
           next = keep;
         }
-        return next.map((d, i) => ({ ...d, day: i + 1 }));
+        const renumbered = next.map((d, i) => ({ ...d, day: i + 1 }));
+        if (newCount < cur) {
+          const mapping = {};
+          for (let i = 1; i <= renumbered.length; i++) mapping[i] = i;
+          return { ...data, tripData: renumbered, files: remapFileDays(data.files, mapping, renumbered.length) };
+        }
+        return { ...data, tripData: renumbered };
       });
     }
     saveStartDate(startISO);
-  }, [commitDays, saveStartDate]);
+  }, [commitData, saveStartDate]);
 
   return {
     trip, error, saving,

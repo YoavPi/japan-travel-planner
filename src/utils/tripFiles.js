@@ -50,6 +50,19 @@ export function removeGeneralFile(data, id) {
   return { ...d, files: (d.files || []).filter((f) => f.id !== id) };
 }
 
+/* Keep general files' `day` valid after the trip's days are renumbered.
+   `mapping` maps an OLD day number to its NEW one (or null if that day
+   was removed). Files with day===null are untouched; a file whose day
+   is removed or now exceeds the trip length falls back to null (כללי). */
+export function remapFileDays(files, mapping, newDayCount) {
+  return (files || []).map((f) => {
+    if (f.day == null) return f;
+    const next = mapping[f.day];
+    if (next == null || next > newDayCount) return { ...f, day: null };
+    return next === f.day ? f : { ...f, day: next };
+  });
+}
+
 export function renameStopAttachment(tripData, dayNum, stopIdx, fi, label) {
   const clean = (label || "").trim();
   return (tripData || []).map((d) => {

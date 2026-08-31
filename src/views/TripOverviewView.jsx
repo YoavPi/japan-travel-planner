@@ -87,6 +87,7 @@ const TripOverviewView = () => {
   const [showAllDays, setShowAllDays] = useState(false); // progressive disclosure
   const [activating, setActivating] = useState(false); // CTA in-flight + success
   const [toast, setToast] = useState(""); // triumphant success toast
+  const [errorToast, setErrorToast] = useState(""); // neutral failure micro-toast (no check icon)
   /* Sprint 28 #1 — activation is INTERCEPTED by an explanatory modal
      (אישור executes, חזרה aborts) instead of firing immediately. */
   const [confirmActivate, setConfirmActivate] = useState(false);
@@ -103,6 +104,20 @@ const TripOverviewView = () => {
       .catch((e) => { if (live) setError(e.message); });
     return () => { live = false; };
   }, [tripId]);
+
+  /* Auto-dismiss both toasts. The success `toast` is used only by flows that
+     navigate away shortly after, so clearing it on a timeout is harmless; the
+     `errorToast` (upload failure) needs its own timeout since nothing navigates. */
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(""), 2800);
+    return () => clearTimeout(t);
+  }, [toast]);
+  useEffect(() => {
+    if (!errorToast) return;
+    const t = setTimeout(() => setErrorToast(""), 2800);
+    return () => clearTimeout(t);
+  }, [errorToast]);
 
   const days = useMemo(() => trip?.data?.tripData ?? [], [trip]);
   const totalStops = useMemo(
@@ -186,7 +201,7 @@ const TripOverviewView = () => {
         }],
       }));
     } catch {
-      setToast("שגיאה בהעלאת הקובץ");
+      setErrorToast("שגיאה בהעלאת הקובץ");
     } finally {
       setFilesBusy(false);
     }
@@ -544,6 +559,14 @@ const TripOverviewView = () => {
         <div className="tp-pop" style={{ position: "fixed", bottom: 92, left: "50%", transform: "translateX(-50%)", zIndex: 70, display: "inline-flex", alignItems: "center", gap: 9, background: P.ink, color: P.panel, borderRadius: 999, padding: "13px 22px", fontSize: 14.5, fontWeight: 800, fontFamily: FONT, boxShadow: `0 10px 30px ${ACCENT}55, 0 4px 14px rgba(0,0,0,0.25)`, whiteSpace: "nowrap" }}>
           <Icon name="check" size={17} strokeWidth={2.4} />
           {toast}
+        </div>
+      )}
+
+      {/* ── Neutral failure micro-toast (no check icon) ─────────── */}
+      {errorToast && (
+        <div className="tp-pop" role="alert" style={{ position: "fixed", bottom: 92, left: "50%", transform: "translateX(-50%)", zIndex: 70, display: "inline-flex", alignItems: "center", gap: 9, background: P.ink, color: P.panel, borderRadius: 999, padding: "13px 22px", fontSize: 14.5, fontWeight: 800, fontFamily: FONT, boxShadow: "0 10px 30px rgba(0,0,0,0.35)", whiteSpace: "nowrap" }}>
+          <span aria-hidden>⚠️</span>
+          {errorToast}
         </div>
       )}
     </div>

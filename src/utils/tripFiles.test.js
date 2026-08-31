@@ -1,7 +1,7 @@
 import {
   newFileId, fileKind, fileEmoji, humanSize,
   addGeneralFile, updateGeneralFile, removeGeneralFile,
-  renameStopAttachment, buildFileGroups,
+  renameStopAttachment, buildFileGroups, remapFileDays,
 } from "./tripFiles";
 
 test("newFileId: f_ + 6 alnum", () => {
@@ -84,6 +84,43 @@ test("buildFileGroups: general first, then days with files ascending", () => {
   expect(groups[1].items.map((i) => i.label)).toEqual(["voucher.pdf", "כרטיס"]);
   expect(groups[1].items[0]).toMatchObject({ kind: "stop", dayNum: 2, stopIdx: 0, fi: 0 });
   expect(groups[2].items[0]).toMatchObject({ kind: "general", id: "f_map" });
+});
+
+test("remapFileDays: shifts day numbers down when an earlier day is deleted", () => {
+  // day 2 removed → old 3→2, old 4→3; a file on old day 3 becomes day 2
+  const files = [{ id: "a", day: 3 }, { id: "b", day: 4 }];
+  const out = remapFileDays(files, { 1: 1, 3: 2, 4: 3 }, 3);
+  expect(out).toEqual([{ id: "a", day: 2 }, { id: "b", day: 3 }]);
+});
+
+test("remapFileDays: folds to null when the file's day was removed", () => {
+  const files = [{ id: "a", day: 2 }];
+  const out = remapFileDays(files, { 1: 1, 2: null, 3: 2 }, 2);
+  expect(out[0]).toEqual({ id: "a", day: null });
+});
+
+test("remapFileDays: folds to null when the mapped day exceeds newDayCount", () => {
+  const files = [{ id: "a", day: 5 }];
+  const out = remapFileDays(files, { 5: 5 }, 3); // trip shrank to 3 days
+  expect(out[0]).toEqual({ id: "a", day: null });
+});
+
+test("remapFileDays: leaves day:null files untouched (same reference)", () => {
+  const f = { id: "a", day: null };
+  const out = remapFileDays([f], { 1: 1 }, 3);
+  expect(out[0]).toBe(f);
+});
+
+test("remapFileDays: identity mapping returns the same file references", () => {
+  const files = [{ id: "a", day: 1 }, { id: "b", day: 2 }];
+  const out = remapFileDays(files, { 1: 1, 2: 2 }, 2);
+  expect(out[0]).toBe(files[0]);
+  expect(out[1]).toBe(files[1]);
+});
+
+test("remapFileDays: tolerates null/undefined files list", () => {
+  expect(remapFileDays(null, {}, 3)).toEqual([]);
+  expect(remapFileDays(undefined, {}, 3)).toEqual([]);
 });
 
 test("buildFileGroups: general group present even when empty", () => {

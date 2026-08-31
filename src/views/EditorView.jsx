@@ -22,7 +22,7 @@ import { readPrefs } from "../services/prefsService";
 import { listInboxPlaces, addInboxPlaces, removeInboxPlace, updateInboxPlace } from "../services/googleSavedPlaces";
 import { uploadAttachment, removeStoredFile } from "../services/attachmentService";
 import TripFilesSheet from "../components/TripFilesSheet";
-import { newFileId } from "../utils/tripFiles";
+import { newFileId, remapFileDays } from "../utils/tripFiles";
 import useActiveTrip from "../utils/useActiveTrip";
 import Icon from "../components/Icon";
 import { setDocTitle, titleForTrip, DEFAULT_TITLE } from "../utils/docTitle";
@@ -1213,6 +1213,10 @@ const EditorView = () => {
   const [insertText, setInsertText] = useState("");
   /* Sprint 52 #6 — quick-copy micro-toast + map-viewport inbox filter. */
   const [copyToast, setCopyToast] = useState("");
+  /* Sprint 65 — plain (no-icon) micro-toast for Trip Files gallery outcomes.
+     Kept SEPARATE from `copyToast` (which hardcodes a ✅) so an upload FAILURE
+     is never rendered as a success. Auto-dismisses after ~2.5s. */
+  const [filesToast, setFilesToast] = useState("");
   const [inboxGeoFilter, setInboxGeoFilter] = useState(null); // {west,south,east,north} | null
   /* Sprint 58 #5 — the inbox grid card whose "➕ שבץ ביום זה" micro-overlay is open. */
   const [inboxCardMenu, setInboxCardMenu] = useState(null);
@@ -1237,6 +1241,11 @@ const EditorView = () => {
     const t = setTimeout(() => setCopyToast(""), 1600);
     return () => clearTimeout(t);
   }, [copyToast]);
+  useEffect(() => {
+    if (!filesToast) return;
+    const t = setTimeout(() => setFilesToast(""), 2500);
+    return () => clearTimeout(t);
+  }, [filesToast]);
   const copyName = useCallback((name) => {
     const s = String(name || "").trim();
     if (!s) return;
@@ -1428,6 +1437,7 @@ const EditorView = () => {
     const e = endISO ? parseStartDate(endISO) : null;
     const newCount = (s && e && e >= s) ? Math.round((e - s) / 86400000) + 1 : null;
     if (newCount && newCount >= 1) {
+      const prevCount = (trip?.data?.tripData || []).length;
       commitDays((arr) => {
         let next = arr.map((d) => ({ ...d, attractions: [...(d.attractions || [])] }));
         const cur = next.length;
@@ -1443,9 +1453,16 @@ const EditorView = () => {
         }
         return next.map((d, i) => ({ ...d, day: i + 1 }));
       });
+      /* Shrinking the trip: any general file tagged to a day beyond the new
+         length folds back to כללי (day:null) so it never dangles. */
+      if (newCount < prevCount && (trip?.data?.files || []).some((f) => f.day != null)) {
+        const mapping = {};
+        for (let i = 1; i <= newCount; i++) mapping[i] = i;
+        persistTripData((data) => ({ ...data, files: remapFileDays(data.files, mapping, newCount) }));
+      }
     }
     saveStartDate(startISO);
-  }, [commitDays, saveStartDate]);
+  }, [commitDays, saveStartDate, trip, persistTripData]);
 
   /* Open the dates modal pre-filled with the trip's current start + computed
      end (start + dayCount − 1), so the range picker shows the live span. */
@@ -1959,7 +1976,7 @@ const EditorView = () => {
         }],
       }));
     } catch {
-      setCopyToast("שגיאה בהעלאת הקובץ");
+      setFilesToast("שגיאה בהעלאת הקובץ");
     } finally {
       setFilesBusy(false);
     }
@@ -2576,8 +2593,16 @@ const EditorView = () => {
       // Renumber the chronological `day` field; preserve every other field.
       return next.map((d, i) => ({ ...d, day: i + 1 }));
     });
+    /* Follow the same renumbering for general files' `day` tag: old day
+       (order[newIdx] + 1) → new day (newIdx + 1). Only writes when a file
+       actually carries a day, so a plain reorder stays a single save. */
+    if ((trip?.data?.files || []).some((f) => f.day != null)) {
+      const mapping = {};
+      order.forEach((oldIdx, newIdx) => { mapping[oldIdx + 1] = newIdx + 1; });
+      persistTripData((data) => ({ ...data, files: remapFileDays(data.files, mapping, order.length) }));
+    }
     if (newActiveIdx >= 0) setActiveDay(newActiveIdx + 1);
-  }, [days, activeDay, commitDays]);
+  }, [days, activeDay, commitDays, trip, persistTripData]);
 
   /* Sprint 39 #1 — drag begins ONLY from a chip's handle (rendered in edit
      mode). Pointer capture on the handle keeps the gesture alive even if the
@@ -4406,6 +4431,7 @@ const EditorView = () => {
       <TripFilesSheet
         open={filesSheetOpen}
         onClose={() => setFilesSheetOpen(false)}
+        dark={false}
         tripData={trip?.data?.tripData || []}
         files={tripFiles}
         dayCount={filesDayCount}
@@ -4499,6 +4525,20 @@ const EditorView = () => {
           whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
         }}>
           <span aria-hidden>✅</span>{copyToast}
+        </div>
+      )}
+
+      {/* Sprint 65 — Trip Files gallery micro-toast (no icon; used for upload
+          failures, so it must never imply success). Auto-dismiss ~2.5s. */}
+      {filesToast && (
+        <div className="tp-fade" dir="rtl" role="status" aria-live="polite" style={{
+          position: "fixed", top: "calc(env(safe-area-inset-top, 0px) + 70px)", left: "50%", transform: "translateX(-50%)",
+          zIndex: 260, maxWidth: "min(90vw, 360px)", background: T.ink, color: "#fff",
+          borderRadius: 999, padding: "8px 16px", fontFamily: T.font, fontSize: 13, fontWeight: 700,
+          boxShadow: "0 8px 24px rgba(0,0,0,0.28)", textAlign: "center",
+          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+        }}>
+          {filesToast}
         </div>
       )}
 

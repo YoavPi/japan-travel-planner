@@ -801,9 +801,9 @@ export default function EditorDesktop() {
         {/* Trip Files gallery — general (trip.data.files[]) + every per-stop
             attachment. Count badge folds in both. Open-only when read-only. */}
         <button onClick={() => setFilesSheetOpen(true)}
-          title="קבצי הטיול" aria-label="קבצי הטיול"
+          title="קבצי הטיול"
           style={{
-            position: "relative", flexShrink: 0, height: 40, display: "inline-flex", alignItems: "center", gap: 7, padding: "0 13px",
+            flexShrink: 0, height: 40, display: "inline-flex", alignItems: "center", gap: 7, padding: "0 13px",
             borderRadius: 10, cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 800,
             border: `1px solid ${tripFilesCount > 0 ? ACCENT : T.line}`,
             background: tripFilesCount > 0 ? "#E0533F14" : "#fff",
@@ -1398,6 +1398,7 @@ export default function EditorDesktop() {
       <TripFilesSheet
         open={filesSheetOpen}
         onClose={() => setFilesSheetOpen(false)}
+        dark={false}
         tripData={days}
         files={tripFiles}
         dayCount={days.length}

@@ -74,6 +74,6 @@ test("upload picker: choosing a day passes that day to onUpload", () => {
 
 test("read-only: no upload button, no ⋯ menu", () => {
   render(<TripFilesSheet {...baseProps} editable={false} />);
-  expect(screen.queryByText("הוסף קובץ כללי")).toBeNull();
+  expect(screen.queryByText(/הוסף קובץ/)).toBeNull();
   expect(screen.queryByLabelText("פעולות עבור insurance.pdf")).toBeNull();
 });

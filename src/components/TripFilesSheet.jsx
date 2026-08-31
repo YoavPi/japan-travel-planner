@@ -11,10 +11,13 @@ const ACCEPT = "application/pdf,image/*,.pdf,.png,.jpg,.jpeg,.heic,.docx,.xlsx,.
    grouped כללי → יום 1 … יום N. Upload / rename / move / delete when
    `editable`; open-only otherwise. */
 export default function TripFilesSheet({
-  open, onClose, tripData, files, dayCount, editable, busy,
+  open, onClose, tripData, files, dayCount, editable, busy, dark: darkProp,
   onUpload, onRename, onMove, onDelete,
 }) {
-  const { dark } = useDarkMode();
+  /* The two editors (EditorView / EditorDesktop) are light-only and pass
+     `dark={false}`; the trip-overview surfaces omit it and stay theme-aware. */
+  const { dark: hookDark } = useDarkMode();
+  const dark = darkProp ?? hookDark;
   const inputRef = useRef(null);
   const [pendingDay, setPendingDay] = useState(undefined); // undefined = picker not shown
   const [showPicker, setShowPicker] = useState(false);
@@ -28,8 +31,11 @@ export default function TripFilesSheet({
   if (!open) return null;
 
   const P = dark
-    ? { sheet: "#15171C", ink: "#F4F5F7", ink2: "#B9BEC7", line: "#2A2E37", row: "#1C1F26", accent: "#E0533F" }
-    : { sheet: "#FFFFFF", ink: "#1E1E24", ink2: "#6B7280", line: "#E7E8EC", row: "#F7F8FA", accent: "#E0533F" };
+    ? { sheet: "#15171C", ink: "#F4F5F7", ink2: "#B9BEC7", line: "#2A2E37", row: "#1C1F26", accent: "#E0533F", errText: "#E0533F" }
+    /* errText is a darker red than `accent` so the small role="alert" line
+       clears WCAG AA (4.5:1) on the light sheet — #C13B28 on #FFF ≈ 5.35:1
+       (plain #E0533F is only 3.83:1). */
+    : { sheet: "#FFFFFF", ink: "#1E1E24", ink2: "#6B7280", line: "#E7E8EC", row: "#F7F8FA", accent: "#E0533F", errText: "#C13B28" };
 
   const totalCount = groups.reduce((n, g) => n + g.items.length, 0);
   const dayNums = Array.from({ length: Math.max(0, dayCount || 0) }, (_, i) => i + 1);
@@ -93,7 +99,7 @@ export default function TripFilesSheet({
               )}
             </div>
           )}
-          {err && <div role="alert" style={{ color: P.accent, fontSize: 12.5, fontWeight: 700, margin: "4px 2px 8px" }}>{err}</div>}
+          {err && <div role="alert" style={{ color: P.errText, fontSize: 13, fontWeight: 700, margin: "4px 2px 8px" }}>{err}</div>}
           <input ref={inputRef} data-testid="trip-files-input" type="file" accept={ACCEPT} style={{ display: "none" }} onChange={onPicked} />
 
           {groups.map((g) => (
@@ -111,23 +117,22 @@ export default function TripFilesSheet({
                   return (
                     <div key={key} style={{ position: "relative", display: "flex", alignItems: "center", gap: 10, background: P.row, borderRadius: 12, padding: "10px 12px", marginBottom: 8, minHeight: 56 }}>
                       <span aria-hidden style={{ fontSize: 20 }}>{fileEmoji(kind)}</span>
-                      <button onClick={() => setViewing(row)} style={{ flex: 1, minWidth: 0, textAlign: "start", border: "none", background: "transparent", color: P.ink, cursor: "pointer", fontFamily: "inherit", padding: 0 }}>
-                        {renaming && renaming._k === key ? (
-                          <input autoFocus defaultValue={row.label}
-                            onClick={(e) => e.stopPropagation()}
-                            onBlur={(e) => commitRename(row, e.target.value)}
-                            onKeyDown={(e) => { if (e.key === "Enter") commitRename(row, e.currentTarget.value); if (e.key === "Escape") setRenaming(null); }}
-                            style={{ width: "100%", font: "inherit", fontWeight: 700, color: P.ink, background: P.sheet, border: `1px solid ${P.line}`, borderRadius: 8, padding: "6px 8px" }} />
-                        ) : (
-                          <>
-                            <div dir="auto" style={{ fontSize: 13.5, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{row.label}</div>
-                            <div style={{ fontSize: 11.5, color: P.ink2 }}>
-                              {humanSize(row.size)}{row.persisted === false ? " · לא נשמר — מצב הדגמה" : ""}
-                              {row.kind === "stop" && row.stopName ? ` · ${row.stopName}` : ""}
-                            </div>
-                          </>
-                        )}
-                      </button>
+                      {renaming && renaming._k === key ? (
+                        /* Sibling of the row — NOT nested in the open-viewer
+                           button (an <input> inside a <button> is invalid). */
+                        <input autoFocus defaultValue={row.label}
+                          onBlur={(e) => commitRename(row, e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter") commitRename(row, e.currentTarget.value); if (e.key === "Escape") setRenaming(null); }}
+                          style={{ flex: 1, minWidth: 0, font: "inherit", fontWeight: 700, color: P.ink, background: P.sheet, border: `1px solid ${P.line}`, borderRadius: 8, padding: "6px 8px" }} />
+                      ) : (
+                        <button onClick={() => setViewing(row)} style={{ flex: 1, minWidth: 0, textAlign: "start", border: "none", background: "transparent", color: P.ink, cursor: "pointer", fontFamily: "inherit", padding: 0 }}>
+                          <div dir="auto" style={{ fontSize: 13.5, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{row.label}</div>
+                          <div style={{ fontSize: 11.5, color: P.ink2 }}>
+                            {humanSize(row.size)}{row.persisted === false ? " · לא נשמר — מצב הדגמה" : ""}
+                            {row.kind === "stop" && row.stopName ? ` · ${row.stopName}` : ""}
+                          </div>
+                        </button>
+                      )}
 
                       {editable && (
                         <button aria-label={`שנה שם ל-${row.label}`} title="שנה שם"
