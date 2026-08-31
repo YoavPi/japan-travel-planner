@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import tripService from "../services/tripService";
 import { dedupeDayStops } from "../utils/classify";
 import { listInboxPlaces, addInboxPlaces, removeInboxPlace, updateInboxPlace, fetchMockGoogleSavedPlaces } from "../services/googleSavedPlaces";
+import { addGeneralFile, updateGeneralFile, removeGeneralFile, renameStopAttachment } from "../utils/tripFiles";
 
 /* ══════════════════════════════════════════════════════════════
    useEditorState — the shared "brain" of the trip editor.
@@ -57,7 +58,24 @@ export default function useEditorState(tripId) {
     });
   }, []);
 
+  /* Like commitDays, but for non-tripData slices of trip.data (currently
+     data.files[]). Immutable patch + autosave, skipped on read-only trips. */
+  const commitData = useCallback((mutate) => {
+    setTrip((prev) => {
+      if (!prev) return prev;
+      const nextData = mutate(prev.data || {});
+      const nextTrip = { ...prev, data: nextData };
+      if (!prev.readOnly) {
+        setSaving(true);
+        tripService.saveTrip(prev.id, { data: nextData }).catch(() => {}).finally(() => setSaving(false));
+      }
+      return nextTrip;
+    });
+  }, []);
+
   const days = useMemo(() => trip?.data?.tripData ?? [], [trip]);
+
+  const tripFiles = useMemo(() => trip?.data?.files ?? [], [trip]);
 
   const activeDayData = useMemo(
     () => days.find((d) => d.day === activeDay) || null,
@@ -165,6 +183,25 @@ export default function useEditorState(tripId) {
     commitDays((ds) => ds.map((d) => d.day === dayNum
       ? { ...d, attractions: d.attractions.map((a, i) => i === idx
           ? { ...a, attachments: (a.attachments || []).filter((_, k) => k !== fi) } : a) } : d));
+  }, [commitDays]);
+
+  /* ── Trip-level ("general") files: trip.data.files[] ──────────── */
+  const addTripFile = useCallback((meta) => {
+    if (!meta) return;
+    commitData((data) => addGeneralFile(data, meta));
+  }, [commitData]);
+
+  const updateTripFile = useCallback((id, patch) => {
+    commitData((data) => updateGeneralFile(data, id, patch));
+  }, [commitData]);
+
+  const removeTripFile = useCallback((id) => {
+    commitData((data) => removeGeneralFile(data, id));
+  }, [commitData]);
+
+  /* Rename one per-stop attachment (writes `label`, leaves siblings intact). */
+  const renameAttachmentAt = useCallback((dayNum, stopIdx, fi, label) => {
+    commitDays((ds) => renameStopAttachment(ds, dayNum, stopIdx, fi, label));
   }, [commitDays]);
 
   const reorderInDay = useCallback((dayNum, from, to) => {
@@ -378,10 +415,10 @@ export default function useEditorState(tripId) {
 
   return {
     trip, error, saving,
-    days, activeDay, setActiveDay, activeDayData, mapStops,
+    days, tripFiles, activeDay, setActiveDay, activeDayData, mapStops,
     editable, commitDays, reload,
     deleteStopAt, duplicateStopAt, moveStopToDay, setStopNote, reorderInDay, setDayOrder, addStopToDay,
-    addTransitToDay, updateStopAt, addAttachmentToStop, removeAttachmentAt, insertAt,
+    addTransitToDay, updateStopAt, addAttachmentToStop, removeAttachmentAt, insertAt, addTripFile, updateTripFile, removeTripFile, renameAttachmentAt,
     addDay, deleteDay, saveStartDate, applyDateRange, moveStopToInbox, saveCustomPin, addSearchedToInbox,
     inbox, inboxLoading, loadInbox, assignInboxToDay, removeFromInbox, updateInboxNote, connectSavedPlaces,
   };
