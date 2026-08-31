@@ -1,5 +1,6 @@
 import React from "react";
 import Icon from "../components/Icon";
+import { buildFileGroups, fileKind, fileEmoji } from "../utils/tripFiles";
 
 /* ══════════════════════════════════════════════════════════════
    TripOverviewDesktop — the ≥1024px trip preview, built full-bleed
@@ -26,7 +27,7 @@ const Metric = ({ P, value, label }) => (
 const TripOverviewDesktop = ({
   P, trip, lm, country, totalDays, totalStops, cities,
   visibleDays, expanded, toggleDay, showAllDays, setShowAllDays, hiddenDays,
-  navigate, goEdit, isActive, stopTrip, onActivate, activating,
+  navigate, goEdit, isActive, stopTrip, onActivate, activating, onOpenFiles,
 }) => {
   return (
     <div dir="rtl" style={{ minHeight: "100vh", background: P.page, fontFamily: FONT }}>
@@ -168,6 +169,35 @@ const TripOverviewDesktop = ({
               הציגו את כל הימים (+{hiddenDays} נוספים) <Icon name="chevronDown" size={16} strokeWidth={2.4} />
             </button>
           )}
+
+          {/* ── "קבצים" — the trip files gallery (shared with the editor) ── */}
+          <section style={{ marginTop: 40 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: P.ink3, letterSpacing: "0.06em", textTransform: "uppercase", flex: 1 }}>קבצים</div>
+              <button onClick={onOpenFiles} className="tp-press"
+                style={{ minHeight: 44, padding: "0 14px", borderRadius: 999, border: `1px solid ${P.line}`, background: P.panel, color: P.ink2, fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: FONT }}>
+                🗂️ כל הקבצים
+              </button>
+            </div>
+            {buildFileGroups(trip?.data?.tripData || [], trip?.data?.files || []).map((g) => (
+              g.items.length > 0 && (
+                <div key={g.key} style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: P.ink3, marginBottom: 6 }}>{g.title}</div>
+                  {g.items.map((row) => (
+                    <button key={row.kind === "general" ? row.id : `${row.dayNum}:${row.stopIdx}:${row.fi}`}
+                      onClick={onOpenFiles}
+                      style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "start", minHeight: 48, padding: "8px 12px", marginBottom: 6, borderRadius: 12, border: `1px solid ${P.line}`, background: P.panel, color: P.ink, fontFamily: FONT, fontSize: 13.5, fontWeight: 700, cursor: "pointer" }}>
+                      <span aria-hidden style={{ fontSize: 18 }}>{fileEmoji(fileKind(row.type, row.name))}</span>
+                      <span dir="auto" style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{row.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )
+            ))}
+            {((trip?.data?.tripData || []).reduce((n, d) => n + (d.attractions || []).reduce((m, a) => m + (a.attachments || []).length, 0), 0) + (trip?.data?.files || []).length) === 0 && (
+              <div style={{ fontSize: 13, color: P.ink3 }}>עדיין אין קבצים במסלול.</div>
+            )}
+          </section>
         </main>
       </div>
     </div>

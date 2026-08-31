@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import tripService from "../services/tripService";
 import { useDarkMode } from "../utils/theme";
@@ -7,6 +7,9 @@ import SwipeBackContainer from "../components/SwipeBackContainer";
 import useActiveTrip from "../utils/useActiveTrip";
 import useIsDesktop from "../hooks/useIsDesktop";
 import TripOverviewDesktop from "./TripOverviewDesktop";
+import TripFilesSheet from "../components/TripFilesSheet";
+import { buildFileGroups, fileKind, fileEmoji, newFileId } from "../utils/tripFiles";
+import { uploadAttachment, removeStoredFile } from "../services/attachmentService";
 
 /* ══════════════════════════════════════════════════════════════
    TripOverviewView — magazine-style Trip Preview / summary screen.
@@ -87,6 +90,10 @@ const TripOverviewView = () => {
   /* Sprint 28 #1 — activation is INTERCEPTED by an explanatory modal
      (אישור executes, חזרה aborts) instead of firing immediately. */
   const [confirmActivate, setConfirmActivate] = useState(false);
+  /* Trip Files gallery — general files live at trip.data.files[], per-stop
+     files stay at day.attractions[].attachments[]. Uploads gated by edit rights. */
+  const [filesSheetOpen, setFilesSheetOpen] = useState(false);
+  const [filesBusy, setFilesBusy] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -155,6 +162,83 @@ const TripOverviewView = () => {
     setToast("המסלול הופסק · מצב שטח כבוי 🛑");
   };
 
+  /* Persist a mutated trip.data (general files live at trip.data.files[]).
+     Mirrors the mobile editor's persist idiom — optimistic local update,
+     fire-and-forget save, no write for read-only viewers. */
+  const persistTripData = useCallback((mutateData) => {
+    setTrip((prev) => {
+      if (!prev) return prev;
+      const nextData = mutateData(prev.data || {});
+      if (!prev.readOnly) tripService.saveTrip(prev.id, { data: nextData }).catch(() => {});
+      return { ...prev, data: nextData };
+    });
+  }, []);
+
+  const handleFileUpload = useCallback(async (file, day) => {
+    setFilesBusy(true);
+    try {
+      const meta = await uploadAttachment(trip?.id, file);
+      persistTripData((data) => ({
+        ...data,
+        files: [...(data.files || []), {
+          ...meta, id: newFileId(), label: meta.name, day: day ?? null,
+          addedAt: new Date().toISOString(),
+        }],
+      }));
+    } catch {
+      setToast("שגיאה בהעלאת הקובץ");
+    } finally {
+      setFilesBusy(false);
+    }
+  }, [trip, persistTripData]);
+
+  const handleFileRename = useCallback((row, label) => {
+    if (row.kind === "general") {
+      persistTripData((data) => ({
+        ...data,
+        files: (data.files || []).map((f) => (f.id === row.id ? { ...f, label } : f)),
+      }));
+    } else {
+      persistTripData((data) => ({
+        ...data,
+        tripData: (data.tripData || []).map((d) => d.day !== row.dayNum ? d : {
+          ...d,
+          attractions: (d.attractions || []).map((a, i) => i !== row.stopIdx ? a : {
+            ...a,
+            attachments: (a.attachments || []).map((f, k) => k === row.fi ? { ...f, label } : f),
+          }),
+        }),
+      }));
+    }
+  }, [persistTripData]);
+
+  const handleFileMove = useCallback((row, day) => {
+    if (row.kind !== "general") return;
+    persistTripData((data) => ({
+      ...data,
+      files: (data.files || []).map((f) => (f.id === row.id ? { ...f, day: day ?? null } : f)),
+    }));
+  }, [persistTripData]);
+
+  const handleFileDelete = useCallback((row) => {
+    if (row.path) removeStoredFile(row.path).catch((e) => console.warn("removeStoredFile", e));
+    if (row.kind === "general") {
+      persistTripData((data) => ({ ...data, files: (data.files || []).filter((f) => f.id !== row.id) }));
+    } else {
+      persistTripData((data) => ({
+        ...data,
+        tripData: (data.tripData || []).map((d) => d.day !== row.dayNum ? d : {
+          ...d,
+          attractions: (d.attractions || []).map((a, i) => {
+            if (i !== row.stopIdx) return a;
+            const next = (a.attachments || []).filter((_, k) => k !== row.fi);
+            return { ...a, attachments: next.length ? next : undefined };
+          }),
+        }),
+      }));
+    }
+  }, [persistTripData]);
+
   /* ── Loading skeleton ─────────────────────────────────────── */
   if (!trip && !error) {
     return (
@@ -216,6 +300,7 @@ const TripOverviewView = () => {
           showAllDays={showAllDays} setShowAllDays={setShowAllDays} hiddenDays={hiddenDays}
           navigate={navigate} goEdit={goEdit} isActive={isActive} stopTrip={stopTrip}
           onActivate={() => setConfirmActivate(true)} activating={activating}
+          onOpenFiles={() => setFilesSheetOpen(true)}
         />
       ) : (<>
       <div style={{ maxWidth: OVERVIEW_MAX, margin: "0 auto", paddingBottom: 120 /* clear sticky action bar */ }}>
@@ -352,6 +437,35 @@ const TripOverviewView = () => {
             </button>
           )}
         </section>
+
+        {/* ── "קבצים" — the trip files gallery (shared with the editor) ── */}
+        <section style={{ padding: "32px 24px 0" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+            <h2 style={{ fontSize: 15, fontWeight: 800, color: P.ink, margin: 0, flex: 1 }}>קבצים</h2>
+            <button onClick={() => setFilesSheetOpen(true)}
+              style={{ minHeight: 44, padding: "0 14px", borderRadius: 999, border: `1px solid ${P.line}`, background: P.panel, color: P.ink2, fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: FONT }}>
+              🗂️ כל הקבצים
+            </button>
+          </div>
+          {buildFileGroups(days, trip?.data?.files || []).map((g) => (
+            g.items.length > 0 && (
+              <div key={g.key} style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: P.ink3, marginBottom: 6 }}>{g.title}</div>
+                {g.items.map((row) => (
+                  <button key={row.kind === "general" ? row.id : `${row.dayNum}:${row.stopIdx}:${row.fi}`}
+                    onClick={() => setFilesSheetOpen(true)}
+                    style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "start", minHeight: 48, padding: "8px 12px", marginBottom: 6, borderRadius: 12, border: `1px solid ${P.line}`, background: P.panel, color: P.ink, fontFamily: FONT, fontSize: 13.5, fontWeight: 700, cursor: "pointer" }}>
+                    <span aria-hidden style={{ fontSize: 18 }}>{fileEmoji(fileKind(row.type, row.name))}</span>
+                    <span dir="auto" style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{row.label}</span>
+                  </button>
+                ))}
+              </div>
+            )
+          ))}
+          {(days.reduce((n, d) => n + (d.attractions || []).reduce((m, a) => m + (a.attachments || []).length, 0), 0) + (trip?.data?.files || []).length) === 0 && (
+            <div style={{ fontSize: 13, color: P.ink3 }}>עדיין אין קבצים במסלול.</div>
+          )}
+        </section>
       </div>
 
       {/* ── Sticky action bar ──────────────────────────────────────
@@ -409,6 +523,21 @@ const TripOverviewView = () => {
           </div>
         </div>
       )}
+
+      {/* ── Trip files gallery — shared by the mobile + desktop layouts ── */}
+      <TripFilesSheet
+        open={filesSheetOpen}
+        onClose={() => setFilesSheetOpen(false)}
+        tripData={days}
+        files={trip?.data?.files || []}
+        dayCount={days.length}
+        editable={!!trip && !trip.readOnly}
+        busy={filesBusy}
+        onUpload={handleFileUpload}
+        onRename={handleFileRename}
+        onMove={handleFileMove}
+        onDelete={handleFileDelete}
+      />
 
       {/* ── Triumphant success toast ───────────────────────────── */}
       {toast && (
