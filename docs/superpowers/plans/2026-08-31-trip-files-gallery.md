@@ -792,7 +792,7 @@ Expected: FAIL — `Cannot find module './TripFilesSheet'`.
 
 ```jsx
 import React, { useMemo, useRef, useState } from "react";
-import useDarkMode from "../utils/useDarkMode";
+import { useDarkMode } from "../utils/theme";   // theme.js exports both `useDarkMode` (named) and default
 import { buildFileGroups, fileKind, fileEmoji, humanSize } from "../utils/tripFiles";
 import { isAllowedFile } from "../services/attachmentService";
 import AttachmentViewer from "./AttachmentViewer";
