@@ -20,7 +20,9 @@ import { computeTransit } from "../utils/transit";
 import { dedupeDayStops, categoryEmoji } from "../utils/classify";
 import { readPrefs } from "../services/prefsService";
 import { listInboxPlaces, addInboxPlaces, removeInboxPlace, updateInboxPlace } from "../services/googleSavedPlaces";
-import { uploadAttachment } from "../services/attachmentService";
+import { uploadAttachment, removeStoredFile } from "../services/attachmentService";
+import TripFilesSheet from "../components/TripFilesSheet";
+import { newFileId } from "../utils/tripFiles";
 import useActiveTrip from "../utils/useActiveTrip";
 import Icon from "../components/Icon";
 import { setDocTitle, titleForTrip, DEFAULT_TITLE } from "../utils/docTitle";
@@ -1345,6 +1347,10 @@ const EditorView = () => {
      { file, idx, fi } — idx is the active-day stop index, fi the attachment
      index within that stop, so the viewer can also delete it. */
   const [attachViewer, setAttachViewer] = useState(null);
+  /* Sprint 65 — Trip Files gallery: the bottom-sheet open flag + an upload
+     spinner gate shared by every "add file" affordance inside the sheet. */
+  const [filesSheetOpen, setFilesSheetOpen] = useState(false);
+  const [filesBusy, setFilesBusy] = useState(false);
   /* Sprint 54 #4 — any modal/sheet overlay that sits at the z250 layer. The
      map-anchored FABs (raised to z260) unmount while one is open so they never
      float over an action sheet, the summary, or an insert prompt. */
@@ -1365,6 +1371,23 @@ const EditorView = () => {
         tripService.saveTrip(prev.id, { data: nextTrip.data }).catch(() => {}).finally(() => setSaving(false));
       }
       return nextTrip;
+    });
+  }, []);
+
+  /* Sprint 65 — persist a mutated trip.data for the Trip Files gallery. General
+     files live at trip.data.files[]; per-stop files stay on
+     day.attractions[].attachments[]. Mirrors commitDays' setTrip + saveTrip
+     idiom (local state first, best-effort server write, "נשמר…" chip). */
+  const persistTripData = useCallback((mutateData) => {
+    setTrip((prev) => {
+      if (!prev) return prev;
+      const nextData = mutateData(prev.data || {});
+      const next = { ...prev, data: nextData };
+      if (!prev.readOnly) {
+        setSaving(true);
+        tripService.saveTrip(prev.id, { data: nextData }).catch(() => {}).finally(() => setSaving(false));
+      }
+      return next;
     });
   }, []);
 
@@ -1906,6 +1929,94 @@ const EditorView = () => {
     ));
     setCopyToast("הקובץ הוסר ✓");
   }, [activeDay, commitDays]);
+
+  /* Sprint 65 — TRIP FILES GALLERY. Derived views over trip.data for the
+     <TripFilesSheet>: general files (trip.data.files[]) + a badge count that
+     also folds in every per-stop attachment. Editable unless the trip is
+     read-only (shared, no write access). */
+  const tripFiles = trip?.data?.files || [];
+  const filesDayCount = (trip?.data?.tripData || []).length;
+  const filesEditable = !!trip && !trip.readOnly;
+  const tripFilesCount =
+    tripFiles.length +
+    (trip?.data?.tripData || []).reduce(
+      (n, d) => n + (d.attractions || []).reduce((m, a) => m + ((a.attachments || []).length), 0),
+      0,
+    );
+
+  /* Upload a picked file into the general bucket (day = null → כללי) or tagged
+     to a specific day. Mirrors onAttachFilePicked's upload plumbing; writes the
+     new record onto trip.data.files[] via persistTripData. */
+  const handleFileUpload = useCallback(async (file, day) => {
+    setFilesBusy(true);
+    try {
+      const meta = await uploadAttachment(trip?.id, file);
+      persistTripData((data) => ({
+        ...data,
+        files: [...(data.files || []), {
+          ...meta, id: newFileId(), label: meta.name, day: day ?? null,
+          addedAt: new Date().toISOString(),
+        }],
+      }));
+    } catch {
+      setCopyToast("שגיאה בהעלאת הקובץ");
+    } finally {
+      setFilesBusy(false);
+    }
+  }, [trip, persistTripData]);
+
+  /* Rename a file's label. General → patch trip.data.files[id].label; per-stop →
+     patch the attachment label in place on its day/stop. */
+  const handleFileRename = useCallback((row, label) => {
+    if (row.kind === "general") {
+      persistTripData((data) => ({
+        ...data,
+        files: (data.files || []).map((f) => (f.id === row.id ? { ...f, label } : f)),
+      }));
+    } else {
+      persistTripData((data) => ({
+        ...data,
+        tripData: (data.tripData || []).map((d) => d.day !== row.dayNum ? d : {
+          ...d,
+          attractions: d.attractions.map((a, i) => i !== row.stopIdx ? a : {
+            ...a,
+            attachments: (a.attachments || []).map((f, k) => k === row.fi ? { ...f, label } : f),
+          }),
+        }),
+      }));
+    }
+  }, [persistTripData]);
+
+  /* Move a GENERAL file between כללי (day = null) and a day tab. Per-stop files
+     are anchored to their stop and never move here. */
+  const handleFileMove = useCallback((row, day) => {
+    if (row.kind !== "general") return;
+    persistTripData((data) => ({
+      ...data,
+      files: (data.files || []).map((f) => (f.id === row.id ? { ...f, day: day ?? null } : f)),
+    }));
+  }, [persistTripData]);
+
+  /* Delete a file. Best-effort permanent Storage delete first (when it was
+     persisted with a path), then drop the record: general → out of
+     trip.data.files[]; per-stop → splice from that stop's attachments[]. */
+  const handleFileDelete = useCallback((row) => {
+    if (row.path) removeStoredFile(row.path).catch((e) => console.warn("removeStoredFile", e));
+    if (row.kind === "general") {
+      persistTripData((data) => ({ ...data, files: (data.files || []).filter((f) => f.id !== row.id) }));
+    } else {
+      persistTripData((data) => ({
+        ...data,
+        tripData: (data.tripData || []).map((d) => d.day !== row.dayNum ? d : {
+          ...d,
+          attractions: d.attractions.map((a, i) => i !== row.stopIdx ? a : {
+            ...a,
+            attachments: (a.attachments || []).filter((_, k) => k !== row.fi),
+          }),
+        }),
+      }));
+    }
+  }, [persistTripData]);
 
   /* Sprint 62 #5 — open the rich saved-point card and, when a live Google
      Places key is configured, best-effort enrich it with a cover photo +
@@ -2951,6 +3062,28 @@ const EditorView = () => {
             a subtle "saving…" chip stays for feedback. */}
         {saving && (
           <span style={{ fontSize: 11, fontWeight: 700, color: T.ink3, background: "#fff", borderRadius: 999, padding: "5px 10px", boxShadow: "0 2px 8px rgba(0,0,0,0.08)", flexShrink: 0 }}>נשמר…</span>
+        )}
+
+        {/* Sprint 65 — TRIP FILES entry point: opens the gallery sheet with every
+            file in the trip (general + per-stop). Badge = total file count. */}
+        {trip && (
+          <button
+            onClick={() => setFilesSheetOpen(true)}
+            title="קבצי הטיול" aria-label="קבצי הטיול" className="tp-press"
+            style={{
+              position: "relative", flexShrink: 0,
+              width: 44, height: 44, borderRadius: "50%", border: "none",
+              background: "#fff", color: "#1E1E24", cursor: "pointer",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.08)", fontSize: 17, fontFamily: "inherit",
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
+            }}>
+            <span aria-hidden>🗂️</span>
+            {tripFilesCount > 0 && (
+              <span style={{ position: "absolute", top: -3, insetInlineStart: -3, minWidth: 18, height: 18, padding: "0 4px", borderRadius: 999, background: T.accent, color: "#fff", fontSize: 10.5, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center", border: "2px solid #fff" }}>
+                {tripFilesCount}
+              </span>
+            )}
+          </button>
         )}
 
         {/* Sprint 62 #7 — COLLABORATOR AVATAR INDICATORS for a shared itinerary:
@@ -4266,6 +4399,23 @@ const EditorView = () => {
           </div>
         );
       })()}
+
+      {/* Sprint 65 — TRIP FILES GALLERY sheet: every file in the trip (general +
+          per-stop attachments), grouped כללי → יום 1 … יום N. Upload / rename /
+          move / delete when the trip is writable; open-only otherwise. */}
+      <TripFilesSheet
+        open={filesSheetOpen}
+        onClose={() => setFilesSheetOpen(false)}
+        tripData={trip?.data?.tripData || []}
+        files={tripFiles}
+        dayCount={filesDayCount}
+        editable={filesEditable}
+        busy={filesBusy}
+        onUpload={handleFileUpload}
+        onRename={handleFileRename}
+        onMove={handleFileMove}
+        onDelete={handleFileDelete}
+      />
 
       {/* Sprint 61 #1 — DUPLICATE-NOTE CASCADE PROMPT. Shown when a saved note
           targets a place that appears on more than one day. */}

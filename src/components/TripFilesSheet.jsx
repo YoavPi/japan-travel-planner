@@ -38,7 +38,7 @@ export default function TripFilesSheet({
     setErr("");
     setShowPicker(false);
     setPendingDay(day);
-    inputRef.current && (inputRef.current.value = "", inputRef.current.click());
+    if (inputRef.current) { inputRef.current.value = ""; inputRef.current.click(); }
   };
 
   const onPicked = (e) => {
