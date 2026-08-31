@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion, Reorder } from "motion/react";
 import { useParams, useNavigate } from "react-router-dom";
 import EditorMap from "../components/EditorMap";
@@ -14,8 +14,10 @@ import { track } from "../analytics/posthog";
 import Icon from "../components/Icon";
 import { categoryEmoji, classifyLocation, ratingToBadge, CATEGORY_META } from "../utils/classify";
 import { boundsForDestination, getDetails, nearbySearch } from "../services/googlePlaces";
-import { uploadAttachment } from "../services/attachmentService";
+import { uploadAttachment, removeStoredFile } from "../services/attachmentService";
 import useEditorState from "../hooks/useEditorState";
+import TripFilesSheet from "../components/TripFilesSheet";
+import { newFileId } from "../utils/tripFiles";
 import mapsUrlFor from "../utils/mapsUrl";
 import { photoStrict, onPhotoErrorStrict } from "../utils/placePhoto";
 import { readPrefs } from "../services/prefsService";
@@ -113,6 +115,7 @@ export default function EditorDesktop() {
   const { trip, error, days, activeDay, setActiveDay, activeDayData, mapStops, editable,
     deleteStopAt, duplicateStopAt, moveStopToDay, setStopNote, addStopToDay, setDayOrder,
     addTransitToDay, updateStopAt, addAttachmentToStop, removeAttachmentAt, insertAt,
+    tripFiles, addTripFile, updateTripFile, removeTripFile, renameAttachmentAt,
     addDay, deleteDay, saveStartDate, applyDateRange, moveStopToInbox, saveCustomPin, addSearchedToInbox,
     inbox, inboxLoading, loadInbox, assignInboxToDay, removeFromInbox, updateInboxNote } = editor;
 
@@ -376,6 +379,9 @@ export default function EditorDesktop() {
   const attachTargetRef = useRef(null); // REAL attractions index awaiting a file
   const [attachBusy, setAttachBusy] = useState(false);
   const [attachToast, setAttachToast] = useState(""); // upload-failure micro-toast
+  /* Trip Files gallery (general trip.data.files[] + every per-stop attachment). */
+  const [filesSheetOpen, setFilesSheetOpen] = useState(false);
+  const [filesBusy, setFilesBusy] = useState(false);
   useEffect(() => {
     if (!attachToast) return;
     const t = setTimeout(() => setAttachToast(""), 2400);
@@ -399,6 +405,48 @@ export default function EditorDesktop() {
     }
     finally { setAttachBusy(false); attachTargetRef.current = null; }
   };
+
+  /* ── Trip Files gallery handlers (Task 7) ─────────────────────
+     Upload lands a record on trip.data.files[] via the shared hook
+     (day = null → כללי, or tagged to a day). Rename/move/delete
+     route to the same hook mutators; per-stop rows delegate to the
+     attachment helpers the ⋯ menu already uses. Failures reuse the
+     desktop attachment micro-toast. */
+  const handleFileUpload = useCallback(async (file, day) => {
+    setFilesBusy(true);
+    try {
+      const meta = await uploadAttachment(trip?.id, file);
+      addTripFile({ ...meta, id: newFileId(), label: meta.name, day: day ?? null, addedAt: new Date().toISOString() });
+    } catch (err) {
+      setAttachToast(/too large/.test(err?.message || "") ? "הקובץ גדול מדי (מקס' 15MB)" : "העלאת הקובץ נכשלה, נסו שוב");
+    } finally {
+      setFilesBusy(false);
+    }
+  }, [trip, addTripFile]);
+
+  const handleFileRename = useCallback((row, label) => {
+    if (row.kind === "general") updateTripFile(row.id, { label });
+    else renameAttachmentAt(row.dayNum, row.stopIdx, row.fi, label);
+  }, [updateTripFile, renameAttachmentAt]);
+
+  const handleFileMove = useCallback((row, day) => {
+    if (row.kind === "general") updateTripFile(row.id, { day: day ?? null });
+  }, [updateTripFile]);
+
+  const handleFileDelete = useCallback((row) => {
+    if (row.path) removeStoredFile(row.path).catch((e) => console.warn("removeStoredFile", e));
+    if (row.kind === "general") removeTripFile(row.id);
+    else removeAttachmentAt(row.dayNum, row.stopIdx, row.fi);
+  }, [removeTripFile, removeAttachmentAt]);
+
+  /* 🗂️ toolbar badge — general files + every per-stop attachment. */
+  const tripFilesCount =
+    (tripFiles?.length || 0) +
+    (days || []).reduce(
+      (n, d) => n + (d.attractions || []).reduce((m, a) => m + ((a.attachments || []).length), 0),
+      0,
+    );
+
   /* Mouse-first editing: a right-click / ⋯ context menu at a cursor position,
      and a quick note editor. `idx` is the REAL index into the day's attractions. */
   const [ctxMenu, setCtxMenu] = useState(null);   // { x, y, idx, a } | null
@@ -750,6 +798,23 @@ export default function EditorDesktop() {
             <span>מפות נוספות</span>
           </button>
         )}
+        {/* Trip Files gallery — general (trip.data.files[]) + every per-stop
+            attachment. Count badge folds in both. Open-only when read-only. */}
+        <button onClick={() => setFilesSheetOpen(true)}
+          title="קבצי הטיול" aria-label="קבצי הטיול"
+          style={{
+            position: "relative", flexShrink: 0, height: 40, display: "inline-flex", alignItems: "center", gap: 7, padding: "0 13px",
+            borderRadius: 10, cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 800,
+            border: `1px solid ${tripFilesCount > 0 ? ACCENT : T.line}`,
+            background: tripFilesCount > 0 ? "#E0533F14" : "#fff",
+            color: tripFilesCount > 0 ? ACCENT : T.ink2,
+          }}>
+          <span aria-hidden style={{ fontSize: 15, lineHeight: 1 }}>🗂️</span>
+          <span>קבצים</span>
+          {tripFilesCount > 0 && (
+            <span style={{ minWidth: 18, height: 18, borderRadius: 999, padding: "0 5px", background: ACCENT, color: "#fff", fontSize: 11, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{tripFilesCount}</span>
+          )}
+        </button>
       </header>
 
       {/* ── Workspace: itinerary (right) + map (left) ──────────────── */}
@@ -1326,6 +1391,23 @@ export default function EditorDesktop() {
       {/* Hidden file picker for per-stop attachments (triggered from the ⋯ menu). */}
       <input ref={fileInputRef} type="file" onChange={onFilePicked}
         accept="image/*,application/pdf,.pdf,.doc,.docx" style={{ display: "none" }} />
+
+      {/* ── Trip Files gallery — general (trip.data.files[]) + every per-stop
+          attachment, grouped כללי → יום 1 … יום N. Upload / rename / move /
+          delete when writable; open-only otherwise. ─── */}
+      <TripFilesSheet
+        open={filesSheetOpen}
+        onClose={() => setFilesSheetOpen(false)}
+        tripData={days}
+        files={tripFiles}
+        dayCount={days.length}
+        editable={editable}
+        busy={filesBusy}
+        onUpload={handleFileUpload}
+        onRename={handleFileRename}
+        onMove={handleFileMove}
+        onDelete={handleFileDelete}
+      />
 
       {/* ── Transit / flight editor (reuses the mobile sheet component) ─── */}
       {transitEdit && (
