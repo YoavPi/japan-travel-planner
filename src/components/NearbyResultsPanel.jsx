@@ -81,21 +81,30 @@ export default function NearbyResultsPanel({
   origin, results = [], activeDay, days = [],
   detailsById = {}, onWantDetails, onAdd, onSetDay, onOpen, onClose,
   addedKeys, variant = "rail", style,
+  collapsed = false, onToggleCollapse,
 }) {
   const isSheet = variant === "sheet";
   const originName = origin?.nameHe || origin?.name || "הנקודה";
   const isAdded = (r) => (addedKeys instanceof Set ? addedKeys.has(keyOf(r)) : false);
+  const showDaySwitch = days.length > 1 && !(isSheet && collapsed);
 
   const header = (
     <div style={{ flexShrink: 0, borderBottom: `1px solid ${T.line}`, padding: "12px 12px 10px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        {isSheet && onToggleCollapse && (
+          <button onClick={onToggleCollapse}
+            aria-label={collapsed ? "הרחבת הרשימה" : "מזעור הרשימה"} aria-expanded={!collapsed}
+            style={{ flexShrink: 0, width: 32, height: 32, borderRadius: "50%", border: "none", background: T.surface, color: T.ink2, cursor: "pointer", fontFamily: T.font, fontSize: 13, fontWeight: 800 }}>
+            {collapsed ? "▲" : "▼"}
+          </button>
+        )}
         <div dir="auto" style={{ flex: 1, minWidth: 0, fontSize: 14.5, fontWeight: 800, color: T.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
           {results.length} נקודות ליד <span style={{ color: T.accent }}>{originName}</span>
         </div>
         <button onClick={onClose} aria-label="סגירת התוצאות"
           style={{ flexShrink: 0, width: 32, height: 32, borderRadius: "50%", border: "none", background: T.surface, color: T.ink2, cursor: "pointer", fontFamily: T.font, fontSize: 14, fontWeight: 800 }}>✕</button>
       </div>
-      {days.length > 1 && (
+      {showDaySwitch && (
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
           <span style={{ flexShrink: 0, fontSize: 12, fontWeight: 800, color: T.ink3 }}>מוסיף ליום</span>
           <div style={{ display: "flex", gap: 5, overflowX: "auto" }} className="tp-noscrollbar">
@@ -136,9 +145,13 @@ export default function NearbyResultsPanel({
   if (isSheet) {
     return (
       <div dir="rtl" style={{ position: "fixed", insetInlineStart: 0, insetInlineEnd: 0, bottom: 0, zIndex: 120, fontFamily: T.font }}>
-        <div className="tp-sheet-up" style={{ margin: "0 auto", width: "100%", maxWidth: 560, maxHeight: "68vh", background: T.panel, borderTopLeftRadius: 20, borderTopRightRadius: 20, boxShadow: "0 -18px 55px rgba(0,0,0,0.3)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <div className="tp-sheet-up" style={{ margin: "0 auto", width: "100%", maxWidth: 560, maxHeight: collapsed ? "auto" : "68vh", background: T.panel, borderTopLeftRadius: 20, borderTopRightRadius: 20, boxShadow: "0 -18px 55px rgba(0,0,0,0.3)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <div role="presentation" onClick={onToggleCollapse}
+            style={{ flexShrink: 0, cursor: onToggleCollapse ? "pointer" : "default", padding: "8px 0 4px" }}>
+            <div style={{ width: 40, height: 5, borderRadius: 999, background: T.line, margin: "0 auto" }} />
+          </div>
           {header}
-          {list}
+          {!collapsed && list}
         </div>
       </div>
     );

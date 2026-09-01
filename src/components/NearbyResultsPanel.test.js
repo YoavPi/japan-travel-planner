@@ -79,3 +79,23 @@ test("clicking a row body calls onOpen", () => {
   fireEvent.click(screen.getByText("Trattoria Uno"));
   expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ placeId: "p1" }));
 });
+
+test("sheet variant: collapsed hides the list; the toggle calls onToggleCollapse", () => {
+  const onToggleCollapse = jest.fn();
+  const { rerender } = render(
+    <NearbyResultsPanel {...base} variant="sheet" collapsed={false} onToggleCollapse={onToggleCollapse} />
+  );
+  expect(screen.getByText("Trattoria Uno")).toBeInTheDocument();
+  fireEvent.click(screen.getByLabelText("מזעור הרשימה"));
+  expect(onToggleCollapse).toHaveBeenCalledTimes(1);
+
+  rerender(<NearbyResultsPanel {...base} variant="sheet" collapsed onToggleCollapse={onToggleCollapse} />);
+  expect(screen.queryByText("Trattoria Uno")).toBeNull();          // list hidden
+  expect(screen.getByText(/נקודות ליד/)).toBeInTheDocument();       // header still shown
+  expect(screen.getByLabelText("הרחבת הרשימה")).toBeInTheDocument(); // toggle flips to expand
+});
+
+test("rail variant has no collapse toggle", () => {
+  render(<NearbyResultsPanel {...base} onToggleCollapse={jest.fn()} />);
+  expect(screen.queryByLabelText("מזעור הרשימה")).toBeNull();
+});

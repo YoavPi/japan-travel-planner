@@ -178,9 +178,6 @@ export default function EditorDesktop() {
     });
     setNearbyAdded((s) => { const n = new Set(s); n.add(nearbyKey(r)); return n; });
   }, [activeDay, addStopToDay]);
-  const openNearby = useCallback((r) => {
-    if (r && Number.isFinite(r.lat) && Number.isFinite(r.lng)) setFlyToCoord({ lat: r.lat, lng: r.lng });
-  }, []);
   /* Skeleton editing: the dates modal (start/end → day count) + per-day delete. */
   const [datesOpen, setDatesOpen] = useState(false);
   const [datesStart, setDatesStart] = useState("");
@@ -403,6 +400,15 @@ export default function EditorDesktop() {
     setPreview(stop);
     setPreviewDay(activeDay);
     if (stop.coordinates) setFlyToCoord({ lat: stop.coordinates.lat, lng: stop.coordinates.lng });
+  };
+  /* A nearby-results row tap → fly to the pin AND open its info card (parity
+     with tapping the pin on the map). Reuse the row's lazily-fetched details. */
+  const openNearby = async (r) => {
+    if (!r) return;
+    if (Number.isFinite(r.lat) && Number.isFinite(r.lng)) setFlyToCoord({ lat: r.lat, lng: r.lng });
+    const cached = r.placeId ? nearbyDetailsRef.current[r.placeId] : null;
+    if (cached && cached !== "loading" && (cached.lat != null || cached.name)) { openPreview(cached); return; }
+    if (r.placeId) { const d = await getDetails(r.placeId); if (d) openPreview(d); }
   };
   const commitPreview = () => {
     if (!preview) return;

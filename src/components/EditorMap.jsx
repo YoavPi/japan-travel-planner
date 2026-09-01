@@ -286,12 +286,23 @@ const EditorMap = ({
      "crop" onto it — a close, framed view of just that place. We fly to a
      tight zoom but never zoom OUT: if the user is already closer than the
      crop level we keep their zoom, so a click only ever tightens the frame. */
+  /* When an anchored info card sits ABOVE the point (desktop cockpit),
+     bias the point into the lower third of the viewport so the whole
+     card clears the top edge. `offset:[0,+y]` renders `center` y px BELOW
+     the container centre. No card renderer (mobile) → plain centre. */
+  const cardFlyOffset = () => {
+    if (!renderCard) return [0, 0];
+    try {
+      const h = mapRef.current?.getContainer()?.clientHeight || 0;
+      return [0, Math.min(Math.round(h * 0.22), 240)];
+    } catch { return [0, 0]; }
+  };
   const flyToStop = (lng, lat) => {
     const map = mapRef.current;
     if (!map || !Number.isFinite(lng) || !Number.isFinite(lat)) return;
     let z = CROP_ZOOM;
     try { z = Math.max(map.getZoom(), CROP_ZOOM); } catch { /* map not ready */ }
-    map.flyTo({ center: [lng, lat], zoom: z, duration: 700, essential: true });
+    map.flyTo({ center: [lng, lat], zoom: z, duration: 700, essential: true, offset: cardFlyOffset() });
   };
 
   /* Sprint 19.5 — "Logistical-only" nodes: a stop may exist in the day
@@ -363,11 +374,11 @@ const EditorMap = ({
   }, [flyToCoord]);
 
   /* Keep the open card's point clear of the map edges. The card is a Popup
-     anchored ABOVE the point (~320px tall), so if the point sits near the top
-     or a side the card gets clipped. After the click's crop settles, if the
-     point is outside a comfortable band we ease it toward centre so the whole
-     card stays on-screen. Only fires when the anchored POINT changes (a new
-     card), never on the user's own pans/zooms. */
+     anchored ABOVE the point (tall — up to most of the viewport with the day
+     picker), so the point must sit LOW enough for the card to clear the top.
+     After the click's crop settles, if the point isn't in a comfortable band
+     we ease it to ~72% viewport height (card room above) and off the edges.
+     Only fires when the anchored POINT changes (a new card). */
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !cardCoord || !Number.isFinite(cardCoord.lat) || !Number.isFinite(cardCoord.lng)) return;
@@ -376,8 +387,10 @@ const EditorMap = ({
         const p = map.project([cardCoord.lng, cardCoord.lat]);
         const c = map.getContainer();
         const w = c.clientWidth, h = c.clientHeight;
-        if (p.x < 190 || p.x > w - 190 || p.y < 340 || p.y > h - 40) {
-          map.easeTo({ center: [cardCoord.lng, cardCoord.lat], duration: 420 });
+        const wantY = Math.round(h * 0.72);           // point in the lower third
+        const dy = Math.min(wantY - Math.round(h / 2), 240); // +offset renders center BELOW middle
+        if (p.x < 190 || p.x > w - 190 || p.y < wantY - 80 || p.y > h - 40) {
+          map.easeTo({ center: [cardCoord.lng, cardCoord.lat], offset: [0, dy], duration: 420 });
         }
       } catch { /* map not ready */ }
     }, 560); // let the crop flyTo settle first

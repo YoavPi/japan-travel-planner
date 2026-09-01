@@ -1112,6 +1112,7 @@ const EditorView = () => {
     sheetRef.current?.snapTo?.("peek");
     setSearchOrigin(c);
     setNearbyAnchor(origin);
+    setNearbyCollapsed(false);
     nearbyQueueRef.current = []; nearbyInFlightRef.current = 0;
     setNearbyDetails({}); setNearbyAdded(new Set());
     const res = await nearbySearch(c, query);
@@ -1517,6 +1518,7 @@ const EditorView = () => {
      Anchor point (with name) kept for the sheet header, + lazy per-row
      detail enrichment (Google editorial line, concurrency 2, cached). */
   const [nearbyAnchor, setNearbyAnchor] = useState(null);
+  const [nearbyCollapsed, setNearbyCollapsed] = useState(false);
   const [nearbyDetails, setNearbyDetails] = useState({});
   const [nearbyAdded, setNearbyAdded] = useState(() => new Set());
   const nearbyDetailsRef = useRef({});
@@ -1544,7 +1546,7 @@ const EditorView = () => {
     setNearbyDetails({}); setNearbyAdded(new Set());
   }, []);
   const clearNearby = useCallback(() => {
-    setSearchResults([]); setSearchOrigin(null); setNearbyAnchor(null);
+    setSearchResults([]); setSearchOrigin(null); setNearbyAnchor(null); setNearbyCollapsed(false);
     resetNearbyDetails();
   }, [resetNearbyDetails]);
   const addNearbyToDay = useCallback((r) => {
@@ -1563,9 +1565,15 @@ const EditorView = () => {
     ));
     setNearbyAdded((s) => { const n = new Set(s); n.add(r.placeId || `${r.lat},${r.lng}`); return n; });
   }, [activeDay, commitDays]);
-  const openNearby = useCallback((r) => {
-    if (r && Number.isFinite(r.lat) && Number.isFinite(r.lng)) setFlyToCoord({ lat: r.lat, lng: r.lng });
-  }, []);
+  const openNearby = useCallback(async (r) => {
+    if (!r) return;
+    if (Number.isFinite(r.lat) && Number.isFinite(r.lng)) setFlyToCoord({ lat: r.lat, lng: r.lng });
+    /* Row tap → open the point's info card (same as tapping its map pin).
+       Reuse the row's already-fetched details when we have them. */
+    const cached = r.placeId ? nearbyDetailsRef.current[r.placeId] : null;
+    if (cached && cached !== "loading" && (cached.lat != null || cached.name)) { handlePreview(cached); return; }
+    if (r.placeId) { const d = await getDetails(r.placeId); if (d) handlePreview(d); }
+  }, [handlePreview]);
 
   const handleReorder = useCallback((newStops) => {
     commitDays((days) => days.map((d) => d.day === activeDay ? { ...d, attractions: newStops } : d));
@@ -2846,7 +2854,7 @@ const EditorView = () => {
           onViewportChange={(b) => { viewportRef.current = b; }}
           searchResults={searchResults}
           searchOrigin={searchOrigin}
-          searchFitPadding={{ top: 100, bottom: searchResults.length > 0 ? 400 : 180, left: 40, right: 40 }}
+          searchFitPadding={{ top: 100, bottom: searchResults.length > 0 ? (nearbyCollapsed || previewPlace ? 150 : 400) : 180, left: 40, right: 40 }}
           nearbyActive={searchResults.length > 0}
           onSearchResultClick={async (p) => { const d = await getDetails(p.placeId); if (d) handlePreview(d); /* keep the other result pins so several can be reviewed/added */ }}
           /* Sprint 59 #6 — publish live bearing + accept a reset-north signal. */
@@ -2885,7 +2893,7 @@ const EditorView = () => {
 
       {/* "מצא נקודות באזור" — results list (bottom sheet). Its header ✕ ends
           the search; result pins persist until then so several can be added. */}
-      {trip && !isPinning && searchResults.length > 0 && (
+      {trip && !isPinning && searchResults.length > 0 && !previewPlace && (
         <NearbyResultsPanel
           variant="sheet"
           origin={nearbyAnchor}
@@ -2899,6 +2907,8 @@ const EditorView = () => {
           onOpen={openNearby}
           onClose={clearNearby}
           addedKeys={nearbyAdded}
+          collapsed={nearbyCollapsed}
+          onToggleCollapse={() => setNearbyCollapsed((v) => !v)}
         />
       )}
 
