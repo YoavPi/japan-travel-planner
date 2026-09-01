@@ -57,6 +57,19 @@ npm run preflight     # critical + CI build, chained
 
 For a full QA pass (layout/RTL/a11y, live-deploy check), use the `qa` agent — see [.claude/agents/qa.md](.claude/agents/qa.md).
 
+## Deploy
+
+Production is the **`saas-builder-local`** branch → **`maslul-app.vercel.app`** (Vercel project `japan-trip-explorer`; `.vercel/` is linked to it, and it also serves `japan-trip-explorer.vercel.app`).
+
+```bash
+npm run deploy   # preflight (critical + CI build) → npx vercel deploy --prod → verify:prod
+```
+
+- Any sub-step failure aborts. First run on a new machine may need a one-time `vercel login`.
+- Plain `git push origin saas-builder-local` only makes a Vercel **Preview** — production ships through the `vercel --prod` step in `npm run deploy`. (Optional cleanup: set the Vercel project's Production Branch to `saas-builder-local` to make production push-triggered.)
+- **`main` is deliberately frozen** — an old snapshot feeding `japan-travel-planner-eosin.vercel.app`. Its commit lag is by design. **Never merge `saas-builder-local` into `main`**, never redeploy the frozen project. See [docs/architecture.md](docs/architecture.md).
+- "Deploy to prod" → the `deploy-sentinel` agent checks the tree/branch and, if green, runs `npm run deploy` automatically.
+
 ## Working rules
 
 - This is a live product with real users. Don't touch auth, DB schema, API contracts, env vars, Vercel config, routes, or business logic unless the task explicitly calls for it.
@@ -78,7 +91,7 @@ Nine project agents live in `.claude/agents/`. Dispatch the narrowest one that f
 | `copywriter` | Hebrew-first RTL user-facing text, CONTENT_AUDIT.md, trip content |
 | `ui-impeccable` | fast design-system compliance pass on a UI diff |
 | `qa` | tests, `npm run critical`, layout/RTL/a11y audit, manual test plan |
-| `deploy-sentinel` | pre-deploy safety gate (clean tree, right branch, checks green) |
+| `deploy-sentinel` | "deploy to prod" — gate (clean tree, right branch) then run `npm run deploy` |
 
 **Work log:** after any sub-agent returns, the main session appends one line to [WORKLOG.md](WORKLOG.md) (`DATE | agent | task | files | result`) and names the agent(s) used in its reply. Sub-agents don't write to the log themselves.
 
