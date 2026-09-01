@@ -8,6 +8,7 @@ import EditorSearchBar from "../components/EditorSearchBar";
 import AddTransitSheet from "../components/AddTransitSheet";
 import FavoriteButton from "../components/FavoriteButton";
 import NearbySearchSheet from "../components/NearbySearchSheet";
+import NearbyResultsPanel from "../components/NearbyResultsPanel";
 import { listFavoriteIds } from "../services/favoritesService";
 import { fullDateLabel } from "../utils/tripDates";
 import { track } from "../analytics/posthog";
@@ -115,6 +116,42 @@ export default function EditorDesktop() {
      and the origin coordinate the map auto-fits around once results arrive. */
   const [nearbyOrigin, setNearbyOrigin] = useState(null);
   const [searchOrigin, setSearchOrigin] = useState(null);
+  /* The point the nearby search is anchored to (kept — with its name — for the
+     results panel header, after `nearbyOrigin` is cleared to close the picker). */
+  const [nearbyAnchor, setNearbyAnchor] = useState(null);
+  /* Lazy per-row detail enrichment for the results panel: Google editorial
+     one-liner + rating count, fetched at concurrency 2, cached by placeId,
+     reset whenever the result set changes. */
+  const [nearbyDetails, setNearbyDetails] = useState({});
+  const [nearbyAdded, setNearbyAdded] = useState(() => new Set());
+  const nearbyDetailsRef = useRef({});
+  const nearbyQueueRef = useRef([]);
+  const nearbyInFlightRef = useRef(0);
+  useEffect(() => { nearbyDetailsRef.current = nearbyDetails; }, [nearbyDetails]);
+  const drainNearbyQueue = useCallback(() => {
+    while (nearbyInFlightRef.current < 2 && nearbyQueueRef.current.length) {
+      const id = nearbyQueueRef.current.shift();
+      nearbyInFlightRef.current += 1;
+      setNearbyDetails((m) => (m[id] ? m : { ...m, [id]: "loading" }));
+      getDetails(id)
+        .then((d) => setNearbyDetails((m) => ({ ...m, [id]: d || {} })))
+        .catch(() => setNearbyDetails((m) => ({ ...m, [id]: {} })))
+        .finally(() => { nearbyInFlightRef.current -= 1; drainNearbyQueue(); });
+    }
+  }, []);
+  const wantNearbyDetails = useCallback((id) => {
+    if (!id || nearbyDetailsRef.current[id] || nearbyQueueRef.current.includes(id)) return;
+    nearbyQueueRef.current.push(id);
+    drainNearbyQueue();
+  }, [drainNearbyQueue]);
+  const resetNearbyDetails = () => {
+    nearbyQueueRef.current = []; nearbyInFlightRef.current = 0;
+    setNearbyDetails({}); setNearbyAdded(new Set());
+  };
+  const clearNearby = useCallback(() => {
+    setSearchResults([]); setSearchOrigin(null); setNearbyAnchor(null);
+    resetNearbyDetails();
+  }, []);
   const runNearby = async (origin, query) => {
     const c = origin?.coordinates || (Number.isFinite(origin?.lat) ? { lat: origin.lat, lng: origin.lng } : null);
     setNearbyOrigin(null);
@@ -122,10 +159,28 @@ export default function EditorDesktop() {
     /* Close the origin's anchored card so it doesn't cover the results. */
     setPreview(null); setFocusStop(null);
     setSearchOrigin(c);
+    setNearbyAnchor(origin);
+    resetNearbyDetails();
     const res = await nearbySearch(c, query);
     setSearchResults(res); // EditorMap fits to origin + results
     track("nearby_search", { ...query, results: res.length });
   };
+  const nearbyKey = (r) => r.placeId || `${r.lat},${r.lng}`;
+  const addNearbyToDay = useCallback((r) => {
+    if (!r) return;
+    const { he } = classifyLocation(r.types || []);
+    addStopToDay(activeDay, {
+      name: r.name, nameHe: r.name,
+      category: he || "אטרקציה",
+      rating: r.rating || undefined,
+      coordinates: { lat: r.lat, lng: r.lng },
+      place_id: r.placeId || undefined,
+    });
+    setNearbyAdded((s) => { const n = new Set(s); n.add(nearbyKey(r)); return n; });
+  }, [activeDay, addStopToDay]);
+  const openNearby = useCallback((r) => {
+    if (r && Number.isFinite(r.lat) && Number.isFinite(r.lng)) setFlyToCoord({ lat: r.lat, lng: r.lng });
+  }, []);
   /* Skeleton editing: the dates modal (start/end → day count) + per-day delete. */
   const [datesOpen, setDatesOpen] = useState(false);
   const [datesStart, setDatesStart] = useState("");
@@ -807,7 +862,7 @@ export default function EditorDesktop() {
       <div dir="rtl" style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: `${PANEL_WIDTH}px 1fr`, gridTemplateRows: "minmax(0, 1fr)" }}>
         {/* Itinerary panel — minHeight/overflow:hidden so its inner list is the
             scroller (esp. whole-trip mode with many rows), not the whole panel. */}
-        <aside style={{ minWidth: 0, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column", background: "#fff", borderInlineStart: `1px solid ${T.line}`, fontFamily: T.font }}>
+        <aside style={{ position: "relative", minWidth: 0, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column", background: "#fff", borderInlineStart: `1px solid ${T.line}`, fontFamily: T.font }}>
           {/* Day rail */}
           <div style={{ flexShrink: 0, display: "flex", gap: 6, overflowX: "auto", padding: "12px 14px", borderBottom: `1px solid ${T.line}` }} className="tp-noscrollbar">
             {days.map((d) => {
@@ -1081,6 +1136,26 @@ export default function EditorDesktop() {
             )}
           </div>
           )}
+
+          {/* "מצא נקודות באזור" — results list, over the itinerary rail. */}
+          {searchResults.length > 0 && (
+            <div style={{ position: "absolute", inset: 0, zIndex: 6, background: "#fff" }}>
+              <NearbyResultsPanel
+                variant="rail"
+                origin={nearbyAnchor}
+                results={searchResults}
+                activeDay={activeDay}
+                days={days}
+                detailsById={nearbyDetails}
+                onWantDetails={wantNearbyDetails}
+                onAdd={addNearbyToDay}
+                onSetDay={setActiveDay}
+                onOpen={openNearby}
+                onClose={clearNearby}
+                addedKeys={nearbyAdded}
+              />
+            </div>
+          )}
         </aside>
 
         {/* Map pane */}
@@ -1094,6 +1169,8 @@ export default function EditorDesktop() {
             searchResults={searchResults}
             searchOrigin={searchOrigin}
             onSearchResultClick={async (p) => { const d = await getDetails(p.placeId); if (d) openPreview(d); /* keep the other result pins so several can be reviewed/added */ }}
+            nearbyActive={searchResults.length > 0}
+            searchFitPadding={searchResults.length > 0 ? { top: 80, bottom: 60, left: 60, right: PANEL_WIDTH + 40 } : null}
             cropOnClick={true}
             holdView={!!preview || !!focusStop || inboxOpen || refMapsOpen}
             /* "מפות נוספות" — the loaded reference map drawn as a teal overlay. */
@@ -1130,14 +1207,6 @@ export default function EditorDesktop() {
             <Icon name="eye" size={19} strokeWidth={1.9} color={showAllSaved ? "#fff" : T.ink} />
           </button>
 
-          {/* "מצא לי X באזור" — clear-results chip; result pins persist until this
-              (or a new search) so several can be reviewed/added. */}
-          {searchResults.length > 0 && (
-            <button onClick={() => { setSearchResults([]); setSearchOrigin(null); }} className="tp-press"
-              style={{ position: "absolute", top: 16, insetInlineStart: 66, zIndex: 16, height: 42, padding: "0 16px", borderRadius: 999, border: "none", background: CHARCOAL, color: "#fff", fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 7, boxShadow: "0 4px 18px rgba(0,0,0,0.2)" }}>
-              ✕ נקה תוצאות ({searchResults.length})
-            </button>
-          )}
 
           {/* Active-day ⇄ whole-trip map toggle (a desktop-only overview). */}
           <div className="tp-frost" style={{ position: "absolute", top: 12, left: "50%", transform: "translateX(-50%)", zIndex: 15, display: "inline-flex", background: "rgba(255,255,255,0.8)", backdropFilter: "blur(18px) saturate(180%)", WebkitBackdropFilter: "blur(18px) saturate(180%)", borderRadius: 999, border: `1px solid rgba(255,255,255,0.6)`, boxShadow: "0 4px 18px rgba(0,0,0,0.14)", padding: 3, fontFamily: T.font }}>

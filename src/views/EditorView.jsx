@@ -12,12 +12,13 @@ import EditorSearchBar from "../components/EditorSearchBar";
 import PlaceInfoCard from "../components/PlaceInfoCard";
 import NoteSheet from "../components/NoteSheet";
 import NearbySearchSheet from "../components/NearbySearchSheet";
+import NearbyResultsPanel from "../components/NearbyResultsPanel";
 import FavoriteButton from "../components/FavoriteButton";
 import { listFavoriteIds } from "../services/favoritesService";
 import { track } from "../analytics/posthog";
 import { boundsForDestination, autocomplete, getDetails, isPlacesEnabled, nearbySearch } from "../services/googlePlaces";
 import { computeTransit } from "../utils/transit";
-import { dedupeDayStops, categoryEmoji } from "../utils/classify";
+import { dedupeDayStops, categoryEmoji, classifyLocation } from "../utils/classify";
 import { readPrefs } from "../services/prefsService";
 import { listInboxPlaces, addInboxPlaces, removeInboxPlace, updateInboxPlace } from "../services/googleSavedPlaces";
 import { uploadAttachment, removeStoredFile } from "../services/attachmentService";
@@ -1110,6 +1111,9 @@ const EditorView = () => {
     setActiveStop(null); setPreviewPlace(null); setInboxCardMenu(null);
     sheetRef.current?.snapTo?.("peek");
     setSearchOrigin(c);
+    setNearbyAnchor(origin);
+    nearbyQueueRef.current = []; nearbyInFlightRef.current = 0;
+    setNearbyDetails({}); setNearbyAdded(new Set());
     const res = await nearbySearch(c, query);
     setSearchResults(res); // EditorMap fits to origin + results (extra bottom pad clears the peek sheet)
     track("nearby_search", { ...query, results: res.length });
@@ -1508,6 +1512,60 @@ const EditorView = () => {
        several in a row; otherwise collapse to the schedule as before. */
     sheetRef.current?.snapTo?.(searchResults.length > 0 ? "peek" : "full");
   }, [trip, activeDay, commitDays, searchResults.length]);
+
+  /* ── "מצא נקודות באזור" results list (mobile bottom sheet) ──
+     Anchor point (with name) kept for the sheet header, + lazy per-row
+     detail enrichment (Google editorial line, concurrency 2, cached). */
+  const [nearbyAnchor, setNearbyAnchor] = useState(null);
+  const [nearbyDetails, setNearbyDetails] = useState({});
+  const [nearbyAdded, setNearbyAdded] = useState(() => new Set());
+  const nearbyDetailsRef = useRef({});
+  const nearbyQueueRef = useRef([]);
+  const nearbyInFlightRef = useRef(0);
+  useEffect(() => { nearbyDetailsRef.current = nearbyDetails; }, [nearbyDetails]);
+  const drainNearbyQueue = useCallback(() => {
+    while (nearbyInFlightRef.current < 2 && nearbyQueueRef.current.length) {
+      const id = nearbyQueueRef.current.shift();
+      nearbyInFlightRef.current += 1;
+      setNearbyDetails((m) => (m[id] ? m : { ...m, [id]: "loading" }));
+      getDetails(id)
+        .then((d) => setNearbyDetails((m) => ({ ...m, [id]: d || {} })))
+        .catch(() => setNearbyDetails((m) => ({ ...m, [id]: {} })))
+        .finally(() => { nearbyInFlightRef.current -= 1; drainNearbyQueue(); });
+    }
+  }, []);
+  const wantNearbyDetails = useCallback((id) => {
+    if (!id || nearbyDetailsRef.current[id] || nearbyQueueRef.current.includes(id)) return;
+    nearbyQueueRef.current.push(id);
+    drainNearbyQueue();
+  }, [drainNearbyQueue]);
+  const resetNearbyDetails = useCallback(() => {
+    nearbyQueueRef.current = []; nearbyInFlightRef.current = 0;
+    setNearbyDetails({}); setNearbyAdded(new Set());
+  }, []);
+  const clearNearby = useCallback(() => {
+    setSearchResults([]); setSearchOrigin(null); setNearbyAnchor(null);
+    resetNearbyDetails();
+  }, [resetNearbyDetails]);
+  const addNearbyToDay = useCallback((r) => {
+    if (!r) return;
+    const { he } = classifyLocation(r.types || []);
+    const stop = {
+      name: r.name, nameHe: r.name,
+      category: he || "אטרקציה",
+      rating: r.rating || undefined,
+      coordinates: { lat: r.lat, lng: r.lng },
+      place_id: r.placeId || undefined,
+      instanceId: genInstanceId(),
+    };
+    commitDays((days) => days.map((d) =>
+      d.day === activeDay ? { ...d, attractions: dedupeDayStops([...d.attractions, stop]) } : d
+    ));
+    setNearbyAdded((s) => { const n = new Set(s); n.add(r.placeId || `${r.lat},${r.lng}`); return n; });
+  }, [activeDay, commitDays]);
+  const openNearby = useCallback((r) => {
+    if (r && Number.isFinite(r.lat) && Number.isFinite(r.lng)) setFlyToCoord({ lat: r.lat, lng: r.lng });
+  }, []);
 
   const handleReorder = useCallback((newStops) => {
     commitDays((days) => days.map((d) => d.day === activeDay ? { ...d, attractions: newStops } : d));
@@ -2788,7 +2846,8 @@ const EditorView = () => {
           onViewportChange={(b) => { viewportRef.current = b; }}
           searchResults={searchResults}
           searchOrigin={searchOrigin}
-          searchFitPadding={{ top: 100, bottom: 180, left: 40, right: 40 }}
+          searchFitPadding={{ top: 100, bottom: searchResults.length > 0 ? 400 : 180, left: 40, right: 40 }}
+          nearbyActive={searchResults.length > 0}
           onSearchResultClick={async (p) => { const d = await getDetails(p.placeId); if (d) handlePreview(d); /* keep the other result pins so several can be reviewed/added */ }}
           /* Sprint 59 #6 — publish live bearing + accept a reset-north signal. */
           onBearingChange={setMapBearing}
@@ -2824,21 +2883,23 @@ const EditorView = () => {
         />
       </div>
 
-      {/* "מצא לי X באזור" — while result pins are shown, a clear chip lets the
-          user review/add several before explicitly ending the search. */}
+      {/* "מצא נקודות באזור" — results list (bottom sheet). Its header ✕ ends
+          the search; result pins persist until then so several can be added. */}
       {trip && !isPinning && searchResults.length > 0 && (
-        <button
-          onClick={() => { setSearchResults([]); setSearchOrigin(null); }}
-          className="tp-press"
-          style={{
-            position: "fixed", top: "calc(env(safe-area-inset-top, 0px) + 74px)", insetInlineStart: "50%", transform: "translateX(-50%)",
-            zIndex: 102, height: 34, padding: "0 14px", borderRadius: 999, border: "none",
-            background: "#1E1E24", color: "#fff", fontSize: 12.5, fontWeight: 800, cursor: "pointer",
-            fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6, boxShadow: "0 4px 14px rgba(0,0,0,0.25)",
-          }}
-        >
-          ✕ נקה תוצאות ({searchResults.length})
-        </button>
+        <NearbyResultsPanel
+          variant="sheet"
+          origin={nearbyAnchor}
+          results={searchResults}
+          activeDay={activeDay}
+          days={days}
+          detailsById={nearbyDetails}
+          onWantDetails={wantNearbyDetails}
+          onAdd={addNearbyToDay}
+          onSetDay={setActiveDay}
+          onOpen={openNearby}
+          onClose={clearNearby}
+          addedKeys={nearbyAdded}
+        />
       )}
 
       {/* Map Lock toggle — restores a dedicated "נעילת מפה" control that

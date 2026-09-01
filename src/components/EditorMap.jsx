@@ -104,6 +104,10 @@ const EditorMap = ({
   /* Optional padding override for the search auto-fit (mobile passes extra
      bottom so results aren't framed under the bottom sheet). */
   searchFitPadding = null,
+  /* True while the "מצא נקודות באזור" results panel is open. Freezes the
+     day-cluster / snap-back auto-fits so the view stays framed on the
+     area results and never yanks back out to all the day's stops. */
+  nearbyActive = false,
   /* Reference-maps overlay — points of ANOTHER map loaded on top, in a
      distinct color so they read as a separate layer (not this trip, not the
      bank). Tapping one flies to it (onOverlayClick) AND opens an info popup
@@ -385,7 +389,7 @@ const EditorMap = ({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || pts.length === 0) return;
-    if (holdView) return; // a point/bank card is open — keep the view put
+    if (holdView || nearbyActive) return; // a card is open, or nearby results own the view — keep it put
     if (pts.length === 1) {
       /* Sprint 36 #7 — single stop: legible planning zoom, not street level. */
       map.flyTo({ center: [pts[0].coordinates.lng, pts[0].coordinates.lat], zoom: SINGLE_STOP_ZOOM, duration: 700 });
@@ -403,7 +407,7 @@ const EditorMap = ({
       map.fitBounds([[minLng, minLat], [maxLng, maxLat]], { padding: fitPadding || FIT_PADDING, maxZoom: 15, duration: 700 });
     } catch { /* noop */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pts, fitPadding]);
+  }, [pts, fitPadding, nearbyActive]);
 
   /* "מפות נוספות" — when a reference map is loaded as an overlay, frame the map
      so the CURRENT route AND the loaded points are BOTH visible at once (so the
@@ -420,7 +424,7 @@ const EditorMap = ({
     /* Overlay cleared (panel closed / back-to-picker): snap the view back to
        the current route so the user isn't left on the wide two-route frame. */
     if (!overlaySig) {
-      if (hadOverlayRef.current && pts.length > 0) {
+      if (hadOverlayRef.current && pts.length > 0 && !nearbyActive) {
         hadOverlayRef.current = false;
         if (pts.length === 1) {
           map.flyTo({ center: [pts[0].coordinates.lng, pts[0].coordinates.lat], zoom: SINGLE_STOP_ZOOM, duration: 700 });
@@ -472,7 +476,7 @@ const EditorMap = ({
     if (!savedSig) {
       /* Bank closed: snap back to the current route so the user isn't left on a
          wide day+bank frame. */
-      if (hadSavedRef.current && dayCoords.length > 0) {
+      if (hadSavedRef.current && dayCoords.length > 0 && !nearbyActive) {
         hadSavedRef.current = false;
         if (dayCoords.length === 1) {
           map.flyTo({ center: [dayCoords[0].lng, dayCoords[0].lat], zoom: SINGLE_STOP_ZOOM, duration: 700 });
