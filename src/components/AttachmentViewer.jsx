@@ -39,7 +39,13 @@ export default function AttachmentViewer({ file, onClose, onDelete }) {
         {isImg ? (
           <img src={file.url} alt={title} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: 10 }} />
         ) : isPdf ? (
-          <iframe src={file.url} title={title} style={{ width: "100%", height: "100%", border: "none", borderRadius: 10, background: "#fff" }} />
+          <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", gap: 8 }}>
+            <iframe src={file.url} title={title} style={{ flex: 1, minHeight: 0, width: "100%", border: "none", borderRadius: 10, background: "#fff" }} />
+            <a href={file.url} target="_blank" rel="noopener noreferrer"
+              style={{ flexShrink: 0, alignSelf: "center", minHeight: 40, lineHeight: "40px", padding: "0 16px", borderRadius: 10, background: "rgba(255,255,255,0.14)", color: "#fff", fontSize: 12.5, fontWeight: 800, textDecoration: "none" }}>
+              נפתח בעמוד נפרד? פתח/הורד ↗
+            </a>
+          </div>
         ) : (
           <div style={{ textAlign: "center", color: "#fff", padding: 24 }}>
             <div style={{ fontSize: 40, marginBottom: 10 }}>📄</div>
