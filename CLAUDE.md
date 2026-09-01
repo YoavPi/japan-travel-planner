@@ -65,7 +65,7 @@ Production is the **`saas-builder-local`** branch → **`maslul-app.vercel.app`*
 npm run deploy   # preflight (critical + CI build) → npx vercel deploy --prod → verify:prod
 ```
 
-- Any sub-step failure aborts. First run on a new machine may need a one-time `vercel login`.
+- Any sub-step failure aborts. The `vercel deploy` step (`scripts/deploy.mjs`) auto-retries this project's known spurious "Not authorized" first-attempt failure; if every retry fails, check `npx vercel whoami` (should be `yoavpintel-2200`).
 - Plain `git push origin saas-builder-local` only makes a Vercel **Preview** — production ships through the `vercel --prod` step in `npm run deploy`. (Optional cleanup: set the Vercel project's Production Branch to `saas-builder-local` to make production push-triggered.)
 - **`main` is deliberately frozen** — an old snapshot feeding `japan-travel-planner-eosin.vercel.app`. Its commit lag is by design. **Never merge `saas-builder-local` into `main`**, never redeploy the frozen project. See [docs/architecture.md](docs/architecture.md).
 - "Deploy to prod" → the `deploy-sentinel` agent checks the tree/branch and, if green, runs `npm run deploy` automatically.

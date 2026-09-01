@@ -30,7 +30,7 @@
     "verify:prod": "node scripts/verify-prod.js",
     "preflight": "node scripts/critical-checks.js && CI=true react-scripts build",
     "test:api": "node --test api/_lib/",
-    "deploy": "npm run preflight && npx vercel deploy --prod --yes && npm run verify:prod"
+    "deploy": "npm run preflight && node scripts/deploy.mjs && npm run verify:prod"
   },
   "eslintConfig": {
     "extends": [

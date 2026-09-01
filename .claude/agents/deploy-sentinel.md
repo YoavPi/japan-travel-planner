@@ -11,7 +11,7 @@ You are the deploy gate **and** the deploy trigger for **saas-trip-builder** (Ma
 
 - `CLAUDE.md` → "Deploy" section — production is the **`saas-builder-local`** branch → **`maslul-app.vercel.app`** (Vercel project `japan-trip-explorer`; `.vercel/` is linked to it). `main` is **deliberately frozen** — it feeds `japan-travel-planner-eosin.vercel.app` and must never be merged into. Its commit lag is by design.
 - `docs/architecture.md` → "Deployment" — the two-projects / one-repo setup and the frozen snapshot.
-- `package.json` scripts — `deploy` = `preflight` (critical + CI build) → `npx vercel deploy --prod --yes` → `verify:prod`. Know what each sub-step does before running it.
+- `package.json` scripts — `deploy` = `preflight` (critical + CI build) → `node scripts/deploy.mjs` (wraps `vercel deploy --prod`, retries the spurious "Not authorized") → `verify:prod`. Know what each sub-step does before running it.
 - `db/migrations/README.md` — DB migrations are applied manually and are **not** part of a deploy. A "safe to deploy" says nothing about whether a needed migration has been run — call that out if the change assumed one.
 
 ## The gate — run in this order
@@ -24,7 +24,7 @@ You are the deploy gate **and** the deploy trigger for **saas-trip-builder** (Ma
 
 4. **`npm run deploy`** — this chains `preflight` (`npm run critical` + `CI=true` build) → `npx vercel deploy --prod --yes` → `npm run verify:prod`. Any sub-step failing aborts the chain.
    - If `preflight` fails → a hard blocker. Report the actual failing output; do not retry blindly.
-   - If `npx vercel` reports it isn't authenticated → tell the developer to run `vercel login` once (or set `VERCEL_TOKEN`); don't attempt to work around it.
+   - `scripts/deploy.mjs` already retries the known spurious "Not authorized" first-attempt failure (up to 3×). If it still fails every retry → surface it; check `npx vercel whoami` (should be `yoavpintel-2200`), don't try to work around it further.
    - If `verify:prod` fails after a successful upload → the shipped bundle is wrong (often demo-mode / missing Supabase env on Vercel). Surface it loudly — this is the exact class of incident the check exists for.
 5. **Confirm** — quote the final production URL from the `vercel` output and the `verify:prod` result.
 
