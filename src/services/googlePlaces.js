@@ -141,6 +141,7 @@ const simAutocomplete = (query) => {
       placeId: `sim:${base}:${i}:${encodeURIComponent(q)}`,
       primary: `${q} ${sfx}`,
       secondary: "תוצאה מדומה · ללא חיוב",
+      types: [],
     };
   });
 };
@@ -243,6 +244,7 @@ export const autocomplete = async (query, opts = {}) => {
             placeId: p.place_id,
             primary: p.structured_formatting?.main_text || p.description,
             secondary: p.structured_formatting?.secondary_text || "",
+            types: Array.isArray(p.types) ? p.types : [],
           })));
         }
       );
