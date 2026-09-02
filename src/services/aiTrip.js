@@ -135,6 +135,8 @@ export const generateItinerary = async (payload) => {
     restrictions: payload.restrictions,      // array of chips + free text
     refine: payload.refine,                  // follow-up correction (optional)
     previous: payload.previous,              // prior plan summary, for refine context
+    focus: payload.focus || null,            // { cities:[…], label? } → hard (FOCUS) constraint
+    destScope: payload.destScope || null,    // client-analytics only — NOT sent into the prompt
   };
 
   /* Analytics — funnel entry. The matching succeeded/failed events below make
@@ -144,6 +146,7 @@ export const generateItinerary = async (payload) => {
     days: body.dayCount,
     pace: body.pace,
     refine: !!body.refine,
+    focus: !!body.focus,
   });
 
   /* The actual request/parse pipeline, wrapped so a single try/catch tags every

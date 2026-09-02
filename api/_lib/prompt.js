@@ -8,7 +8,7 @@ const TRANSPORT_LABEL = { walking: "walking", transit: "public transit", car: "c
 
 const buildPrompt = ({
   destination, dayCount, spotsPerDay, preferences, transport,
-  instructions, party, restrictions, refine, previous,
+  instructions, party, restrictions, refine, previous, focus,
 }) => {
   const prefText = Array.isArray(preferences) ? preferences.join(", ") : String(preferences || "");
   const modes = (Array.isArray(transport) ? transport : [transport]).filter(Boolean).map((m) => TRANSPORT_LABEL[m] || m);
@@ -23,6 +23,10 @@ const buildPrompt = ({
      scatter of single days across far-apart cities. */
   const maxCities = Math.max(1, Math.ceil((Number(dayCount) || 1) / 3));
 
+  /* Destination focus (Task 6): a chosen region/city subset becomes a HARD
+     constraint — the whole trip must stay inside these places. */
+  const focusCities = Array.isArray(focus && focus.cities) ? focus.cities.filter(Boolean) : [];
+
   const system =
     "You are an expert local travel planner. You output ONLY valid minified JSON — no prose, no markdown, no code fences. " +
     "Schema exactly: {\"description\":\"<a warm 1-2 sentence Hebrew summary of the whole trip>\",\"days\":[{\"dayNumber\":<int>,\"city\":\"<city in English>\",\"title\":\"<a 2-4 word Hebrew theme for the day>\",\"spots\":[{\"name\":\"<the exact, official place name in English>\",\"category\":\"<one Hebrew word: אטרקציה|מסעדה|קפה|קניות|טבע|מוזיאון|מלון>\",\"note\":\"<a SHORT Hebrew tip, max 8 words — hint when it is OPEN or the BEST time to go when relevant>\",\"crowd\":\"<high|medium|none>\"}]}]}. " +
@@ -33,6 +37,9 @@ const buildPrompt = ({
     "(8) Do NOT place an attraction on a day it is typically CLOSED (use your knowledge of common closing days, e.g. many museums close Mondays). " +
     "(9) Mark crowd-magnet places with crowd:\"high\", and ORDER each day so busy places fall at their least-crowded time (famous sights early morning, dinners in the evening); add a short best-time hint to their note. " +
     "(GEO) `destination` may be a country, region, or single city. If it is broader than one city: use AT MOST `maxCities` different cities, each visited on CONSECUTIVE days (at least 2 days per city unless the whole trip is under 4 days), ordered as an overland-reasonable route — adjacent areas, no daily flights. For trips of 4 days or fewer, use ONE base city and make the rest day-trips from it. Name the chosen cities in `description`. NEVER scatter single days across far-apart cities." +
+    (focusCities.length
+      ? ` (FOCUS) Plan the ENTIRE trip ONLY within these places: ${focusCities.join(", ")}. Include nothing outside them. Spread the days across them as one consecutive route.`
+      : "") +
     (refine ? " (10) You are REVISING an existing itinerary: keep it mostly the same and apply ONLY the requested change, returning the FULL updated plan." : "");
 
   const user = JSON.stringify({
@@ -45,6 +52,7 @@ const buildPrompt = ({
     party: partyText,
     restrictions: restrictText || null,
     customInstructions: (instructions || "").trim() || null,
+    ...(focusCities.length ? { focusCities } : {}),
     ...(refine ? { revise: { instruction: refine, currentPlan: previous || null } } : {}),
   });
 

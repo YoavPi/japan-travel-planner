@@ -529,6 +529,7 @@ async function handler(req, res) {
       restrictions: body.restrictions || null,
       refine: (body.refine || "").trim() || null,
       previous: body.previous || null,
+      focus: body.focus || null, // chosen region/cities → hard (FOCUS) prompt constraint
     });
     const draftDays = draft.days;
 

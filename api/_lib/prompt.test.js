@@ -38,3 +38,17 @@ test("buildPrompt: transport modes shape the clustering hint", () => {
   const none = JSON.parse(buildPrompt({ destination: "Paris", dayCount: 2, transport: [] }).user);
   assert.match(none.transportNote, /reasonably compact/);
 });
+
+test("buildPrompt: focus adds the (FOCUS) clause + focusCities", () => {
+  const { system, user } = buildPrompt({ destination: "Thailand", dayCount: 6, focus: { cities: ["Chiang Mai", "Pai"], label: "הצפון" } });
+  assert.ok(system.includes("(FOCUS)"));
+  assert.ok(system.includes("ONLY within"));
+  const parsed = JSON.parse(user);
+  assert.deepStrictEqual(parsed.focusCities, ["Chiang Mai", "Pai"]);
+});
+
+test("buildPrompt: no focus → no (FOCUS) clause, no focusCities", () => {
+  const { system, user } = buildPrompt({ destination: "Thailand", dayCount: 6 });
+  assert.ok(!system.includes("(FOCUS)"));
+  assert.strictEqual(JSON.parse(user).focusCities, undefined);
+});
