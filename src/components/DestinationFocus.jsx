@@ -59,7 +59,7 @@ export default function DestinationFocus({ destName, scope, curatedId, countryBi
   };
 
   const title = scope === "country"
-    ? `${destName} גדולה — על איזה אזור לכוון?`
+    ? `${destName} — על איזה אזור לכוון?`
     : `${destName} — אילו ערים לכלול?`;
 
   return (
@@ -91,10 +91,10 @@ export default function DestinationFocus({ destName, scope, curatedId, countryBi
           {picked.length > 0 && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
               {picked.map((c) => (
-                <span key={c.placeId} style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 32, padding: "0 10px", borderRadius: 999, background: P.surface, color: P.ink, fontSize: 12.5, fontWeight: 800 }}>
+                <span key={c.placeId} style={{ display: "inline-flex", alignItems: "center", gap: 2, height: 32, paddingInlineStart: 10, paddingInlineEnd: 4, borderRadius: 999, background: P.surface, color: P.ink, fontSize: 12.5, fontWeight: 800 }}>
                   {c.name}
-                  <button onClick={() => removeCity(c.placeId)} aria-label={`הסר ${c.name}`}
-                    style={{ border: "none", background: "transparent", color: P.ink2, cursor: "pointer", fontSize: 13, lineHeight: 1 }}>✕</button>
+                  <button type="button" onClick={() => removeCity(c.placeId)} aria-label={`הסר ${c.name}`}
+                    style={{ minWidth: 44, minHeight: 44, marginBlock: -6, marginInlineEnd: -8, display: "inline-flex", alignItems: "center", justifyContent: "center", border: "none", background: "transparent", color: P.ink2, cursor: "pointer", fontSize: 13, lineHeight: 1 }}>✕</button>
                 </span>
               ))}
             </div>
@@ -102,13 +102,15 @@ export default function DestinationFocus({ destName, scope, curatedId, countryBi
           {picked.length < MAX_CITIES && (
             <>
               <input value={q} onChange={(e) => search(e.target.value)} placeholder="חפשו עיר…"
-                style={{ width: "100%", boxSizing: "border-box", height: 44, borderRadius: 12, border: `1px solid ${P.line}`, background: P.surface, color: P.ink, padding: "0 14px", fontSize: 14, fontFamily: "inherit", direction: "rtl", textAlign: "right" }} />
+                style={{ width: "100%", boxSizing: "border-box", height: 44, borderRadius: 12, border: `1px solid ${P.line}`, background: P.surface, color: P.ink, padding: "0 14px", fontSize: 14, fontFamily: "inherit", direction: "rtl", textAlign: "start" }} />
               {preds.length > 0 && (
                 <ul style={{ listStyle: "none", margin: "6px 0 0", padding: 0, border: `1px solid ${P.line}`, borderRadius: 12, overflow: "hidden" }}>
                   {preds.map((p) => (
-                    <li key={p.placeId} onClick={() => addCity(p)}
-                      style={{ padding: "10px 14px", cursor: "pointer", fontSize: 13.5, color: P.ink, borderBottom: `1px solid ${P.line}` }}>
-                      {p.primary}{p.secondary ? <span style={{ color: P.ink2 }}> · {p.secondary}</span> : null}
+                    <li key={p.placeId} style={{ borderBottom: `1px solid ${P.line}` }}>
+                      <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => addCity(p)}
+                        style={{ display: "block", width: "100%", minHeight: 44, padding: "10px 14px", textAlign: "start", border: "1px solid transparent", background: "transparent", cursor: "pointer", fontSize: 13.5, color: P.ink, fontFamily: "inherit" }}>
+                        {p.primary}{p.secondary ? <span style={{ color: P.ink2 }}> · {p.secondary}</span> : null}
+                      </button>
                     </li>
                   ))}
                 </ul>

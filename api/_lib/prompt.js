@@ -19,13 +19,20 @@ const buildPrompt = ({
   const partyText = party && (party.adults || party.kids)
     ? `${party.adults || 0} adults${party.kids ? ` and ${party.kids} children` : ""}` : null;
 
-  /* Geographic coherence: a country/region `destination` must not become a
-     scatter of single days across far-apart cities. */
-  const maxCities = Math.max(1, Math.ceil((Number(dayCount) || 1) / 3));
-
   /* Destination focus (Task 6): a chosen region/city subset becomes a HARD
-     constraint — the whole trip must stay inside these places. */
-  const focusCities = Array.isArray(focus && focus.cities) ? focus.cities.filter(Boolean) : [];
+     constraint — the whole trip must stay inside these places. Names can arrive
+     localized (the Places SDK runs with language=he) and this string is injected
+     straight into the SYSTEM prompt, so sanitize hard: strings only, bounded
+     count (≤5) and length (≤60) — admins have no weekly token cap. */
+  const focusCities = (Array.isArray(focus && focus.cities) ? focus.cities : [])
+    .filter((c) => typeof c === "string" && c.trim())
+    .slice(0, 5)
+    .map((c) => c.trim().slice(0, 60));
+
+  /* Geographic coherence: a country/region `destination` must not become a
+     scatter of single days across far-apart cities. A focus set of N places
+     raises the ceiling to N — it overrides the day-count heuristic. */
+  const maxCities = Math.max(1, focusCities.length, Math.ceil((Number(dayCount) || 1) / 3));
 
   const system =
     "You are an expert local travel planner. You output ONLY valid minified JSON — no prose, no markdown, no code fences. " +
@@ -38,7 +45,7 @@ const buildPrompt = ({
     "(9) Mark crowd-magnet places with crowd:\"high\", and ORDER each day so busy places fall at their least-crowded time (famous sights early morning, dinners in the evening); add a short best-time hint to their note. " +
     "(GEO) `destination` may be a country, region, or single city. If it is broader than one city: use AT MOST `maxCities` different cities, each visited on CONSECUTIVE days (at least 2 days per city unless the whole trip is under 4 days), ordered as an overland-reasonable route — adjacent areas, no daily flights. For trips of 4 days or fewer, use ONE base city and make the rest day-trips from it. Name the chosen cities in `description`. NEVER scatter single days across far-apart cities." +
     (focusCities.length
-      ? ` (FOCUS) Plan the ENTIRE trip ONLY within these places: ${focusCities.join(", ")}. Include nothing outside them. Spread the days across them as one consecutive route.`
+      ? ` (FOCUS) Plan the ENTIRE trip ONLY within these places (names may be given in Hebrew or another language — resolve each to its real-world city/area): ${focusCities.join(", ")}. Include nothing outside them. Spread the days across them as one consecutive route. This set overrides the (GEO) city-count limit.`
       : "") +
     (refine ? " (10) You are REVISING an existing itinerary: keep it mostly the same and apply ONLY the requested change, returning the FULL updated plan." : "");
 

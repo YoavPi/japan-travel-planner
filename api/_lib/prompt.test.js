@@ -47,8 +47,41 @@ test("buildPrompt: focus adds the (FOCUS) clause + focusCities", () => {
   assert.deepStrictEqual(parsed.focusCities, ["Chiang Mai", "Pai"]);
 });
 
-test("buildPrompt: no focus → no (FOCUS) clause, no focusCities", () => {
+test("buildPrompt: no focus → no (FOCUS) clause, no 'resolve each', no focusCities", () => {
   const { system, user } = buildPrompt({ destination: "Thailand", dayCount: 6 });
   assert.ok(!system.includes("(FOCUS)"));
+  assert.ok(!system.includes("resolve each"));
   assert.strictEqual(JSON.parse(user).focusCities, undefined);
+});
+
+test("buildPrompt: Hebrew focus city names pass through verbatim + 'resolve each' hint", () => {
+  const { system, user } = buildPrompt({
+    destination: "תאילנד", dayCount: 6,
+    focus: { cities: ["צ׳אנג מאי", "פאי"], label: "הצפון" },
+  });
+  assert.ok(system.includes("(FOCUS)"));
+  assert.ok(system.includes("resolve each"));
+  assert.deepStrictEqual(JSON.parse(user).focusCities, ["צ׳אנג מאי", "פאי"]);
+});
+
+test("buildPrompt: focus set overrides the GEO city-count limit (maxCities ≥ focus size)", () => {
+  const parsed = JSON.parse(buildPrompt({
+    destination: "Thailand", dayCount: 3,
+    focus: { cities: ["Bangkok", "Ayutthaya", "Kanchanaburi"] },
+  }).user);
+  assert.ok(parsed.maxCities >= 3);
+});
+
+test("buildPrompt: focus.cities is sanitized (strings only, ≤5, ≤60 chars, trimmed)", () => {
+  let out;
+  assert.doesNotThrow(() => {
+    out = buildPrompt({
+      destination: "X", dayCount: 3,
+      focus: { cities: [42, "", "  A  ", "B".repeat(200), ...Array(20).fill("C")] },
+    });
+  });
+  const focusCities = JSON.parse(out.user).focusCities;
+  assert.ok(focusCities.length <= 5);
+  for (const c of focusCities) assert.ok(c.length <= 60);
+  assert.ok(focusCities.includes("A"));
 });

@@ -150,7 +150,11 @@ const AiTripModal = ({ open, onClose, dark = false }) => {
     : { panel: "#FFFFFF", surface: "#F6F6F4", ink: "#0D0F11", ink2: "#2A3036", ink3: "#6B7178", ink4: "#A4AAB1", line: "rgba(20,20,20,0.12)", page: "#FFFFFF" };
 
   const close = () => { if (busy) return; onClose && onClose(); setTimeout(resetAll, 200); };
-  const resetAll = () => { setPhase("form"); setResult(null); setError(""); setRefineCount(0); setRefineOpen(false); setRefineText(""); setProgress(0); setDestScope("city"); setCuratedId(null); setFocus(null); setDestTypes([]); };
+  /* `focus` is a per-generation choice → reset it. `destScope` / `curatedId` /
+     `destTypes` describe the still-selected destination, so leave them intact
+     (a close+reopen after a country pick must still route through the focus
+     step). `pickDest` sets all three fresh on every new pick. */
+  const resetAll = () => { setPhase("form"); setResult(null); setError(""); setRefineCount(0); setRefineOpen(false); setRefineText(""); setProgress(0); setFocus(null); };
 
   const toggleInterest = (k) => setInterests((p) => (p.includes(k) ? p.filter((x) => x !== k) : [...p, k]));
   const toggleTransport = (k) => setTransport((p) => (p.includes(k) ? p.filter((x) => x !== k) : [...p, k]));

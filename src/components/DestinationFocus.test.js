@@ -14,9 +14,13 @@ jest.mock("../services/googlePlaces", () => ({
 // CRA's Jest preset sets resetMocks:true — mock implementations are wiped
 // between tests, so re-wire them here.
 beforeEach(() => {
+  // The Places SDK runs with language=he, so a prediction's `primary` comes
+  // back Hebrew-localized.
   autocomplete.mockResolvedValue([
-    { placeId: "c1", primary: "Chiang Mai", secondary: "Thailand", types: ["locality"] },
+    { placeId: "c1", primary: "צ׳אנג מאי", secondary: "תאילנד", types: ["locality"] },
   ]);
+  // getDetails resolves the ENGLISH name — deliberately different from the
+  // prediction's Hebrew `primary`, so the test actually proves the getDetails path.
   getDetails.mockImplementation(async (id) => ({ name: id === "c1" ? "Chiang Mai" : "X", place_id: id }));
 });
 
@@ -42,17 +46,30 @@ test("region scope: no curated chips, city search present", () => {
   expect(screen.getByPlaceholderText(/עיר/)).toBeInTheDocument();
 });
 
-test("city picker: search → pick → chip → המשך fires onPick(cities, english names)", async () => {
+test("city picker: pick → chip → המשך fires onPick with the English name from getDetails", async () => {
   const onPick = jest.fn();
   render(<DestinationFocus {...base} onPick={onPick} />);
   fireEvent.click(screen.getByText(/בחר ערים/));
   const input = screen.getByPlaceholderText(/עיר/);
   fireEvent.change(input, { target: { value: "chiang" } });
-  fireEvent.click(await screen.findByText(/Chiang Mai/));
+  fireEvent.click(await screen.findByRole("button", { name: /צ׳אנג מאי/ }));
   // wait for the async getDetails → picked-chip round-trip before confirming
   fireEvent.click(await screen.findByText(/המשך \(/));
   await waitFor(() => expect(onPick).toHaveBeenCalledWith(expect.objectContaining({
     kind: "cities", cities: ["Chiang Mai"],
+  })));
+});
+
+test("city picker: getDetails throws → falls back to the prediction's primary", async () => {
+  const onPick = jest.fn();
+  getDetails.mockRejectedValue(new Error("quota"));
+  render(<DestinationFocus {...base} onPick={onPick} />);
+  fireEvent.click(screen.getByText(/בחר ערים/));
+  fireEvent.change(screen.getByPlaceholderText(/עיר/), { target: { value: "chiang" } });
+  fireEvent.click(await screen.findByRole("button", { name: /צ׳אנג מאי/ }));
+  fireEvent.click(await screen.findByText(/המשך \(/));
+  await waitFor(() => expect(onPick).toHaveBeenCalledWith(expect.objectContaining({
+    kind: "cities", cities: ["צ׳אנג מאי"],
   })));
 });
 

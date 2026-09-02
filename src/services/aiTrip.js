@@ -136,17 +136,18 @@ export const generateItinerary = async (payload) => {
     refine: payload.refine,                  // follow-up correction (optional)
     previous: payload.previous,              // prior plan summary, for refine context
     focus: payload.focus || null,            // { cities:[…], label? } → hard (FOCUS) constraint
-    destScope: payload.destScope || null,    // client-analytics only — NOT sent into the prompt
   };
 
   /* Analytics — funnel entry. The matching succeeded/failed events below make
-     "AI success rate" and "which errors" measurable per generation. */
+     "AI success rate" and "which errors" measurable per generation. `destScope`
+     is client-analytics only — it is never sent to the server / prompt. */
   track("ai_generate_started", {
     destination: body.destination,
     days: body.dayCount,
     pace: body.pace,
     refine: !!body.refine,
     focus: !!body.focus,
+    destScope: payload.destScope || null,
   });
 
   /* The actual request/parse pipeline, wrapped so a single try/catch tags every
