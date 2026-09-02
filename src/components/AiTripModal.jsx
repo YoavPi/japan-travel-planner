@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import tripService from "../services/tripService";
 import { generateItinerary, itineraryToTripData, summarizeForRefine, fetchQuota } from "../services/aiTrip";
 import { autocomplete } from "../services/googlePlaces";
+import { classifyDestScope, matchCuratedCountry } from "../utils/destScope";
+import DestinationFocus from "./DestinationFocus";
 import Icon from "./Icon";
 
 /* ══════════════════════════════════════════════════════════════
@@ -82,6 +84,10 @@ const AiTripModal = ({ open, onClose, dark = false }) => {
   const [destOpen, setDestOpen] = useState(false);
   const [destChosen, setDestChosen] = useState(false);
   const [destLoading, setDestLoading] = useState(false);
+  const [, setDestTypes] = useState([]); // raw Google `types` for the picked destination (kept for downstream tasks)
+  const [destScope, setDestScope] = useState("city");   // "country" | "region" | "city"
+  const [curatedId, setCuratedId] = useState(null);
+  const [focus, setFocus] = useState(null);             // { cities, label } | null
   const destTimer = useRef(null);
   const destBoxRef = useRef(null);
   const [origin, setOrigin] = useState("");
@@ -144,7 +150,7 @@ const AiTripModal = ({ open, onClose, dark = false }) => {
     : { panel: "#FFFFFF", surface: "#F6F6F4", ink: "#0D0F11", ink2: "#2A3036", ink3: "#6B7178", ink4: "#A4AAB1", line: "rgba(20,20,20,0.12)", page: "#FFFFFF" };
 
   const close = () => { if (busy) return; onClose && onClose(); setTimeout(resetAll, 200); };
-  const resetAll = () => { setPhase("form"); setResult(null); setError(""); setRefineCount(0); setRefineOpen(false); setRefineText(""); setProgress(0); };
+  const resetAll = () => { setPhase("form"); setResult(null); setError(""); setRefineCount(0); setRefineOpen(false); setRefineText(""); setProgress(0); setDestScope("city"); setCuratedId(null); setFocus(null); setDestTypes([]); };
 
   const toggleInterest = (k) => setInterests((p) => (p.includes(k) ? p.filter((x) => x !== k) : [...p, k]));
   const toggleTransport = (k) => setTransport((p) => (p.includes(k) ? p.filter((x) => x !== k) : [...p, k]));
@@ -174,6 +180,11 @@ const AiTripModal = ({ open, onClose, dark = false }) => {
     const full = [p.primary, p.secondary].filter(Boolean).join(", ");
     setDestination(full);
     setDestChosen(true);
+    const types = p.types || [];
+    setDestTypes(types);
+    setDestScope(classifyDestScope(types));
+    setCuratedId(matchCuratedCountry(p.primary, p.secondary, types));
+    setFocus(null);
     setDestOpen(false);
     setDestPreds([]);
     setError("");
@@ -184,7 +195,8 @@ const AiTripModal = ({ open, onClose, dark = false }) => {
   const outOfQuota = !!quota && !quota.admin && quota.remaining <= 0;
   const canSubmit = destChosen && destination.trim().length >= 2 && !busy && !outOfQuota;
 
-  const runGenerate = async ({ refine } = {}) => {
+  const runGenerate = async ({ refine, focus: focusArg } = {}) => {
+    const effectiveFocus = focusArg !== undefined ? focusArg : focus;
     setBusy(true); setGenerating(true); setError(""); startProgress();
     try {
       const res = await generateItinerary({
@@ -192,6 +204,8 @@ const AiTripModal = ({ open, onClose, dark = false }) => {
         preferences: interests, transport, instructions,
         party: { adults, kids },
         restrictions: [...restrictions, ...(restrictText.trim() ? [restrictText.trim()] : [])],
+        focus: effectiveFocus || null,
+        destScope,
         refine: refine || undefined,
         previous: refine && result ? summarizeForRefine(result) : undefined,
       });
@@ -277,9 +291,9 @@ const AiTripModal = ({ open, onClose, dark = false }) => {
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 4 }}>
           <div>
             <div style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 20, fontWeight: 800, letterSpacing: "-0.01em" }}>
-              <span aria-hidden>✨</span> {showLoader ? (phase === "review" ? "מעדכן את המסלול…" : "בונה את המסלול…") : phase === "form" ? "יצירת מסלול עם AI" : "המסלול שלכם מוכן"}
+              <span aria-hidden>✨</span> {showLoader ? (phase === "review" ? "מעדכן את המסלול…" : "בונה את המסלול…") : phase === "form" ? "יצירת מסלול עם AI" : phase === "focus" ? "על איזה אזור לכוון?" : "המסלול שלכם מוכן"}
             </div>
-            {!showLoader && (
+            {!showLoader && phase !== "focus" && (
               <div style={{ fontSize: 13, color: T.ink3, marginTop: 4 }}>
                 {phase === "form" ? "תארו מה בא לכם — נבנה מסלול מלא עם מקומות אמיתיים." : "עברו על מה שבנינו — אפשר לפתוח, לתקן, או לבנות מחדש."}
               </div>
@@ -309,7 +323,7 @@ const AiTripModal = ({ open, onClose, dark = false }) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
                     if (destOpen && destPreds.length && !destChosen) pickDest(destPreds[0]);
-                    else if (canSubmit) runGenerate();
+                    else if (canSubmit) { if ((destScope === "country" || destScope === "region") && !focus) setPhase("focus"); else runGenerate(); }
                   } else if (e.key === "Escape") setDestOpen(false);
                 }}
                 placeholder="לאן טסים? התחילו להקליד ובחרו מהרשימה"
@@ -416,7 +430,10 @@ const AiTripModal = ({ open, onClose, dark = false }) => {
 
             {error && <div style={{ marginTop: 16, padding: "11px 14px", borderRadius: 12, background: "rgba(184,58,43,0.10)", color: "#C0392B", fontSize: 13, fontWeight: 700, lineHeight: 1.5 }}>{error}</div>}
 
-            <button onClick={() => runGenerate()} disabled={!canSubmit}
+            <button onClick={() => {
+              if ((destScope === "country" || destScope === "region") && !focus) { setPhase("focus"); return; }
+              runGenerate();
+            }} disabled={!canSubmit}
               style={{ marginTop: 20, width: "100%", height: 54, borderRadius: 999, border: "none", background: canSubmit ? ACCENT : (dark ? "#3A3D42" : "#D1CCC5"), color: "#fff", fontSize: 16, fontWeight: 800, cursor: canSubmit ? "pointer" : "default", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 9, boxShadow: canSubmit ? `0 6px 22px ${ACCENT}44` : "none" }}>
               <span aria-hidden>✨</span> {busy ? "בונה מסלול…" : "בנו לי מסלול"}
             </button>
@@ -438,6 +455,23 @@ const AiTripModal = ({ open, onClose, dark = false }) => {
               )
             )}
           </>
+        )}
+
+        {/* ── FOCUS (country/region → region chips or city picker) ── */}
+        {phase === "focus" && !showLoader && (
+          <div style={{ padding: "4px 2px" }}>
+            <DestinationFocus
+              destName={destination.split(",")[0].trim()}
+              scope={destScope}
+              curatedId={curatedId}
+              onPick={(pick) => { setFocus({ cities: pick.cities, label: pick.label }); setPhase("form"); runGenerate({ focus: { cities: pick.cities, label: pick.label } }); }}
+              onSkip={() => { setPhase("form"); runGenerate({ focus: null }); }}
+            />
+            <button onClick={() => setPhase("form")}
+              style={{ marginTop: 6, width: "100%", minHeight: 40, border: "none", background: "transparent", color: dark ? "#B9BEC7" : "#6B7280", fontSize: 12.5, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>
+              → חזרה
+            </button>
+          </div>
         )}
 
         {/* ── REVIEW (redesigned) ── */}
