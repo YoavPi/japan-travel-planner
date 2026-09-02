@@ -1331,7 +1331,7 @@ const EditorView = () => {
   /* True while the schedule sheet is being dragged — hides the floating map FABs
      so they don't overlap the moving sheet (the "drag makes a problem" glitch). */
   const [sheetDragging, setSheetDragging] = useState(false);
-  const mapFabsHidden = !!activeStop || !!previewPlace || !!inboxCardMenu || sheetDragging;
+  const mapFabsHidden = !!activeStop || !!previewPlace || !!inboxCardMenu || sheetDragging || searchResults.length > 0;
   /* Sprint 50 #3 — global focus-lock context. Either "מסלול רציף" (continuous)
      or "סידור ימים" (day reorder) engages an unbreakable editing framework:
      the active FAB pulses, a sticky top banner appears, and the lock clears on
