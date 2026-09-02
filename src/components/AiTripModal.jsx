@@ -468,7 +468,7 @@ const AiTripModal = ({ open, onClose, dark = false }) => {
               onSkip={() => { setPhase("form"); runGenerate({ focus: null }); }}
             />
             <button onClick={() => setPhase("form")}
-              style={{ marginTop: 6, width: "100%", minHeight: 40, border: "none", background: "transparent", color: dark ? "#B9BEC7" : "#6B7280", fontSize: 12.5, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>
+              style={{ marginTop: 6, width: "100%", minHeight: 44, border: "none", background: "transparent", color: T.ink3, fontSize: 12.5, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>
               → חזרה
             </button>
           </div>
