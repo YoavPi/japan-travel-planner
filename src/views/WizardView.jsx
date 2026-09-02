@@ -9,6 +9,7 @@ import useIsDesktop from "../hooks/useIsDesktop";
 import { useAuth } from "../context/AuthContext";
 import isAdminEmail from "../utils/isAdmin";
 import { DESTINATIONS, SUGGESTED_CITIES, CITY_POOL } from "../data/destinations";
+import { FOCUS_REGIONS } from "../data/focusRegions";
 
 /* ──────────────────────────────────────────────────────────────
    WizardView — dynamic global onboarding (3 steps + summary).
@@ -694,6 +695,22 @@ const WizardView = () => {
                   </div>
                 );
               })()}
+
+              {/* Curated region chips — prefill multiple cities at once */}
+              {cities.length === 0 && (FOCUS_REGIONS[destId] || []).length > 0 && (
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: T.ink3, marginBottom: 6 }}>או בחרו אזור מוכן:</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {FOCUS_REGIONS[destId].map((r) => (
+                      <button key={r.id}
+                        onClick={() => r.cities.forEach((c) => addCity(c.he))}
+                        style={{ minHeight: 44, padding: "8px 14px", borderRadius: 999, border: `1px solid ${T.line}`, background: "#fff", color: T.ink2, fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>
+                        {r.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Suggested cities — tap to add (can add the same city
                   more than once to build a loop). */}
