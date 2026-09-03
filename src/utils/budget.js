@@ -219,3 +219,127 @@ export function hasBudget(budget) {
   const count = Array.isArray(budget.items) ? budget.items.length : 0;
   return total > 0 || count > 0;
 }
+
+/* ── Transforms ────────────────────────────────────────────────
+   Every transform takes trip.data and returns a NEW data object —
+   the same contract as addGeneralFile/updateGeneralFile in
+   tripFiles.js, so callers persist with the identical
+   saveTrip(id, { data }) call. */
+
+export const EMPTY_BUDGET = Object.freeze({
+  config: Object.freeze({
+    currency: "ILS", rate: 1, rateUpdatedAt: null, totalIlsMinor: 0, categories: [],
+  }),
+  items: Object.freeze([]),
+});
+
+/* Return data with a budget guaranteed present. The existing object is
+   returned by identity when there is nothing to add, so callers can cheaply
+   detect a no-op. Never hands out a reference into EMPTY_BUDGET. */
+export function ensureBudget(data) {
+  const d = data || {};
+  if (d.budget) return data === d ? data : d;
+  return {
+    ...d,
+    budget: {
+      config: { ...EMPTY_BUDGET.config, categories: [] },
+      items: [],
+    },
+  };
+}
+
+export function setBudgetConfig(data, patch) {
+  const d = ensureBudget(data);
+  return { ...d, budget: { ...d.budget, config: { ...d.budget.config, ...patch } } };
+}
+
+export function upsertCategory(data, { key, label, capIlsMinor = null }) {
+  const d = ensureBudget(data);
+  const list = d.budget.config.categories || [];
+  const exists = list.some((c) => c.key === key);
+  const next = exists
+    ? list.map((c) => (c.key === key ? { ...c, label, capIlsMinor } : c))
+    : [...list, { key, label, capIlsMinor, ...(key.startsWith("c_") ? { custom: true } : {}) }];
+  return setBudgetConfig(d, { categories: next });
+}
+
+/* Drop a category declaration. Its expenses are REASSIGNED to `other`,
+   never orphaned and never deleted — money the user entered is not
+   destroyed as a side effect of a settings change. */
+export function removeCategory(data, key) {
+  const d = ensureBudget(data);
+  const categories = (d.budget.config.categories || []).filter((c) => c.key !== key);
+  const items = (d.budget.items || []).map((i) =>
+    i.category === key ? { ...i, category: "other" } : i);
+  return { ...d, budget: { ...d.budget, config: { ...d.budget.config, categories }, items } };
+}
+
+export function addExpense(data, expense = {}) {
+  const d = ensureBudget(data);
+  const item = {
+    id: expense.id || newExpenseId(),
+    label: String(expense.label || "").trim(),
+    amountMinor: Number(expense.amountMinor) || 0,
+    currency: expense.currency || d.budget.config.currency || "ILS",
+    category: expense.category || "other",
+    dayRef: expense.dayRef ?? null,
+    stopRef: expense.stopRef ?? null,
+    paid: !!expense.paid,
+    actualMinor: Number.isFinite(expense.actualMinor) ? expense.actualMinor : null,
+    note: expense.note || "",
+    createdAt: expense.createdAt || new Date().toISOString(),
+  };
+  return { ...d, budget: { ...d.budget, items: [...d.budget.items, item] } };
+}
+
+export function updateExpense(data, id, patch) {
+  const d = data || {};
+  if (!d.budget || !(d.budget.items || []).some((i) => i.id === id)) return data;
+  return {
+    ...d,
+    budget: { ...d.budget, items: d.budget.items.map((i) => (i.id === id ? { ...i, ...patch } : i)) },
+  };
+}
+
+export function removeExpense(data, id) {
+  const d = data || {};
+  if (!d.budget) return data;
+  return { ...d, budget: { ...d.budget, items: (d.budget.items || []).filter((i) => i.id !== id) } };
+}
+
+/* Un-paying ALWAYS clears the actual amount: a "what it really cost" figure
+   is meaningless on an unpaid item, and leaving it behind would silently
+   resurrect on the next tick of the checkbox. */
+export function setPaid(data, id, paid, actualMinor = null) {
+  return updateExpense(data, id, paid
+    ? { paid: true, actualMinor: Number.isFinite(actualMinor) ? actualMinor : null }
+    : { paid: false, actualMinor: null });
+}
+
+/* An expense's day. A stop-linked expense derives it from the stop, so moving
+   that stop between days needs no budget write at all. Only standalone items
+   carry a stored dayRef. (Phase A creates no stopRefs; the branch is here so
+   Phase B needs no rewrite.) */
+export function resolveDay(item, tripData) {
+  if (item?.stopRef) {
+    const day = (tripData || []).find((d) =>
+      (d.attractions || []).some((a) => a.instanceId === item.stopRef));
+    return day ? day.day : null;
+  }
+  return item?.dayRef ?? null;
+}
+
+/* Keep standalone expenses' `dayRef` valid after the trip's days are
+   renumbered — the exact contract of remapFileDays in tripFiles.js.
+   `mapping` maps an OLD day number to its NEW one (or null if removed). An
+   expense whose day is gone or now out of range falls back to null (general);
+   it is never dropped. Stop-linked items are skipped: their day is derived. */
+export function remapExpenseDays(items, mapping, newDayCount) {
+  return (items || []).map((it) => {
+    if (it.stopRef) return it;
+    if (it.dayRef == null) return it;
+    const next = mapping[it.dayRef];
+    if (next == null || next > newDayCount) return { ...it, dayRef: null };
+    return next === it.dayRef ? it : { ...it, dayRef: next };
+  });
+}

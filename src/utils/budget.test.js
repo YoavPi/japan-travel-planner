@@ -306,3 +306,178 @@ describe("summarize / hasBudget", () => {
     expect(hasBudget({ config: { totalIlsMinor: 0 }, items: [{ id: "e" }] })).toBe(true);
   });
 });
+
+import {
+  EMPTY_BUDGET, ensureBudget, setBudgetConfig, upsertCategory, removeCategory,
+  addExpense, updateExpense, removeExpense, setPaid, resolveDay, remapExpenseDays,
+} from "./budget";
+
+describe("ensureBudget", () => {
+  test("creates an empty budget on data that has none", () => {
+    const out = ensureBudget({ tripData: [] });
+    expect(out.budget.items).toEqual([]);
+    expect(out.budget.config.currency).toBe("ILS");
+    expect(out.tripData).toEqual([]);
+  });
+
+  test("leaves an existing budget untouched and returns the same object", () => {
+    const data = { budget: { config: { currency: "JPY" }, items: [] } };
+    expect(ensureBudget(data)).toBe(data);
+  });
+
+  test("EMPTY_BUDGET is not shared between calls", () => {
+    const a = ensureBudget({});
+    const b = ensureBudget({});
+    a.budget.items.push({ id: "x" });
+    expect(b.budget.items).toHaveLength(0);
+    expect(EMPTY_BUDGET.items).toHaveLength(0);
+  });
+});
+
+describe("config and categories", () => {
+  test("setBudgetConfig merges rather than replaces", () => {
+    const d = setBudgetConfig(ensureBudget({}), { totalIlsMinor: 500000 });
+    expect(d.budget.config.totalIlsMinor).toBe(500000);
+    expect(d.budget.config.currency).toBe("ILS");
+  });
+
+  test("upsertCategory adds then updates by key", () => {
+    let d = upsertCategory(ensureBudget({}), { key: "food", label: "אוכל", capIlsMinor: 200000 });
+    expect(d.budget.config.categories).toHaveLength(1);
+    d = upsertCategory(d, { key: "food", label: "אוכל", capIlsMinor: 300000 });
+    expect(d.budget.config.categories).toHaveLength(1);
+    expect(d.budget.config.categories[0].capIlsMinor).toBe(300000);
+  });
+
+  test("removeCategory drops the declaration AND reassigns its expenses to other", () => {
+    let d = upsertCategory(ensureBudget({}), { key: "food", label: "אוכל", capIlsMinor: 200000 });
+    d = addExpense(d, { label: "ראמן", amountMinor: 1200, currency: "JPY", category: "food" });
+    d = removeCategory(d, "food");
+    expect(d.budget.config.categories).toHaveLength(0);
+    expect(d.budget.items[0].category).toBe("other");
+    expect(d.budget.items[0].amountMinor).toBe(1200);  // money preserved
+  });
+});
+
+describe("expense CRUD", () => {
+  test("addExpense fills defaults and generates an id", () => {
+    const d = addExpense(ensureBudget({}), { label: "ביטוח", amountMinor: 32000, currency: "ILS" });
+    const it = d.budget.items[0];
+    expect(it.id).toMatch(/^e_/);
+    expect(it.category).toBe("other");
+    expect(it.paid).toBe(false);
+    expect(it.actualMinor).toBeNull();
+    expect(it.dayRef).toBeNull();
+    expect(it.stopRef).toBeNull();
+    expect(typeof it.createdAt).toBe("string");
+  });
+
+  test("addExpense defaults the currency to the trip currency", () => {
+    let d = setBudgetConfig(ensureBudget({}), { currency: "JPY" });
+    d = addExpense(d, { label: "ראמן", amountMinor: 1200 });
+    expect(d.budget.items[0].currency).toBe("JPY");
+  });
+
+  test("updateExpense patches one item and leaves the rest alone", () => {
+    let d = addExpense(ensureBudget({}), { id: "e_a", label: "א", amountMinor: 100, currency: "ILS" });
+    d = addExpense(d, { id: "e_b", label: "ב", amountMinor: 200, currency: "ILS" });
+    d = updateExpense(d, "e_a", { label: "שונה" });
+    expect(d.budget.items[0].label).toBe("שונה");
+    expect(d.budget.items[1].label).toBe("ב");
+  });
+
+  test("updateExpense on a missing id returns the input unchanged", () => {
+    const d = addExpense(ensureBudget({}), { id: "e_a", amountMinor: 100, currency: "ILS" });
+    expect(updateExpense(d, "e_missing", { label: "x" })).toBe(d);
+  });
+
+  test("removeExpense drops only the named item", () => {
+    let d = addExpense(ensureBudget({}), { id: "e_a", amountMinor: 100, currency: "ILS" });
+    d = addExpense(d, { id: "e_b", amountMinor: 200, currency: "ILS" });
+    d = removeExpense(d, "e_a");
+    expect(d.budget.items.map((i) => i.id)).toEqual(["e_b"]);
+  });
+});
+
+describe("setPaid — the planned/actual transition", () => {
+  const base = () => addExpense(ensureBudget({}),
+    { id: "e_a", label: "ראמן", amountMinor: 1200, currency: "JPY" });
+
+  test("marking paid with no different amount leaves actual null", () => {
+    const d = setPaid(base(), "e_a", true);
+    expect(d.budget.items[0]).toMatchObject({ paid: true, actualMinor: null });
+  });
+
+  test("marking paid with a different amount records it", () => {
+    const d = setPaid(base(), "e_a", true, 1500);
+    expect(d.budget.items[0]).toMatchObject({ paid: true, actualMinor: 1500 });
+  });
+
+  test("un-paying always clears the actual amount", () => {
+    let d = setPaid(base(), "e_a", true, 1500);
+    d = setPaid(d, "e_a", false);
+    expect(d.budget.items[0]).toMatchObject({ paid: false, actualMinor: null });
+  });
+});
+
+describe("resolveDay", () => {
+  const tripData = [
+    { day: 1, attractions: [{ instanceId: "inst-aaa", name: "A" }] },
+    { day: 2, attractions: [{ instanceId: "inst-bbb", name: "B" }] },
+  ];
+
+  test("a linked item takes its day from the stop, ignoring any stored dayRef", () => {
+    expect(resolveDay({ stopRef: "inst-bbb", dayRef: 1 }, tripData)).toBe(2);
+  });
+
+  test("a linked item whose stop is gone resolves to null", () => {
+    expect(resolveDay({ stopRef: "inst-zzz" }, tripData)).toBeNull();
+  });
+
+  test("an unlinked item uses its own dayRef", () => {
+    expect(resolveDay({ dayRef: 3 }, tripData)).toBe(3);
+    expect(resolveDay({ dayRef: null }, tripData)).toBeNull();
+    expect(resolveDay({}, tripData)).toBeNull();
+  });
+});
+
+/* Mirrors remapFileDays in tripFiles.js — same contract, same fallbacks. */
+describe("remapExpenseDays", () => {
+  const items = [
+    { id: "e_general", dayRef: null },
+    { id: "e_d1", dayRef: 1 },
+    { id: "e_d3", dayRef: 3 },
+    { id: "e_linked", dayRef: null, stopRef: "inst-aaa" },
+  ];
+
+  test("day null is untouched", () => {
+    const out = remapExpenseDays(items, { 1: 1, 3: 3 }, 3);
+    expect(out[0]).toBe(items[0]);
+  });
+
+  test("a renumbered day follows its mapping", () => {
+    const out = remapExpenseDays(items, { 1: 1, 3: 2 }, 2);
+    expect(out.find((i) => i.id === "e_d3").dayRef).toBe(2);
+  });
+
+  test("a removed day falls back to null (general), money preserved", () => {
+    const out = remapExpenseDays(items, { 1: 1, 3: null }, 2);
+    const it = out.find((i) => i.id === "e_d3");
+    expect(it.dayRef).toBeNull();
+    expect(it.id).toBe("e_d3");
+  });
+
+  test("a day beyond the new length falls back to null", () => {
+    const out = remapExpenseDays(items, { 1: 1, 3: 5 }, 2);
+    expect(out.find((i) => i.id === "e_d3").dayRef).toBeNull();
+  });
+
+  test("a stop-linked item is never touched — its day is derived", () => {
+    const out = remapExpenseDays(items, { 1: null, 3: null }, 1);
+    expect(out.find((i) => i.id === "e_linked")).toBe(items[3]);
+  });
+
+  test("null input yields an empty array, never a throw", () => {
+    expect(remapExpenseDays(null, {}, 0)).toEqual([]);
+  });
+});
