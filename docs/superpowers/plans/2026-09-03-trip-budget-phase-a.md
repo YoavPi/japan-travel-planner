@@ -25,7 +25,7 @@
 - **Overlays trap focus and close on `Esc`.**
 - **Hebrew UI copy**, first-person-plural-free, no translated feel.
 - `npm run critical` must stay green (9/9) at every commit.
-- Commit message trailer: `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`
+- Commit message trailer: `Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>`
 
 ## File Structure
 
@@ -353,7 +353,7 @@ src/data/tripData.js. The AI-focus feature shipped a production bug that
 every English-only unit test passed straight through; this is the same
 class of input.
 
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 EOF
 )"
 ```
@@ -685,7 +685,7 @@ the planned amount. That is the honest answer to "where will I land".
 rollup() is the single computation path for every surface. summarize()
 produces the derived dashboard object; hasBudget() gates rendering.
 
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 EOF
 )"
 ```
@@ -1049,7 +1049,7 @@ Data-safety rules encoded here rather than at call sites:
   - remapExpenseDays falls a removed day back to general, never drops
   - stop-linked expenses derive their day and are skipped by the remap
 
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 EOF
 )"
 ```
@@ -1265,7 +1265,7 @@ supplied summary is overwritten, never trusted.
 rowToTrip and toSummary lift it to trip.budgetSummary so it survives the
 `data` strip that fetchAllTrips performs for the dashboard grid.
 
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 EOF
 )"
 ```
@@ -1510,7 +1510,7 @@ Writes are optimistic and roll back on failure with a surfaced error —
 this is money, so a silently dropped save is worse than a visible one.
 Read-only trips refuse every mutation before it reaches the service.
 
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 EOF
 )"
 ```
@@ -1938,7 +1938,7 @@ still appears in the breakdown, it just has no ceiling, so anyone who only
 wants a single total can ignore the whole section. Custom categories get
 c_ keys. Esc closes; the dialog is labelled.
 
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 EOF
 )"
 ```
@@ -2354,7 +2354,7 @@ A foreign amount previews its shekel equivalent live.
 Deleting requires a second, explicit confirmation in place — money the
 user typed does not disappear on one tap.
 
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 EOF
 )"
 ```
@@ -2685,7 +2685,7 @@ cost" figure is meaningless on an unpaid expense.
 
 Paid state is carried by a text chip, not by colour alone.
 
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 EOF
 )"
 ```
@@ -3220,7 +3220,7 @@ carries real aria-valuenow/min/max in agorot.
 SHOW_CHROME does not match /trip/, so the route owns the full viewport
 exactly as /trip/overview/:tripId already does — no chrome change.
 
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 EOF
 )"
 ```
@@ -3430,7 +3430,7 @@ regenerates, update preserves. Once Phase B points stopRef at instanceId,
 a clone inheriting its original's id would make one expense resolve to two
 stops. Landing the guard before the thing that needs it.
 
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 EOF
 )"
 ```
