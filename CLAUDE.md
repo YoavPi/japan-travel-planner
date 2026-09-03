@@ -79,13 +79,14 @@ npm run deploy   # preflight (critical + CI build) → npx vercel deploy --prod 
 
 ## Sub-agents
 
-Nine project agents live in `.claude/agents/`. Dispatch the narrowest one that fits; `architect` before anything non-trivial.
+Ten project agents live in `.claude/agents/`. Dispatch the narrowest one that fits; `architect` before anything non-trivial.
 
 | agent | use it for |
 |---|---|
 | `architect` | design/plan a non-trivial change before coding (no code, read-only) |
 | `builder` | implement a scoped React feature/fix not owned by a specialist |
 | `ai-engineer` | the Gemini generate-trip pipeline only (cost/usage tracking) |
+| `budget-domain` | the trip-budget money model only — `trip.data.budget`, `src/utils/budget.js`, currency/rate math, planned-vs-actual, expense linkage |
 | `db-architect` | Supabase schema, RLS, migrations |
 | `growth` | PostHog/analytics, SEO/meta, the visitor→signup funnel |
 | `copywriter` | Hebrew-first RTL user-facing text, CONTENT_AUDIT.md, trip content |
