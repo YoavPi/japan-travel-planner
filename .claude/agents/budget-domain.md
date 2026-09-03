@@ -53,10 +53,14 @@ changing anything in this domain.
    category reassigns its expenses to `other`. This follows the existing
    data-safety layer (`rescueOrphansToInbox`, Sprint 27 #4).
 
-5. **`stopRef` is a stable id, never an index.** Stops are addressed positionally
-   everywhere else in the editor. If you touch stop duplication, confirm the copy
-   does **not** inherit `_id` — two stops sharing an id makes an expense resolve
-   ambiguously to both.
+5. **`stopRef` is the existing `instanceId`, never an index.** Stops are addressed
+   positionally everywhere else in the editor, so never store `(day, idx)`. Do
+   not invent a parallel id field — `instanceId` is already stamped on add,
+   preserved on update, and regenerated on duplicate. Two invariants now carry
+   money and must stay covered by tests: a duplicated stop **never** inherits its
+   original's `instanceId`, and an updated stop **always** keeps its own.
+   Legacy stops (Japan seed, AI `seedDays`, wizard scaffold) have no
+   `instanceId` — stamp one lazily when a cost is first attached, and only then.
 
 6. **Hebrew is the runtime input, so Hebrew is the test input.** `guessCategory`
    receives Hebrew category strings. Test it with the verbatim values from

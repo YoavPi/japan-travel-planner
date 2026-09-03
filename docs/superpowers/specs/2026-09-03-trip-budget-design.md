@@ -94,22 +94,29 @@ table in v2 is mechanical.
 
 ### 1.1 Shape
 
-The split between `settings` and `data` is deliberate. `tripService.toSummary`
-(`tripService.js:262`) strips `data` from every row in the dashboard list, so
-anything the dashboard grid must render has to live in `settings`.
+The dashboard grid never sees `data`: `fetchAllTrips` builds a record via
+`rowToTrip(row)` and then strips `data` from it, and the localStorage path does
+the same through `toSummary` (`tripService.js:262`). So the mini-indicator's
+figure has to reach the grid some other way.
+
+**The summary lives inside the budget and is lifted out during mapping.**
+`data.budget.summary` is written atomically with the items it summarises — no
+separate write, no extra read, no cross-object merge, and therefore no way for
+the two to disagree. `rowToTrip` lifts it to a top-level `trip.budgetSummary`
+*before* `data` is stripped, so it survives into the grid.
+
+An earlier draft put the summary in `settings`. That was worse: `saveTrip`
+receives patches containing only `data`, so merging a derived value into
+`settings` would have required either an extra read on every budget-bearing
+save or trusting each call site to pass `settings` along.
 
 ```js
-/* ── settings: light metadata, survives toSummary ── */
-trip.settings.budgetShared  = false;          // sharing curtain (§6)
-trip.settings.budgetSummary = {               // dashboard mini-indicator ONLY
-  totalIlsMinor:     1500000,
-  effectiveIlsMinor:  980000,
-  pct:                    65,
-  over:                false,
-};
+/* ── settings: genuine user settings only ── */
+trip.settings.budgetShared = false;           // sharing curtain (§6, Phase C)
 
-/* ── data: the heavy payload ── */
+/* ── data: the heavy payload; `summary` is derived, never authored ── */
 trip.data.budget = {
+  summary: { totalIlsMinor: 1500000, effectiveIlsMinor: 980000, pct: 65, over: false },
   config: {
     currency:      "JPY",                     // the destination currency
     rate:          0.023,                     // local → ILS, manual
@@ -128,7 +135,7 @@ trip.data.budget = {
       actualMinor: null, note: "", createdAt: "…" },
 
     { id: "e_3p8q1z", label: "ראמן אפורי", amountMinor: 120000,
-      currency: "JPY", category: "food", stopRef: "s_4f8c2a", paid: true,
+      currency: "JPY", category: "food", stopRef: "<the stop's instanceId>", paid: true,
       actualMinor: 135000, note: "", createdAt: "…" },
 
     { id: "e_9w4e2r", label: "ביטוח נסיעות", amountMinor: 32000,
@@ -177,13 +184,34 @@ the "actual" total** (§5, Tier 1).
 
 ### 1.5 `stopRef` is a stable id, never an index
 
-Stops are currently addressed positionally — `deleteStopAt(dayNum, idx)`
-(`useEditorState.jsx:105`), `reorderInDay`, `moveStopToDay`, `duplicateStopAt`.
-An index-based reference would break on every one of those operations.
+Stops are addressed positionally in the editor's handlers —
+`deleteStopAt(dayNum, idx)` (`useEditorState.js:105`), `reorderInDay`,
+`moveStopToDay`, `duplicateStopAt`. An index-based reference would break on
+every one of those operations.
 
-**When a cost is attached to a stop that has no `_id`, stamp one**
-(`s_` + 6 chars). Only stops that carry money get an id — no migration, no bulk
-rewrite of `tripData`, no change to any stop that never gets priced.
+**`stopRef` reuses the existing `instanceId` field.** An earlier draft of this
+spec proposed a new `_id`; that was redundant. The codebase already carries a
+stable per-stop identity with exactly the required semantics:
+
+| Operation | Existing behaviour | Source |
+|---|---|---|
+| Add a stop / node / transit | fresh `instanceId` stamped | `useEditorState.js:143,152,161`; `EditorView.jsx:1561,1643,1889` |
+| Update a stop | **`instanceId` preserved** — "so React keys + identity stay stable" | `useEditorState.js:170` |
+| Duplicate a stop | **fresh `instanceId` on the clone** | `useEditorState.js:115`; `EditorView.jsx:1941` |
+
+Two consequences:
+
+1. **The "duplicate must not share an id" hazard does not exist.** Both
+   duplicate call sites already regenerate. What is missing is a *regression
+   test* pinning that behaviour — once `instanceId` carries money, its
+   regeneration on duplicate stops being a React-keys convenience and becomes a
+   correctness invariant. That test is Phase A work even though `stopRef` itself
+   lands in Phase B.
+2. **Lazy stamping is still required, for legacy stops only.** Stops created
+   before these paths existed — the Japan seed, AI `seedDays`, the wizard
+   scaffold — have no `instanceId`. When a cost is attached to such a stop,
+   stamp one then. Only stops that carry money get back-filled: no migration, no
+   bulk rewrite of `tripData`, no change to any stop that is never priced.
 
 ### 1.6 `dayRef` is stored only for unlinked items
 
@@ -228,13 +256,14 @@ transforms, no React, no Supabase.
 | `MINOR_DIGITS` | per-currency exponent map (§1.3) |
 | `guessCategory(stopCategory)` | Hebrew stop category → budget category |
 | `toIlsMinor(item, config)` | the single conversion point |
-| `rollup(budget, tripData)` | **the selector** — every number, every surface |
+| `rollup(budget)` | **the selector** — every number, every surface |
 | `addExpense / updateExpense / removeExpense(data, …)` | signatures mirroring `addGeneralFile`: take `trip.data`, return a new `data` |
 | `setPaid(data, id, { actualMinor })` | the paid / actual transition |
 | `remapExpenseDays(items, mapping, newDayCount)` | mirror of `remapFileDays` |
 | `detachStopExpenses(items, stopId)` | on stop removal (§4) |
 | `budgetImpact(action, trip)` | the single source for confirmation tier + copy + numbers (§5) |
-| `summarize(budget, tripData)` | produces `settings.budgetSummary` |
+| `resolveDay(item, tripData)` | an item's day: from its linked stop if any, else its own `dayRef` |
+| `summarize(budget)` | produces the derived `data.budget.summary` |
 
 ### 2.1 Three numbers, not two
 
@@ -287,31 +316,38 @@ Not translations. This is a named regression risk, not a style preference.
 
 ## 3. Service layer
 
-### 3.1 The recompute belongs in `saveTrip`, not only in `saveBudget`
+### 3.1 The recompute belongs in `saveTrip`, and nowhere else
 
-An earlier draft put the `budgetSummary` recompute inside a new
+An earlier draft put the summary recompute inside a new
 `tripService.saveBudget()`. **That leaks.** Detaching an expense during a stop
 deletion is written through the *generic* path
-`saveTrip(prev.id, { data: nextData })` (`useEditorState.jsx:70`) — which would
-skip the recompute and leave the dashboard card displaying a stale figure.
+`saveTrip(prev.id, { data: nextData })` (`useEditorState.js:70`) — which would
+skip the recompute and leave the dashboard card showing a stale figure.
 
-**Therefore:** `tripService.saveTrip` recomputes `settings.budgetSummary` from
-`rollup()` whenever the incoming patch contains `data.budget`. The choke point
-is then airtight regardless of which call site produced the write.
+**Therefore:** `tripService.saveTrip` re-derives `data.budget.summary` from
+`summarize()` whenever the incoming patch carries a `data.budget`, before the
+write. The choke point is airtight regardless of which call site produced the
+write, and it needs no extra database read because the whole budget is already
+in the patch.
 
-`tripService.saveBudget(tripId, budget)` remains as a thin convenience over it
-(in the shape of the existing `saveTripMemo`, `tripService.js:478`), centralising
-the Supabase/localStorage branch and the `readOnly` guard.
+**No `saveBudget` method.** With the recompute inside `saveTrip`, a dedicated
+budget-writing method would add an API without adding a guarantee. `useBudget`
+holds the trip, applies the pure transforms from §2, and calls
+`saveTrip(tripId, { data: nextData })` directly. The `readOnly` guard lives in
+`useBudget` (mutators refuse when `trip.readOnly`), matching how the editor
+already guards itself; the localStorage path in `saveTrip` and Supabase RLS both
+enforce it independently underneath.
 
 ### 3.2 `useBudget(trip)`
 
-One hook. Calls `rollup()`, exposes mutators that write through `saveBudget`.
+One hook. Calls `rollup()`, applies the pure transforms from §2, and persists
+through `saveTrip(tripId, { data })`.
 All four entry points and all three indicator surfaces consume it, so no surface
 can compute a different answer than another.
 
 The dashboard grid is the deliberate exception: it reads
-`settings.budgetSummary` only, never `data`, because `toSummary` has already
-stripped `data` by the time it renders.
+the lifted `trip.budgetSummary` only, never `data`, because `data` has already
+been stripped by the time it renders (§1.1).
 
 ---
 
@@ -325,7 +361,7 @@ silently destroyed.** Broken links detach; they do not delete.
 |---|---|
 | **Stop deleted** | The expense is **detached**, not deleted: clear `stopRef`, keep label + amount, it becomes a general expense. Toast: the expense was kept under "כללי" |
 | **Stop moved to another day** | No budget write at all — the day is derived (§1.6) |
-| **Stop duplicated** (`duplicateStopAt`) | **The copy must not inherit `_id`.** Two stops sharing an id would make the expense resolve ambiguously to both. Subtle and critical |
+| **Stop duplicated** (`duplicateStopAt`) | Already correct — both call sites regenerate `instanceId` on the clone (§1.5). Needs a **regression test**, not a fix: the clone must never inherit the original's `instanceId`, or one expense would resolve to two stops |
 | **Stop moved to the Places Inbox** (`moveStopToInbox`) | Detach, as for deletion |
 | **Days renumbered / trip shortened** (`applySkeleton`, `applyDateRange`) | `remapExpenseDays` called alongside `remapFileDays` (`useEditorState.jsx:378,428`). Unlinked items only; a removed day falls back to `dayRef: null` (general), exactly as `remapFileDays` does for files |
 | **Trip currency changed with items present** | Never silently. Confirm, then **convert amounts so the ILS values stay stable** — the user's budget must not jump because they touched a setting. Explicitly: for each item in the old trip currency, `amountMinor' = round(amountMinor × rateOld ÷ rateNew)`, re-quantised to the new currency's `MINOR_DIGITS`. ILS-denominated items are untouched |
@@ -497,7 +533,7 @@ existing per-stop action menu, as "הוסף עלות". Category is pre-filled by
 | Surface | Display | Source |
 |---|---|---|
 | Trip overview card | Full bar + "נותרו ₪5,200" / "חריגה של ₪800" | `rollup()` |
-| Dashboard card (`MapCard.jsx`) | One thin line: "₪ 65% · בתקציב" | **`settings.budgetSummary` only** |
+| Dashboard card (`MapCard.jsx`) | One thin line: "₪ 65% · בתקציב" | **the lifted `trip.budgetSummary` only** |
 | Editor chip | "₪ 9,800 / 15,000" | `rollup()` |
 
 Crossing 100% fires a one-time toast ("חרגת מהתקציב ב־₪800") **and** applies a
@@ -550,8 +586,9 @@ quick-add sheet · Tier-1 confirm renders concrete numbers.
 
 ### Service
 
-`saveTrip` recomputes `budgetSummary` on **every** write path containing
-`data.budget` (§3.1) · `saveBudget` convenience path · `readOnly` rejection ·
+`saveTrip` re-derives `data.budget.summary` on **every** write path containing
+`data.budget` (§3.1) · `rowToTrip` and `toSummary` both lift it to
+`trip.budgetSummary` so it survives the `data` strip · `readOnly` rejection ·
 localStorage fallback with no Supabase session.
 
 ### Regression
@@ -575,8 +612,8 @@ including a contrast check on the over-budget colours in **both** palettes.
 
 | Phase | Contents | Value delivered |
 |---|---|---|
-| **A — engine** | `budget.js` · `saveTrip` recompute + `saveBudget` · `useBudget` · route + dedicated screen · budget & category setup · expense CRUD · paid/actual flow | A budget can be planned and expenses managed end to end |
-| **B — itinerary binding** | Per-stop cost in `StopActionsSheet` · stable `_id` stamping · editor chip + quick-add sheet · **the full lifecycle safety net** (detach / remap / duplicate / inbox) · Tier-1 confirmations | Money is bound to the itinerary without data loss |
+| **A — engine** | `budget.js` · `saveTrip` recompute + summary lift · `useBudget` · route + dedicated screen · budget & category setup · expense CRUD · paid/actual flow · `remapExpenseDays` wiring (it guards data Phase A itself creates) · the `instanceId` duplicate regression test | A budget can be planned and expenses managed end to end |
+| **B — itinerary binding** | Per-stop cost in `StopActionsSheet` · lazy `instanceId` back-fill for legacy stops · editor chip + quick-add sheet · **stop-linked lifecycle safety** (detach on delete / inbox move) · Tier-1 confirmations | Money is bound to the itinerary without data loss |
 | **C — visibility, sharing, files** | Overview card · dashboard indicator · overrun toast + marking · `ShareSheet` toggle · wizard step · `expenseRef` files + the "קבלות ותשלומים" group · Tier-2 notices | The feature is present across the product |
 | **D — hardening** | `ui-impeccable` pass · `copywriter` over all microcopy and confirm wording · full `qa` + `T-BUDGET` · critical/build | Deploy-ready |
 
@@ -588,7 +625,7 @@ Added to `.claude/agents/budget-domain.md` and to the CLAUDE.md agent table.
 
 **Owns:** the `trip.data.budget` model · `src/utils/budget.js` and all money
 arithmetic · currency conversion and rate handling · planned/actual
-reconciliation · the category taxonomy · the airtightness of `budgetSummary` ·
+reconciliation · the category taxonomy · the airtightness of `data.budget.summary` ·
 consistency across the three indicator surfaces · the `budgetImpact` tier rules.
 
 **Does not own:** general React components (`builder`) · microcopy
