@@ -1302,6 +1302,9 @@ jest.mock("../services/tripService", () => ({
 const makeTrip = (over = {}) => ({
   id: "t1",
   readOnly: false,
+  /* Real trip records always carry lastEdited (rowToTrip). The hook keys its
+     re-sync on it, never on `data` object identity — see useBudget.js. */
+  lastEdited: "2026-01-01T00:00:00.000Z",
   data: { tripData: [{ day: 1, attractions: [] }] },
   ...over,
 });
@@ -1347,6 +1350,7 @@ test("markPaid with a different amount moves the effective total", async () => {
   expect(result.current.roll.effectiveIlsMinor).toBe(13500);
   expect(result.current.roll.actualIlsMinor).toBe(13500);
   expect(result.current.roll.plannedIlsMinor).toBe(10000);
+  await waitFor(() => expect(tripService.saveTrip).toHaveBeenCalledTimes(2));
 });
 
 test("deleteExpense removes it", async () => {
@@ -1354,6 +1358,7 @@ test("deleteExpense removes it", async () => {
   act(() => result.current.createExpense({ id: "e_a", amountMinor: 10000, currency: "ILS" }));
   act(() => result.current.deleteExpense("e_a"));
   expect(result.current.budget.items).toHaveLength(0);
+  await waitFor(() => expect(tripService.saveTrip).toHaveBeenCalledTimes(2));
 });
 
 test("a read-only trip refuses every mutation and never calls saveTrip", () => {
@@ -1378,12 +1383,13 @@ test("a failed save surfaces an error and rolls the state back", async () => {
   expect(result.current.budget?.items ?? []).toHaveLength(0);  // rolled back
 });
 
-test("it re-syncs when a different trip is passed in", () => {
+test("it re-syncs when a different trip is passed in", async () => {
   const { result, rerender } = renderHook(({ trip }) => useBudget(trip), {
     initialProps: { trip: makeTrip() },
   });
   act(() => result.current.createExpense({ amountMinor: 100, currency: "ILS" }));
   expect(result.current.budget.items).toHaveLength(1);
+  await waitFor(() => expect(tripService.saveTrip).toHaveBeenCalledTimes(1));
 
   rerender({ trip: makeTrip({ id: "t2" }) });
   expect(result.current.budget).toBeNull();
@@ -1432,19 +1438,24 @@ export default function useBudget(trip) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
-  /* Re-sync when the caller hands us a different trip (or reloads one). */
-  useEffect(() => { setData(trip?.data || null); setError(null); }, [tripId, trip?.data]);
+  /* Re-sync when the caller hands us a different trip, or reloads the same one
+     (lastEdited advances). Keyed on id + the reload signal, NEVER on `trip.data`
+     object identity: a caller that rebuilds `trip` on every render (an
+     unmemoized parent, a test harness) would otherwise drive an update loop —
+     new object each render → effect re-fires → setData → re-render. */
+  const reloadKey = trip?.lastEdited || null;
+  useEffect(() => { setData(trip?.data || null); setError(null); }, [tripId, reloadKey]);
 
   /* The last state known to be persisted, for rollback. */
   const committed = useRef(trip?.data || null);
-  useEffect(() => { committed.current = trip?.data || null; }, [tripId]);
+  useEffect(() => { committed.current = trip?.data || null; }, [tripId, reloadKey]);
 
   /* The live value, so two synchronous mutations compose correctly. It is
      updated eagerly rather than via an effect: the save must be kicked off
      OUTSIDE the setState updater — an updater that fires a request is a side
      effect in a reducer, and React would run it twice under StrictMode. */
   const dataRef = useRef(trip?.data || null);
-  useEffect(() => { dataRef.current = trip?.data || null; }, [tripId, trip?.data]);
+  useEffect(() => { dataRef.current = trip?.data || null; }, [tripId, reloadKey]);
 
   const mutate = useCallback((fn) => {
     if (readOnly || !tripId) return;
