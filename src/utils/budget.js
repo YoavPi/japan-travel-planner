@@ -114,3 +114,108 @@ export function guessCategory(stopCategory) {
   for (const [key, re] of CATEGORY_HINTS) if (re.test(s)) return key;
   return "attractions";
 }
+
+/* ── Rollup ────────────────────────────────────────────────────
+   THE selector. Every surface reads its numbers from here — the
+   dedicated screen, the overview card, the dashboard indicator and
+   the editor chip. Nothing recomputes a total at a call site; that
+   is how indicator surfaces drift apart. */
+
+/* What an item is really going to cost: the actual amount once it is
+   paid and known to have differed, otherwise the planned amount. */
+const itemEffectiveMinor = (it) =>
+  (it.paid && Number.isFinite(it.actualMinor)) ? it.actualMinor : (Number(it.amountMinor) || 0);
+
+export function rollup(budget) {
+  const config = budget?.config || {};
+  const items = Array.isArray(budget?.items) ? budget.items : [];
+  const totalIlsMinor = Number(config.totalIlsMinor) || 0;
+
+  let plannedIlsMinor = 0;
+  let actualIlsMinor = 0;
+  let effectiveIlsMinor = 0;
+  const acc = new Map(); // categoryKey → running totals
+
+  for (const it of items) {
+    const cur = it.currency || "ILS";
+    const planned = toIlsMinor(Number(it.amountMinor) || 0, cur, config);
+    const effective = toIlsMinor(itemEffectiveMinor(it), cur, config);
+    const actual = it.paid ? effective : 0;
+
+    plannedIlsMinor += planned;
+    actualIlsMinor += actual;
+    effectiveIlsMinor += effective;
+
+    const key = it.category || "other";
+    const a = acc.get(key) || { planned: 0, actual: 0, effective: 0, count: 0 };
+    a.planned += planned; a.actual += actual; a.effective += effective; a.count += 1;
+    acc.set(key, a);
+  }
+
+  const declared = Array.isArray(config.categories) ? config.categories : [];
+  const declaredByKey = new Map(declared.map((c) => [c.key, c]));
+  const labelOf = (key) =>
+    declaredByKey.get(key)?.label
+    || BASE_CATEGORIES.find((c) => c.key === key)?.label
+    || "אחר";
+
+  /* Declared categories first (so a capped-but-empty one still shows a bar),
+     then any category that only exists because an expense points at it. */
+  const keys = [...new Set([...declared.map((c) => c.key), ...acc.keys()])];
+  const byCategory = keys.map((key) => {
+    const a = acc.get(key) || { planned: 0, actual: 0, effective: 0, count: 0 };
+    const capRaw = declaredByKey.get(key)?.capIlsMinor;
+    const cap = Number.isFinite(capRaw) && capRaw > 0 ? capRaw : null;
+    return {
+      key,
+      label: labelOf(key),
+      capIlsMinor: cap,
+      plannedIlsMinor: a.planned,
+      actualIlsMinor: a.actual,
+      effectiveIlsMinor: a.effective,
+      itemCount: a.count,
+      pct: cap ? Math.round((a.effective / cap) * 100) : null,
+      over: cap ? a.effective > cap : false,
+    };
+  });
+
+  const allocatedIlsMinor = declared.reduce(
+    (s, c) => s + (Number.isFinite(c.capIlsMinor) ? c.capIlsMinor : 0), 0);
+
+  return {
+    totalIlsMinor,
+    plannedIlsMinor,
+    actualIlsMinor,
+    effectiveIlsMinor,
+    remainingIlsMinor: totalIlsMinor - effectiveIlsMinor,
+    pct: totalIlsMinor > 0 ? Math.round((effectiveIlsMinor / totalIlsMinor) * 100) : null,
+    overBudget: totalIlsMinor > 0 && effectiveIlsMinor > totalIlsMinor,
+    allocatedIlsMinor,
+    unallocatedIlsMinor: totalIlsMinor - allocatedIlsMinor,
+    byCategory,
+    itemCount: items.length,
+  };
+}
+
+/* The tiny derived object persisted at data.budget.summary so the dashboard
+   grid — which never receives `data` — can render its mini-indicator.
+   DERIVED, NEVER AUTHORED: tripService re-derives it on every write. */
+export function summarize(budget) {
+  if (!hasBudget(budget)) return null;
+  const r = rollup(budget);
+  return {
+    totalIlsMinor: r.totalIlsMinor,
+    effectiveIlsMinor: r.effectiveIlsMinor,
+    pct: r.pct,
+    over: r.overBudget,
+  };
+}
+
+/* Whether a trip has a budget worth rendering at all. A trip with neither a
+   target nor a single expense shows no bars anywhere — only the setup CTA. */
+export function hasBudget(budget) {
+  if (!budget) return false;
+  const total = Number(budget.config?.totalIlsMinor) || 0;
+  const count = Array.isArray(budget.items) ? budget.items.length : 0;
+  return total > 0 || count > 0;
+}
