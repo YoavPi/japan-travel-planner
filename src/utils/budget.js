@@ -45,7 +45,7 @@ export const CURRENCIES = [
 export function parseAmount(text, currency) {
   const raw = String(text ?? "").trim();
   if (!raw) return null;
-  const cleaned = raw.replace(/[,\s ]/g, "").replace(/[₪$€£¥₩฿₫]/g, "");
+  const cleaned = raw.replace(/[,\s]/g, "").replace(/[₪$€£¥₩฿₫]/g, "");
   if (!cleaned || !/^\d+(\.\d+)?$/.test(cleaned)) return null;
   const n = Number(cleaned);
   if (!Number.isFinite(n) || n < 0) return null;
@@ -180,7 +180,7 @@ export function rollup(budget) {
   });
 
   const allocatedIlsMinor = declared.reduce(
-    (s, c) => s + (Number.isFinite(c.capIlsMinor) ? c.capIlsMinor : 0), 0);
+    (s, c) => s + (Number.isFinite(c.capIlsMinor) && c.capIlsMinor > 0 ? c.capIlsMinor : 0), 0);
 
   return {
     totalIlsMinor,
@@ -238,7 +238,7 @@ export const EMPTY_BUDGET = Object.freeze({
    detect a no-op. Never hands out a reference into EMPTY_BUDGET. */
 export function ensureBudget(data) {
   const d = data || {};
-  if (d.budget) return data === d ? data : d;
+  if (d.budget) return data;
   return {
     ...d,
     budget: {

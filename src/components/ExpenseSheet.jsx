@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { CURRENCY_SYMBOL, parseAmount, toIlsMinor } from "../utils/budget";
+import { CURRENCY_SYMBOL, minorDigits, minorFactor, parseAmount, toIlsMinor } from "../utils/budget";
 import Money from "./Money";
 
 /* ══════════════════════════════════════════════════════════════
@@ -15,9 +15,9 @@ const FONT = "'Noto Sans Hebrew','Inter','Noto Sans JP',system-ui,sans-serif";
 
 const minorToInput = (minor, currency) => {
   if (!Number.isFinite(minor)) return "";
-  const digits = currency === "ILS" ? 2 : 0;
-  const v = minor / (currency === "ILS" ? 100 : 1);
-  return digits === 0 ? String(v) : String(Number(v.toFixed(2)));
+  const d = minorDigits(currency);
+  const v = minor / minorFactor(currency);
+  return d === 0 ? String(v) : String(Number(v.toFixed(d)));
 };
 
 export default function ExpenseSheet({
@@ -63,6 +63,12 @@ export default function ExpenseSheet({
   const ilsPreview = parsed != null && currency !== "ILS"
     ? toIlsMinor(parsed, currency, config) : null;
 
+  /* Changing the currency of an existing expense re-denominates its stored
+     amount, so any recorded "actual" figure — captured in the OLD currency —
+     would silently be read in the new one. Reset the paid state rather than
+     carry a number that no longer means what it says. */
+  const currencyChanged = editing && currency !== expense.currency;
+
   const submit = () => {
     if (!label.trim()) { setErr("צריך תיאור להוצאה"); return; }
     if (parsed === null) { setErr("סכום לא תקין — הזינו מספר חיובי"); return; }
@@ -73,6 +79,7 @@ export default function ExpenseSheet({
       category,
       dayRef: dayRef === "" ? null : Number(dayRef),
       note: note.trim(),
+      ...(currencyChanged ? { paid: false, actualMinor: null } : {}),
     });
   };
 
@@ -112,10 +119,10 @@ export default function ExpenseSheet({
         display: "flex", alignItems: "flex-end", justifyContent: "center",
       }}
     >
+      {/* TODO(phase-d): focus trap + focus restore, then restore aria-modal */}
       <div
         ref={panelRef}
         role="dialog"
-        aria-modal="true"
         aria-label={editing ? "עריכת הוצאה" : "הוספת הוצאה"}
         tabIndex={-1}
         dir="rtl"
@@ -148,6 +155,11 @@ export default function ExpenseSheet({
               </div>
             )}
           </div>
+          {currencyChanged && expense.paid && (
+            <p style={{ font: `600 12.5px ${FONT}`, color: P.ink3, marginBlockStart: 6 }}>
+              שינוי מטבע יאפס את סימון &quot;שולם&quot;
+            </p>
+          )}
           {ilsPreview != null && (
             <p data-testid="ils-preview"
                style={{ font: `600 12.5px ${FONT}`, color: P.ink3, marginBlockStart: 6 }}>

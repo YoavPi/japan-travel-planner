@@ -119,3 +119,36 @@ test("Escape closes the sheet", () => {
   fireEvent.keyDown(document, { key: "Escape" });
   expect(props.onClose).toHaveBeenCalled();
 });
+
+// C1 — a 2-decimal foreign currency round-trips without a 100x inflation
+test("edit mode: a EUR amount shows its major units and re-saves unchanged", () => {
+  const props = baseProps({
+    config: { currency: "EUR", rate: 4, totalIlsMinor: 1500000, categories: [] },
+    expense: { id: "e_eur", label: "מלון", amountMinor: 4550, currency: "EUR",
+               category: "lodging", dayRef: null, note: "" },
+  });
+  render(<ExpenseSheet {...props} />);
+  expect(screen.getByLabelText("סכום")).toHaveValue("45.5");
+
+  fireEvent.click(screen.getByRole("button", { name: "שמירה" }));
+  expect(props.onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+    amountMinor: 4550, currency: "EUR",
+  }));
+});
+
+// I2 — changing an existing expense's currency clears the recorded paid/actual
+test("edit mode: switching currency on a paid expense resets paid + actual", () => {
+  const props = baseProps({
+    config: { currency: "JPY", rate: 0.023, totalIlsMinor: 1500000, categories: [] },
+    expense: { id: "e_p", label: "ראמן", amountMinor: 1200, currency: "JPY",
+               category: "food", dayRef: null, note: "", paid: true, actualMinor: 1500 },
+  });
+  render(<ExpenseSheet {...props} />);
+  fireEvent.click(screen.getByRole("radio", { name: "₪" }));
+  expect(screen.getByText('שינוי מטבע יאפס את סימון "שולם"')).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "שמירה" }));
+  expect(props.onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+    currency: "ILS", paid: false, actualMinor: null,
+  }));
+});

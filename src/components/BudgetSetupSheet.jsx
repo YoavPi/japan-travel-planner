@@ -28,7 +28,9 @@ const capsFromConfig = (config) => {
 const customsFromConfig = (config) =>
   (config?.categories || []).filter((c) => c.custom).map((c) => ({ key: c.key, label: c.label }));
 
-export default function BudgetSetupSheet({ open, onClose, onSave, config, P }) {
+export default function BudgetSetupSheet({
+  open, onClose, onSave, config, P, foreignItemsPresent = false,
+}) {
   const [total, setTotal] = useState("");
   const [currency, setCurrency] = useState("ILS");
   const [rate, setRate] = useState("");
@@ -88,17 +90,24 @@ export default function BudgetSetupSheet({ open, onClose, onSave, config, P }) {
     if (currency !== "ILS" && (!Number.isFinite(rateNum) || rateNum <= 0)) {
       setErr("שער המרה לא תקין"); return;
     }
+    /* Emit only categories the user actually cares about: one with a real cap,
+       or one already declared in the saved config. Otherwise every blank base
+       category would persist and the budget screen would open onto eight empty
+       cards. */
+    const priorKeys = new Set((config?.categories || []).map((c) => c.key));
     onSave({
       totalIlsMinor: totalMinor || 0,
       currency,
       rate: rateNum,
       rateUpdatedAt: new Date().toISOString(),
-      categories: allCategories.map((c) => ({
-        key: c.key,
-        label: c.label,
-        capIlsMinor: parseAmount(caps[c.key], "ILS"),
-        ...(c.key.startsWith("c_") ? { custom: true } : {}),
-      })),
+      categories: allCategories
+        .map((c) => ({
+          key: c.key,
+          label: c.label,
+          capIlsMinor: parseAmount(caps[c.key], "ILS"),
+          ...(c.key.startsWith("c_") ? { custom: true } : {}),
+        }))
+        .filter((c) => c.capIlsMinor != null || priorKeys.has(c.key)),
     });
   };
 
@@ -118,10 +127,10 @@ export default function BudgetSetupSheet({ open, onClose, onSave, config, P }) {
         display: "flex", alignItems: "flex-end", justifyContent: "center",
       }}
     >
+      {/* TODO(phase-d): focus trap + focus restore, then restore aria-modal */}
       <div
         ref={panelRef}
         role="dialog"
-        aria-modal="true"
         aria-label="הגדרת תקציב"
         tabIndex={-1}
         dir="rtl"
@@ -146,9 +155,15 @@ export default function BudgetSetupSheet({ open, onClose, onSave, config, P }) {
           <div style={{ flex: 1 }}>
             <label style={label} htmlFor="bs-currency">מטבע היעד</label>
             <select id="bs-currency" style={field} value={currency} aria-label="מטבע היעד"
+                    disabled={foreignItemsPresent}
                     onChange={(e) => { setCurrency(e.target.value); setErr(""); }}>
               {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.label}</option>)}
             </select>
+            {foreignItemsPresent && (
+              <p style={{ font: `400 12px ${FONT}`, color: P.ink3, marginBlockStart: 6 }}>
+                יש הוצאות במטבע זר — שינוי המטבע ייפתח בהמשך
+              </p>
+            )}
           </div>
           {currency !== "ILS" && (
             <div style={{ flex: 1 }}>

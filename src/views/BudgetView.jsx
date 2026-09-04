@@ -125,6 +125,11 @@ export default function BudgetView() {
   }
 
   const over = roll.overBudget;
+  /* Expenses exist but no target is set yet. Show what has been spent without a
+     progress bar or a "remaining / over" line — there is nothing to be over. */
+  const noTarget = roll.totalIlsMinor <= 0;
+  const foreignItemsPresent = items.some(
+    (i) => i.currency && i.currency !== "ILS" && i.currency !== config.currency);
 
   return (
     <div dir="rtl" style={page}>
@@ -172,33 +177,42 @@ export default function BudgetView() {
                   <Money minor={roll.effectiveIlsMinor} currency="ILS" bold P={P}
                          tone={over ? "danger" : "ink"} style={{ fontSize: 26 }} />
                 </span>
-                {" מתוך "}
-                <span data-testid="summary-total">
-                  <Money minor={roll.totalIlsMinor} currency="ILS" P={P} tone="ink3" />
-                </span>
+                {!noTarget && (
+                  <>
+                    {" מתוך "}
+                    <span data-testid="summary-total">
+                      <Money minor={roll.totalIlsMinor} currency="ILS" P={P} tone="ink3" />
+                    </span>
+                  </>
+                )}
               </p>
 
-              <div
-                role="progressbar"
-                aria-label="ניצול התקציב"
-                aria-valuemin={0}
-                aria-valuemax={roll.totalIlsMinor}
-                aria-valuenow={roll.effectiveIlsMinor}
-                style={{ height: 10, borderRadius: 999, background: P.surface2,
-                         overflow: "hidden", marginBlock: 12 }}
-              >
-                <div style={{
-                  height: "100%", width: `${Math.min(100, roll.pct ?? 0)}%`,
-                  background: over ? P.danger : P.accent, borderRadius: 999,
-                }} />
-              </div>
+              {!noTarget && (
+                <div
+                  role="progressbar"
+                  aria-label="ניצול התקציב"
+                  aria-valuemin={0}
+                  aria-valuemax={roll.totalIlsMinor}
+                  aria-valuenow={roll.effectiveIlsMinor}
+                  style={{ height: 10, borderRadius: 999, background: P.surface2,
+                           overflow: "hidden", marginBlock: 12 }}
+                >
+                  <div style={{
+                    height: "100%", width: `${Math.min(100, roll.pct ?? 0)}%`,
+                    background: over ? P.danger : P.accent, borderRadius: 999,
+                  }} />
+                </div>
+              )}
 
               {/* State in WORDS — never colour alone (WCAG 2.2 AA). */}
               <p data-testid="summary-state"
-                 style={{ margin: 0, font: `800 14px ${FONT}`, color: over ? P.danger : P.ink2 }}>
-                {over
-                  ? `חריגה של ${formatMoney(-roll.remainingIlsMinor, "ILS")}`
-                  : `נותרו ${formatMoney(roll.remainingIlsMinor, "ILS")}`}
+                 style={{ margin: noTarget ? "12px 0 0" : 0, font: `800 14px ${FONT}`,
+                          color: over ? P.danger : P.ink2 }}>
+                {noTarget
+                  ? "לא הוגדר יעד"
+                  : over
+                    ? `חריגה של ${formatMoney(-roll.remainingIlsMinor, "ILS")}`
+                    : `נותרו ${formatMoney(roll.remainingIlsMinor, "ILS")}`}
               </p>
 
               <p style={{ marginBlock: "10px 0", font: `600 12.5px ${FONT}`, color: P.ink3 }}>
@@ -211,10 +225,12 @@ export default function BudgetView() {
                   <Money minor={roll.actualIlsMinor} currency="ILS" P={P} tone="ink3" />
                 </span>
               </p>
-              <p data-testid="allocation"
-                 style={{ marginBlock: "4px 0", font: `600 12.5px ${FONT}`, color: P.ink3 }}>
-                {`הוקצה ${formatMoney(roll.allocatedIlsMinor, "ILS")} · לא מוקצה ${formatMoney(roll.unallocatedIlsMinor, "ILS")}`}
-              </p>
+              {!noTarget && (
+                <p data-testid="allocation"
+                   style={{ marginBlock: "4px 0", font: `600 12.5px ${FONT}`, color: P.ink3 }}>
+                  {`הוקצה ${formatMoney(roll.allocatedIlsMinor, "ILS")} · לא מוקצה ${formatMoney(roll.unallocatedIlsMinor, "ILS")}`}
+                </p>
+              )}
 
               {!readOnly && (
                 <button type="button" onClick={() => setSetupOpen(true)}
@@ -292,6 +308,7 @@ export default function BudgetView() {
         onClose={() => setSetupOpen(false)}
         config={config}
         P={P}
+        foreignItemsPresent={foreignItemsPresent}
         onSave={(next) => { setConfig(next); setSetupOpen(false); }}
       />
 

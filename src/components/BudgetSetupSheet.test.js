@@ -47,14 +47,39 @@ test("a category cap is saved in agorot against its key", () => {
     expect.objectContaining({ key: "lodging", capIlsMinor: 500000 }));
 });
 
-test("a category left blank is saved with a null cap", () => {
+test("a fresh budget persists only the categories that were given a cap", () => {
   const props = baseProps();
   render(<BudgetSetupSheet {...props} />);
   fireEvent.change(screen.getByLabelText("תקרה עבור אוכל"), { target: { value: "2000" } });
   fireEvent.click(screen.getByRole("button", { name: "שמירה" }));
 
   const saved = props.onSave.mock.calls[0][0];
-  expect(saved.categories.find((c) => c.key === "lodging").capIlsMinor).toBeNull();
+  // only "food" was capped — no blank base category tags along
+  expect(saved.categories).toEqual([
+    expect.objectContaining({ key: "food", capIlsMinor: 200000 }),
+  ]);
+});
+
+test("a previously-declared category keeps its row when its cap is cleared", () => {
+  const props = baseProps();
+  props.config = { ...config, categories: [{ key: "lodging", label: "לינה", capIlsMinor: 500000 }] };
+  render(<BudgetSetupSheet {...props} />);
+  // wipe the pre-filled lodging cap
+  fireEvent.change(screen.getByLabelText("תקרה עבור לינה"), { target: { value: "" } });
+  fireEvent.click(screen.getByRole("button", { name: "שמירה" }));
+
+  const saved = props.onSave.mock.calls[0][0];
+  const lodging = saved.categories.find((c) => c.key === "lodging");
+  expect(lodging).toBeDefined();
+  expect(lodging.capIlsMinor).toBeNull();
+});
+
+test("the currency select is disabled while foreign-currency expenses exist", () => {
+  const props = baseProps();
+  props.foreignItemsPresent = true;
+  render(<BudgetSetupSheet {...props} />);
+  expect(screen.getByLabelText("מטבע היעד")).toBeDisabled();
+  expect(screen.getByText("יש הוצאות במטבע זר — שינוי המטבע ייפתח בהמשך")).toBeInTheDocument();
 });
 
 test("adding a custom category gives it a c_ key and a cap field", () => {

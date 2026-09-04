@@ -133,3 +133,18 @@ test("a load failure is reported rather than left blank", async () => {
   renderView();
   expect(await screen.findByRole("alert")).toHaveTextContent("לא ניתן לטעון");
 });
+
+// I4 — expenses exist but no target: no progressbar, no negative "remaining"
+test("with expenses but a zero target it shows a no-target state, not a broken bar", async () => {
+  const noTarget = { ...withBudget, config: { ...withBudget.config, totalIlsMinor: 0 } };
+  tripService.fetchTripById.mockResolvedValue(makeTrip(noTarget));
+  renderView();
+
+  expect(await screen.findByTestId("summary-state")).toHaveTextContent("לא הוגדר יעד");
+  expect(screen.getByTestId("summary-state")).not.toHaveTextContent("נותרו");
+  expect(screen.getByTestId("summary-state")).not.toHaveTextContent("חריגה");
+  expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+  expect(screen.queryByTestId("allocation")).not.toBeInTheDocument();
+  // spent figure is still shown
+  expect(screen.getByTestId("summary-effective")).toHaveTextContent("₪4,027.60");
+});
