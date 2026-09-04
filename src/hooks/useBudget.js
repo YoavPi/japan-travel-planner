@@ -36,10 +36,12 @@ export default function useBudget(trip) {
      unmemoized parent, a test harness) would otherwise drive an update loop —
      new object each render → effect re-fires → setData → re-render. */
   const reloadKey = trip?.lastEdited || null;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on reloadKey by design; depending on trip.data identity reintroduces an update loop (see comment above)
   useEffect(() => { setData(trip?.data || null); setError(null); }, [tripId, reloadKey]);
 
   /* The last state known to be persisted, for rollback. */
   const committed = useRef(trip?.data || null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on reloadKey by design; depending on trip.data identity reintroduces an update loop (see comment above)
   useEffect(() => { committed.current = trip?.data || null; }, [tripId, reloadKey]);
 
   /* The live value, so two synchronous mutations compose correctly. It is
@@ -47,6 +49,7 @@ export default function useBudget(trip) {
      OUTSIDE the setState updater — an updater that fires a request is a side
      effect in a reducer, and React would run it twice under StrictMode. */
   const dataRef = useRef(trip?.data || null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on reloadKey by design; depending on trip.data identity reintroduces an update loop (see comment above)
   useEffect(() => { dataRef.current = trip?.data || null; }, [tripId, reloadKey]);
 
   const mutate = useCallback((fn) => {
