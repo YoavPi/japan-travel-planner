@@ -3,6 +3,7 @@ import tripService from "../services/tripService";
 import { dedupeDayStops } from "../utils/classify";
 import { listInboxPlaces, addInboxPlaces, removeInboxPlace, updateInboxPlace, fetchMockGoogleSavedPlaces } from "../services/googleSavedPlaces";
 import { addGeneralFile, updateGeneralFile, removeGeneralFile, renameStopAttachment, remapFileDays } from "../utils/tripFiles";
+import { remapExpenseDays } from "../utils/budget";
 
 /* ══════════════════════════════════════════════════════════════
    useEditorState — the shared "brain" of the trip editor.
@@ -376,6 +377,12 @@ export default function useEditorState(tripId) {
         ...data,
         tripData: renumbered,
         files: remapFileDays(data.files, mapping, renumbered.length),
+        /* Standalone expenses follow the same rule as general files: a
+           removed day folds them back to "general" rather than dropping
+           them. Stop-linked expenses are skipped — their day is derived. */
+        ...(data.budget ? {
+          budget: { ...data.budget, items: remapExpenseDays(data.budget.items, mapping, renumbered.length) },
+        } : {}),
       };
     });
     const newLen = Math.max(1, curLen - 1);
@@ -425,7 +432,14 @@ export default function useEditorState(tripId) {
         if (newCount < cur) {
           const mapping = {};
           for (let i = 1; i <= renumbered.length; i++) mapping[i] = i;
-          return { ...data, tripData: renumbered, files: remapFileDays(data.files, mapping, renumbered.length) };
+          return {
+            ...data,
+            tripData: renumbered,
+            files: remapFileDays(data.files, mapping, renumbered.length),
+            ...(data.budget ? {
+              budget: { ...data.budget, items: remapExpenseDays(data.budget.items, mapping, renumbered.length) },
+            } : {}),
+          };
         }
         return { ...data, tripData: renumbered };
       });
