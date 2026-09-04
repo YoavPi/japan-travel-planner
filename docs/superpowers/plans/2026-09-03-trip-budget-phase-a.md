@@ -2709,12 +2709,37 @@ EOF
 - Create: `src/views/BudgetView.jsx`
 - Modify: `src/App.jsx` (import + one `<Route>`)
 - Test: `src/views/BudgetView.test.js`
+- **Test infra (already committed before this task — do NOT re-add or modify):**
+  `package.json` `jest.moduleNameMapper` and `src/setupTests.js` were amended in a
+  prior infra commit so a Jest test can `import` from `react-router-dom`. See the
+  "Test-infra prerequisite" note below. If the test still fails to load, STOP and
+  report — do not touch these files.
 
 **Interfaces:**
 - Consumes: `useBudget` (Task 5), `BudgetSetupSheet` (Task 6), `ExpenseSheet` (Task 7), `ExpenseRow` (Task 8), `Money` (Task 6), `resolveDay` / `BASE_CATEGORIES` / `formatMoney` (Tasks 1–3), `tripService.fetchTripById`.
 - Produces: the `/trip/budget/:tripId` screen. Nothing consumes it.
 
 Note: `SHOW_CHROME` in `App.jsx:185` does not match `/trip/`, so the new route gets a full viewport with no dock — the same treatment `/trip/overview/:tripId` already receives. No chrome change is needed.
+
+**Test-infra prerequisite (done in commit before this task):** This repo runs
+react-scripts 5 / Jest 27, which ignores the `exports` field, while
+`react-router-dom@7`'s `package.json` `main` points at a non-existent
+`dist/main.js`. Jest therefore cannot resolve a bare `import ... from
+"react-router-dom"`, and RRv7 also references `TextEncoder`/`TextDecoder`, which
+jsdom does not provide. No existing test imported the router, so this never
+surfaced. Two additive shims fix it, both landed in a separate infra commit
+before Task 9:
+
+- `package.json` → `"jest": { "moduleNameMapper": { "^react-router-dom$":
+  "<rootDir>/node_modules/react-router-dom/dist/index.js", "^react-router$":
+  "<rootDir>/node_modules/react-router/dist/development/index.js",
+  "^react-router/dom$":
+  "<rootDir>/node_modules/react-router/dist/development/dom-export.js" } }`
+  (`moduleNameMapper` is on react-scripts 5's allowed `jest` override list).
+- `src/setupTests.js` → a `TextEncoder`/`TextDecoder` polyfill from Node's `util`.
+
+Neither changes application behaviour — they only make Jest resolve the router
+the way Webpack and Node already do, and supply a Web API global jsdom lacks.
 
 - [ ] **Step 1: Write the failing test**
 
