@@ -118,4 +118,13 @@ export const dedupeDayStops = (stops = []) => {
   return result;
 };
 
+/* Sprint (budget Phase B, finding 2) — clone a stop with a FRESH instanceId.
+   instanceId is the stable identity a budget item's stopRef points at
+   (trip-budget-design §1.5): two stops must never share one, or one
+   expense would resolve to two places on the map. `genId` is the caller's
+   id generator (e.g. EditorView's genInstanceId), injected so this stays a
+   pure, testable helper with no crypto/Date dependency of its own. Every
+   other field is preserved untouched. */
+export const withFreshInstanceId = (stop, genId) => ({ ...stop, instanceId: genId() });
+
 export default classifyLocation;

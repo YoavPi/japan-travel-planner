@@ -18,12 +18,13 @@ import { listFavoriteIds } from "../services/favoritesService";
 import { track } from "../analytics/posthog";
 import { boundsForDestination, autocomplete, getDetails, isPlacesEnabled, nearbySearch } from "../services/googlePlaces";
 import { computeTransit } from "../utils/transit";
-import { dedupeDayStops, categoryEmoji, classifyLocation } from "../utils/classify";
+import { dedupeDayStops, categoryEmoji, classifyLocation, withFreshInstanceId } from "../utils/classify";
 import { readPrefs } from "../services/prefsService";
 import { listInboxPlaces, addInboxPlaces, removeInboxPlace, updateInboxPlace } from "../services/googleSavedPlaces";
 import { uploadAttachment, removeStoredFile } from "../services/attachmentService";
 import TripFilesSheet from "../components/TripFilesSheet";
 import { newFileId, remapFileDays } from "../utils/tripFiles";
+import { remapExpenseDays } from "../utils/budget";
 import useActiveTrip from "../utils/useActiveTrip";
 import Icon from "../components/Icon";
 import { setDocTitle, titleForTrip, DEFAULT_TITLE } from "../utils/docTitle";
@@ -1485,11 +1486,22 @@ const EditorView = () => {
         return next.map((d, i) => ({ ...d, day: i + 1 }));
       });
       /* Shrinking the trip: any general file tagged to a day beyond the new
-         length folds back to כללי (day:null) so it never dangles. */
-      if (newCount < prevCount && (trip?.data?.files || []).some((f) => f.day != null)) {
+         length folds back to כללי (day:null) so it never dangles. Standalone
+         budget items follow the exact same rule (desktop parity — see
+         useEditorState.applyDateRange's equivalent commitData write): one
+         atomic persistTripData call remaps BOTH files and budget.items off
+         the SAME mapping, so a mobile-created expense can never end up
+         tagged to a day that no longer exists. */
+      const hasFilesToRemap = (trip?.data?.files || []).some((f) => f.day != null);
+      const hasBudgetToRemap = (trip?.data?.budget?.items || []).some((it) => !it.stopRef && it.dayRef != null);
+      if (newCount < prevCount && (hasFilesToRemap || hasBudgetToRemap)) {
         const mapping = {};
         for (let i = 1; i <= newCount; i++) mapping[i] = i;
-        persistTripData((data) => ({ ...data, files: remapFileDays(data.files, mapping, newCount) }));
+        persistTripData((data) => ({
+          ...data,
+          files: remapFileDays(data.files, mapping, newCount),
+          ...(data.budget ? { budget: { ...data.budget, items: remapExpenseDays(data.budget.items, mapping, newCount) } } : {}),
+        }));
       }
     }
     saveStartDate(startISO);
@@ -2247,7 +2259,7 @@ const EditorView = () => {
       const from = days.find((d) => d.day === activeDay);
       const stop = from?.attractions[actionsIdx];
       const to = days.find((d) => d.day === toDay);
-      if (to && stop) to.attractions = dedupeDayStops([...to.attractions, { ...stop }]);
+      if (to && stop) to.attractions = dedupeDayStops([...to.attractions, withFreshInstanceId(stop, genInstanceId)]);
       return days;
     });
     setActionsIdx(-1);
@@ -2363,7 +2375,7 @@ const EditorView = () => {
       if (d.day === activeDay) {
         return { ...d, attractions: d.attractions.map((a, i) => (i === actionsIdx ? { ...bare, category: "מלון" } : a)) };
       }
-      return { ...d, attractions: [...d.attractions, { ...bare, category: "מלון" }] };
+      return { ...d, attractions: [...d.attractions, withFreshInstanceId({ ...bare, category: "מלון" }, genInstanceId)] };
     }));
     setActionsIdx(-1);
   }, [activeDay, trip, actionsIdx, commitDays]);
@@ -2389,7 +2401,7 @@ const EditorView = () => {
     try {
       const target = await tripService.fetchTripById(targetTripId);
       const tData = target?.data?.tripData || [];
-      const clone = { ...base, completed: false };
+      const clone = withFreshInstanceId({ ...base, completed: false }, genInstanceId);
       const nextTripData = tData.map((d) =>
         d.day === dayNum
           ? { ...d, attractions: dedupeDayStops([...(d.attractions || []), clone]) }
@@ -2688,12 +2700,21 @@ const EditorView = () => {
       return next.map((d, i) => ({ ...d, day: i + 1 }));
     });
     /* Follow the same renumbering for general files' `day` tag: old day
-       (order[newIdx] + 1) → new day (newIdx + 1). Only writes when a file
-       actually carries a day, so a plain reorder stays a single save. */
-    if ((trip?.data?.files || []).some((f) => f.day != null)) {
+       (order[newIdx] + 1) → new day (newIdx + 1). Standalone budget items
+       ride along in the SAME write (desktop parity), off the SAME mapping,
+       so a reorder can never leave an expense pointing at its old day
+       number. Only writes when a file or budget item actually carries a
+       day, so a plain reorder with neither stays a single save. */
+    const hasFilesToRemap = (trip?.data?.files || []).some((f) => f.day != null);
+    const hasBudgetToRemap = (trip?.data?.budget?.items || []).some((it) => !it.stopRef && it.dayRef != null);
+    if (hasFilesToRemap || hasBudgetToRemap) {
       const mapping = {};
       order.forEach((oldIdx, newIdx) => { mapping[oldIdx + 1] = newIdx + 1; });
-      persistTripData((data) => ({ ...data, files: remapFileDays(data.files, mapping, order.length) }));
+      persistTripData((data) => ({
+        ...data,
+        files: remapFileDays(data.files, mapping, order.length),
+        ...(data.budget ? { budget: { ...data.budget, items: remapExpenseDays(data.budget.items, mapping, order.length) } } : {}),
+      }));
     }
     if (newActiveIdx >= 0) setActiveDay(newActiveIdx + 1);
   }, [days, activeDay, commitDays, trip, persistTripData]);

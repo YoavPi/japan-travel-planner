@@ -343,3 +343,93 @@ export function remapExpenseDays(items, mapping, newDayCount) {
     return next === it.dayRef ? it : { ...it, dayRef: next };
   });
 }
+
+/* ── Per-stop cost groundwork (Phase B) ──────────────────────────
+   Every item's link to a stop is `stopRef`, the stop's `instanceId`
+   (§1.5 of the design doc). These two helpers are the read/write pair
+   the itinerary-mutation lifecycle hooks (delete stop, move to inbox)
+   are built on top of. */
+
+/* The budget items linked to one stop, in item order. */
+export function expensesForStop(items, stopId) {
+  if (!stopId) return [];
+  return (items || []).filter((it) => it.stopRef === stopId);
+}
+
+/* Detach every item linked to `stopId`: stopRef → null, everything else
+   (label, amountMinor, paid, actualMinor, category, …) preserved untouched.
+   Money is never destroyed here, only unlinked — it becomes a general
+   ("כללי") expense. Items with a different or no stopRef pass through by
+   IDENTITY (same object reference), matching remapFileDays/remapExpenseDays,
+   so callers can cheaply diff for a no-op. */
+export function detachStopExpenses(items, stopId) {
+  if (!stopId) return items || [];
+  return (items || []).map((it) =>
+    it.stopRef === stopId ? { ...it, stopRef: null } : it);
+}
+
+/* ── budgetImpact — the single source of confirmation tier + copy (§5) ──
+   Two-tier rule: confirm when LINKAGE or an already-committed number
+   changes (Tier 1, blocking); inform when only the outlook changes
+   (Tier 2, passive — not implemented here, callers show their own toast).
+   Returns null when the action needs no confirmation at all (e.g. nothing
+   is actually linked/affected), so a caller can simply do:
+     const impact = budgetImpact("deleteStop", ctx);
+     if (impact) { if (!confirm(impact)) return; }
+     proceedWithAction();
+
+   `ctx` shape is a public contract — documented per action below, chosen
+   to be exactly what a caller already has in hand (the trip's budget items
+   / config, plus the id of the stop or the proposed new rate). Nothing here
+   reads `trip` directly; the caller assembles `ctx` from `trip.data.budget`. */
+export function budgetImpact(action, ctx = {}) {
+  switch (action) {
+    /* ctx = { items, config, stopId } — the full budget items array, the
+       budget config (for ILS conversion), and the instanceId of the stop
+       about to be deleted. Used identically for "moveStopToInbox" — both
+       detach the stop's expense(s) rather than deleting them. */
+    case "deleteStop":
+    case "moveStopToInbox": {
+      const linked = expensesForStop(ctx.items, ctx.stopId);
+      if (linked.length === 0) return null;
+      const totalIlsMinor = linked.reduce(
+        (sum, it) => sum + toIlsMinor(Number(it.amountMinor) || 0, it.currency || "ILS", ctx.config), 0);
+      const amount = formatMoney(totalIlsMinor, "ILS");
+      const body = linked.length === 1
+        ? `לעצירה זו משויכת הוצאה של ${amount}. היא תעבור ל'כללי' ולא תימחק.`
+        : `לעצירה זו משויכות ${linked.length} הוצאות בסך ${amount}. הן יעברו ל'כללי' ולא יימחקו.`;
+      return {
+        tier: 1,
+        title: action === "deleteStop" ? "מחיקת עצירה עם הוצאה" : "העברת עצירה עם הוצאה",
+        body,
+        confirmLabel: action === "deleteStop" ? "מחק בכל זאת" : "העבר בכל זאת",
+      };
+    }
+
+    /* ctx = { items, config, newRate } — the full budget items array, the
+       CURRENT budget config (whose .rate is the "old" rate), and the
+       proposed new rate. Only paid, non-ILS items are re-valued by a rate
+       change (§1.4) — ILS items are untouched regardless of rate. */
+    case "changeRate": {
+      const items = ctx.items || [];
+      const oldConfig = ctx.config || {};
+      const newConfig = { ...oldConfig, rate: ctx.newRate };
+      const affected = items.filter((it) => it.paid && (it.currency || "ILS") !== "ILS");
+      if (affected.length === 0) return null;
+      const oldActual = affected.reduce(
+        (sum, it) => sum + toIlsMinor(itemEffectiveMinor(it), it.currency, oldConfig), 0);
+      const newActual = affected.reduce(
+        (sum, it) => sum + toIlsMinor(itemEffectiveMinor(it), it.currency, newConfig), 0);
+      if (oldActual === newActual) return null;
+      return {
+        tier: 1,
+        title: "עדכון שער החליפין",
+        body: `עדכון השער יעריך מחדש ${affected.length} הוצאות ששולמו. 'בפועל' ישתנה מ־${formatMoney(oldActual, "ILS")} ל־${formatMoney(newActual, "ILS")}.`,
+        confirmLabel: "עדכן שער",
+      };
+    }
+
+    default:
+      return null;
+  }
+}

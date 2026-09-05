@@ -496,6 +496,21 @@ Then close the §7.6 gaps that need a live backend / real device.
 | T-BUDGET-21 | P1 | **RTL + dark mode + touch targets.** Both sheets and the main screen: right-aligned Hebrew text, no mirrored/backwards layout, all interactive controls (✓, add/edit/delete, chips, toggle) ≥44×44px, readable contrast in dark mode. The ✓ prompt and the currency chips especially — they're the newest interaction on the screen. |
 | T-BUDGET-22 | P2 | **Keyboard dismissal.** Both the setup sheet and the expense sheet close on Esc. **Known gap (Phase D follow-up):** neither sheet traps focus yet — `aria-modal` was deliberately removed rather than left inaccurate; a real focus trap + restore lands with the Phase D design pass. |
 
+### 10.5 Day-tag remap safety (Phase B pre-work bugfix, 2026-09-05)
+
+**Context:** groundwork for Phase B (per-stop cost linkage) surfaced a live bug in already-shipped Phase A: the mobile editor's `applyDateRange` (date-range shrink) and `reorderDays` (day-chip drag reorder) remapped `trip.data.files[]` day tags but not `trip.data.budget.items[]`, unlike the desktop hook (`useEditorState.js`) which already did both. Fixed by folding `remapExpenseDays` into the same `persistTripData` write, off the same `mapping` object already used for files — see `src/views/EditorView.jsx` `applyDateRange` (~line 1489) and `reorderDays` (~line 2703). Also added `withFreshInstanceId` so mobile's three stop-clone paths (`copyStopToDay`, `setStopAsMultiDayHotel`, `copyStopToOtherTrip`) stop carrying the source stop's `instanceId` forward — required so a future `stopRef`-linked expense can never resolve to two places on the map.
+
+**Automated** — `src/utils/classify.test.js` (`withFreshInstanceId`), `src/utils/budget.test.js` (`remapExpenseDays` pre-existing + new `expensesForStop`/`detachStopExpenses`/`budgetImpact` groundwork, not yet wired to any UI). `src/views/EditorView.jsx` itself has no Jest harness (pre-existing, by design) — the cases below need a real browser/on-device pass.
+
+| ID | Pri | Case |
+|---|---|---|
+| T-BUDGET-23 | **P0** | **Mobile date-range shrink re-tags a day-linked standalone expense to כללי.** On mobile (375px), open a multi-day trip in the editor, add a standalone budget expense via `/trip/budget/:tripId` tagged to the trip's LAST day (e.g. day 5 of 5), go back to the editor, open the date-range picker and shrink the trip to fewer days than that expense's day (e.g. 3 days). Then check `/trip/budget/:tripId` again with "לפי יום" grouping. Expected: the expense now appears under "כללי" (dayRef → null), never vanishes, and never still shows "יום 5" (a day that no longer exists). This is the exact live bug this change fixes — before the fix, the expense's `dayRef` was left dangling because only `files[]` was remapped on mobile. |
+| T-BUDGET-24 | P1 | **Mobile date-range shrink still re-tags a day-linked FILE (regression guard).** Same setup as T-BUDGET-23 but with a general file (via the 🗂️ Trip Files sheet) tagged to the dropped day instead of a budget expense — confirm the pre-existing files-remap behavior is unchanged by this diff (both remaps now share one `mapping`, so a regression here would likely mean the budget remap broke the files remap too). |
+| T-BUDGET-25 | **P0** | **Mobile day-reorder carries a day-linked standalone expense with it.** On mobile, in a trip with ≥3 days, tag a standalone expense to day 2, then drag-reorder the day chips so day 2 moves to position 3 (or 1). Reopen `/trip/budget/:tripId` with "לפי יום" grouping. Expected: the expense's day tag follows the day it was filed under to its NEW day number (e.g. "יום 2" → "יום 3"), it does not stay pinned to the old numeric slot and does not get orphaned to כללי. |
+| T-BUDGET-26 | P1 | **Stop-linked expense's day tag is untouched by either operation (not applicable to Phase A, forward-looking guard).** `remapExpenseDays` explicitly skips any item with a `stopRef` (its day is derived from the stop, not stored) — there is no UI to create a `stopRef`-linked expense yet in Phase A, so this case is a placeholder for Phase B: once per-stop cost entry ships, repeat T-BUDGET-23/25 with a stop-linked expense and confirm its `stopRef` (and therefore its effective day) is unaffected by a shrink/reorder that doesn't remove or move the underlying stop. |
+
+**Not verified live this pass:** no dev-server/browser-automation tool was available in this QA session (Puppeteer/browser MCP not connected here) to actually drive the date-range shrink and day-chip drag gestures T-BUDGET-23/25 require. Verified instead: `npm run critical` (9/9), full Jest suite (`CI=true npm test -- --watchAll=false`, 23 suites / 246 tests, including the new `classify.test.js` and the `budget.test.js` additions), `npm run build` (clean), and a source-level trace confirming both `EditorView.jsx` call sites feed `remapFileDays` and `remapExpenseDays` from the exact same local `mapping` object (no risk of the two remaps drifting out of sync) and that `remapExpenseDays` already excludes `stopRef`-linked items by design. T-BUDGET-23/24/25 should be run on-device or via a `qa`-agent pass with real browser/touch access before this is marked fully verified.
+
 ---
 
 ## 11. Sign-off
@@ -513,5 +528,6 @@ Then close the §7.6 gaps that need a live backend / real device.
 | AI destination focus manual cases verified | | ⬜ |
 | Trip budget (Phase A) automated tests green | | ⬜ |
 | Trip budget (Phase A) manual cases verified | | ⬜ |
+| Trip budget day-tag remap safety fix (T-BUDGET-23..26) manual cases verified | | ⬜ |
 
 **QA verdict:** ⬜ Ship · ⬜ Ship with follow-ups · ⬜ Block

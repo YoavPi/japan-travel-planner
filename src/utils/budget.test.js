@@ -481,3 +481,153 @@ describe("remapExpenseDays", () => {
     expect(remapExpenseDays(null, {}, 0)).toEqual([]);
   });
 });
+
+import { expensesForStop, detachStopExpenses, budgetImpact } from "./budget";
+
+describe("expensesForStop", () => {
+  const items = [
+    { id: "e_1", stopRef: "inst-aaa", amountMinor: 100, currency: "ILS" },
+    { id: "e_2", stopRef: "inst-bbb", amountMinor: 200, currency: "ILS" },
+    { id: "e_3", stopRef: null, amountMinor: 300, currency: "ILS" },
+    { id: "e_4", stopRef: "inst-aaa", amountMinor: 400, currency: "ILS" },
+  ];
+
+  test("returns only the items linked to the given stop, in order", () => {
+    expect(expensesForStop(items, "inst-aaa").map((i) => i.id)).toEqual(["e_1", "e_4"]);
+  });
+
+  test("a stop with no linked items returns an empty array", () => {
+    expect(expensesForStop(items, "inst-zzz")).toEqual([]);
+  });
+
+  test("no stopId or no items never throws", () => {
+    expect(expensesForStop(items, null)).toEqual([]);
+    expect(expensesForStop(null, "inst-aaa")).toEqual([]);
+  });
+});
+
+describe("detachStopExpenses", () => {
+  const linkedA = { id: "e_1", stopRef: "inst-aaa", label: "ראמן", amountMinor: 1200,
+    currency: "JPY", category: "food", paid: true, actualMinor: 1500 };
+  const linkedB = { id: "e_2", stopRef: "inst-aaa", label: "מונית", amountMinor: 500,
+    currency: "ILS", category: "transport", paid: false, actualMinor: null };
+  const other = { id: "e_3", stopRef: "inst-bbb", label: "מלון", amountMinor: 30000, currency: "ILS" };
+  const unlinked = { id: "e_4", stopRef: null, label: "ביטוח", amountMinor: 32000, currency: "ILS" };
+  const items = [linkedA, linkedB, other, unlinked];
+
+  test("clears stopRef on every item linked to the given stop, preserving all other fields", () => {
+    const out = detachStopExpenses(items, "inst-aaa");
+    expect(out[0]).toEqual({ ...linkedA, stopRef: null });
+    expect(out[1]).toEqual({ ...linkedB, stopRef: null });
+    // label + amount + paid + actual survive the detach untouched
+    expect(out[0].label).toBe("ראמן");
+    expect(out[0].amountMinor).toBe(1200);
+    expect(out[0].paid).toBe(true);
+    expect(out[0].actualMinor).toBe(1500);
+  });
+
+  test("items with a different or no stopRef pass through BY IDENTITY (untouched)", () => {
+    const out = detachStopExpenses(items, "inst-aaa");
+    expect(out[2]).toBe(other);
+    expect(out[3]).toBe(unlinked);
+  });
+
+  test("no stopId returns the input array back untouched", () => {
+    expect(detachStopExpenses(items, null)).toBe(items);
+  });
+
+  test("null items yields an empty array, never a throw", () => {
+    expect(detachStopExpenses(null, "inst-aaa")).toEqual([]);
+  });
+});
+
+describe("budgetImpact — deleteStop / moveStopToInbox", () => {
+  const config = { currency: "ILS", rate: 1 };
+
+  test("no linked expense: no confirmation needed", () => {
+    expect(budgetImpact("deleteStop", { items: [], config, stopId: "inst-aaa" })).toBeNull();
+  });
+
+  test("one linked expense: tier 1, body names the exact ILS amount", () => {
+    const items = [{ id: "e_1", stopRef: "inst-aaa", amountMinor: 80000, currency: "ILS" }];
+    const impact = budgetImpact("deleteStop", { items, config, stopId: "inst-aaa" });
+    expect(impact.tier).toBe(1);
+    expect(impact.body).toContain("₪800.00");
+    expect(impact.body).toContain("כללי");
+  });
+
+  test("a JPY-denominated linked expense is converted to ILS via config.rate", () => {
+    const items = [{ id: "e_1", stopRef: "inst-aaa", amountMinor: 1200, currency: "JPY" }];
+    const jpyConfig = { currency: "JPY", rate: 0.023 };
+    const impact = budgetImpact("deleteStop", { items, config: jpyConfig, stopId: "inst-aaa" });
+    // 1200 JPY * 0.023 = ₪27.60 = 2760 agorot
+    expect(impact.body).toContain("₪27.60");
+  });
+
+  test("multiple linked expenses: body states the count and the summed amount", () => {
+    const items = [
+      { id: "e_1", stopRef: "inst-aaa", amountMinor: 50000, currency: "ILS" },
+      { id: "e_2", stopRef: "inst-aaa", amountMinor: 30000, currency: "ILS" },
+    ];
+    const impact = budgetImpact("deleteStop", { items, config, stopId: "inst-aaa" });
+    expect(impact.body).toContain("2");
+    expect(impact.body).toContain("₪800.00"); // 500 + 300
+  });
+
+  test("moveStopToInbox uses the same detach numbers with its own wording", () => {
+    const items = [{ id: "e_1", stopRef: "inst-aaa", amountMinor: 80000, currency: "ILS" }];
+    const impact = budgetImpact("moveStopToInbox", { items, config, stopId: "inst-aaa" });
+    expect(impact.tier).toBe(1);
+    expect(impact.body).toContain("₪800.00");
+    expect(impact.confirmLabel).not.toBe(
+      budgetImpact("deleteStop", { items, config, stopId: "inst-aaa" }).confirmLabel
+    );
+  });
+
+  test("an unrelated stop's expenses do not trigger a confirmation", () => {
+    const items = [{ id: "e_1", stopRef: "inst-bbb", amountMinor: 80000, currency: "ILS" }];
+    expect(budgetImpact("deleteStop", { items, config, stopId: "inst-aaa" })).toBeNull();
+  });
+});
+
+describe("budgetImpact — changeRate", () => {
+  test("no paid non-ILS items: no confirmation needed", () => {
+    const items = [{ id: "e_1", stopRef: null, amountMinor: 1000, currency: "ILS", paid: true }];
+    const config = { currency: "JPY", rate: 0.023 };
+    expect(budgetImpact("changeRate", { items, config, newRate: 0.025 })).toBeNull();
+  });
+
+  test("an unpaid JPY item is unaffected by a rate change", () => {
+    const items = [{ id: "e_1", amountMinor: 1200, currency: "JPY", paid: false }];
+    const config = { currency: "JPY", rate: 0.023 };
+    expect(budgetImpact("changeRate", { items, config, newRate: 0.03 })).toBeNull();
+  });
+
+  test("paid JPY items: tier 1, body names old and new actual totals exactly", () => {
+    const items = [
+      { id: "e_1", amountMinor: 1200, currency: "JPY", paid: true, actualMinor: null },
+      { id: "e_2", amountMinor: 1000, currency: "ILS", paid: true, actualMinor: null }, // untouched (ILS)
+    ];
+    const oldConfig = { currency: "JPY", rate: 0.023 };
+    const impact = budgetImpact("changeRate", { items, config: oldConfig, newRate: 0.03 });
+    expect(impact.tier).toBe(1);
+    // old: 1200 * 0.023 = ₪27.60 → 2760 agorot; new: 1200 * 0.03 = ₪36.00 → 3600 agorot
+    expect(impact.body).toContain("₪27.60");
+    expect(impact.body).toContain("₪36.00");
+    expect(impact.body).toContain("1"); // 1 paid non-ILS item affected
+  });
+
+  test("a paid item's actualMinor, when set, is what gets re-valued, not amountMinor", () => {
+    const items = [{ id: "e_1", amountMinor: 1200, currency: "JPY", paid: true, actualMinor: 1500 }];
+    const oldConfig = { currency: "JPY", rate: 0.023 };
+    const impact = budgetImpact("changeRate", { items, config: oldConfig, newRate: 0.023 });
+    // same rate ⇒ totals identical ⇒ no confirmation needed
+    expect(impact).toBeNull();
+  });
+});
+
+describe("budgetImpact — unknown action", () => {
+  test("returns null for an action it does not know about", () => {
+    expect(budgetImpact("somethingElse", {})).toBeNull();
+  });
+});
