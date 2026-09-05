@@ -25,19 +25,7 @@ import { readPrefs } from "../services/prefsService";
 import usePlacePhotos, { photoKey } from "../utils/usePlacePhotos";
 import { computeTransit } from "../utils/transit";
 import ExpenseSheet from "../components/ExpenseSheet";
-/* NOTE (Task 5, desktop wiring): the brief's Step 6 also calls for
-   addExpense + ensureBudget here, to wire the ₪ chip to a NON-stop-bound
-   quick-add via `commitData((data) => addExpense(ensureBudget(data), payload))`.
-   That is deferred: `commitData` (defined in useEditorState.js) is not part
-   of that hook's returned object — confirmed by reading the full file, not
-   a line-drift issue — so there is no way to write a general (non-stop)
-   expense from this file today. Fixing that means adding one key to
-   useEditorState's return statement, which is out of this task's explicit
-   file scope (EditorDesktop.jsx only). The ₪ chip therefore still opens
-   /trip/budget/:tripId directly (unchanged) instead of a quick-add sheet.
-   Handed back: useEditorState.js needs `commitData` added to its return
-   object before Step 6 can be completed. */
-import { budgetImpact, formatMoney, BASE_CATEGORIES } from "../utils/budget";
+import { budgetImpact, formatMoney, BASE_CATEGORIES, addExpense, ensureBudget } from "../utils/budget";
 
 /* Stable per-object identity for Reorder keys/values: a stop's array index
    changes as it's dragged, so we key by the attraction object itself via a
@@ -115,7 +103,7 @@ export default function EditorDesktop() {
   const distUnits = readPrefs().units; // km | mi — Settings → יחידות מרחק
   const { trip, error, days, activeDay, setActiveDay, activeDayData, mapStops, editable,
     deleteStopAt, duplicateStopAt, moveStopToDay, setStopNote, addStopToDay, setDayOrder,
-    saveStopCost, removeStopCost, costForStop,
+    saveStopCost, removeStopCost, costForStop, commitData,
     addTransitToDay, updateStopAt, addAttachmentToStop, removeAttachmentAt, insertAt,
     tripFiles, addTripFile, updateTripFile, removeTripFile, renameAttachmentAt,
     addDay, deleteDay, saveStartDate, applyDateRange, moveStopToInbox, saveCustomPin, addSearchedToInbox,
@@ -201,6 +189,7 @@ export default function EditorDesktop() {
   const [hoverDay, setHoverDay] = useState(null); // day chip under the cursor (reveals ×)
   const [costFor, setCostFor] = useState(null);     // { dayNum, idx } | null — ExpenseSheet in stop-bound mode
   const [budgetConfirm, setBudgetConfirm] = useState(null); // { impact, onConfirm } | null
+  const [quickAddOpen, setQuickAddOpen] = useState(false); // ExpenseSheet in non-stop-bound (₪ chip) mode
   const openDatesModal = () => {
     const startIso = trip?.settings?.startDate ? String(trip.settings.startDate).slice(0, 10) : "";
     let endIso = "";
@@ -918,10 +907,12 @@ export default function EditorDesktop() {
             <span style={{ minWidth: 18, height: 18, borderRadius: 999, padding: "0 5px", background: ACCENT, color: "#fff", fontSize: 11, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{tripFilesCount}</span>
           )}
         </button>
-        {/* Trip budget entry point — opens the dedicated /trip/budget screen.
-            No badge yet (Phase C wires a live spent/total indicator here). */}
-        <button onClick={() => navigate(`/trip/budget/${tripId}`)}
-          title="תקציב הטיול"
+        {/* Trip budget entry point — opens a quick-add ExpenseSheet (not the
+            full /trip/budget screen directly); the sheet itself links back
+            to the full screen via onOpenBudget. No badge yet (Phase C wires
+            a live spent/total indicator here). */}
+        <button onClick={() => setQuickAddOpen(true)}
+          title="הוספת הוצאה מהירה"
           style={{
             flexShrink: 0, height: 40, display: "inline-flex", alignItems: "center", gap: 7, padding: "0 13px",
             borderRadius: 10, cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 800,
@@ -1711,6 +1702,26 @@ export default function EditorDesktop() {
           />
         );
       })()}
+
+      {/* ── Quick-add (Phase B) — non-stop-bound ExpenseSheet opened from the
+          ₪ chip: a general trip expense, written via addExpense (not
+          saveStopCost — no `stop` prop is passed). ─── */}
+      {quickAddOpen && (
+        <ExpenseSheet
+          open
+          onClose={() => setQuickAddOpen(false)}
+          expense={null}
+          config={trip?.data?.budget?.config || { currency: "ILS" }}
+          categories={BASE_CATEGORIES}
+          dayCount={days.length}
+          P={{ ...T, panel: "#fff", danger: "#C0392B", page: "#fff" }}
+          onSubmit={(payload) => {
+            commitData((data) => addExpense(ensureBudget(data), payload));
+            setQuickAddOpen(false);
+          }}
+          onOpenBudget={() => { setQuickAddOpen(false); navigate(`/trip/budget/${tripId}`); }}
+        />
+      )}
 
       <style>{`
         .tp-desk-row:hover { background: ${T.surface} !important; border-color: ${T.ink4} !important; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }

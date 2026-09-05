@@ -506,6 +506,6 @@ export default function useEditorState(tripId) {
     addTransitToDay, updateStopAt, addAttachmentToStop, removeAttachmentAt, insertAt, addTripFile, updateTripFile, removeTripFile, renameAttachmentAt,
     addDay, deleteDay, saveStartDate, applyDateRange, moveStopToInbox, saveCustomPin, addSearchedToInbox,
     inbox, inboxLoading, loadInbox, assignInboxToDay, removeFromInbox, updateInboxNote, connectSavedPlaces,
-    saveStopCost, removeStopCost, costForStop,
+    saveStopCost, removeStopCost, costForStop, commitData,
   };
 }
