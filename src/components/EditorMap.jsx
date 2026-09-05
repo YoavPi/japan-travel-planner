@@ -132,6 +132,14 @@ const EditorMap = ({
   onSaveCustomPin,
   /* Sprint 34 — trip days for the modal's "specific day" selector. */
   days = [],
+  /* Sprint 66 #3 — the active day number. The day-fit effect keys off this
+     (plus the day's coordinate signature) so it re-frames the map ONLY on a
+     real day switch / stop-set change — never on an incidental re-render such
+     as opening or closing a stop card. */
+  activeDay = null,
+  /* Sprint 66 #2 — edit the tapped stop's personal note straight from its
+     detail card (opens the parent's NoteSheet). Passed only for editable trips. */
+  onEditStopNote,
   /* Sprint 36 #6 — tapping empty map space collapses the Places Inbox. */
   onMapBackgroundClick,
   /* Sprint 44 #3 — persistent active-stop context. `focusStop` (driven by a
@@ -398,11 +406,29 @@ const EditorMap = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardCoord && cardCoord.lat, cardCoord && cardCoord.lng]);
 
-  /* Fit/fly to the active day's cluster whenever it changes. */
+  /* Fit/fly to the active day's cluster — ONLY on a genuine day switch or a
+     change to that day's stop set (add / remove / reorder / move coords).
+     Sprint 66 #3 — previously keyed on the `pts` array identity, which also
+     changes on incidental re-renders (opening/closing a stop card, the mobile
+     keyboard resizing the viewport, a bottom-sheet snap). That yanked the map
+     back to the whole-day frame the instant a stop card was dismissed. Now a
+     stable signature gates the re-fit: closing a card leaves the signature
+     untouched, so the view holds exactly where the user left it; tapping a day
+     in the schedule changes `activeDay` → the map re-frames as expected. */
+  const prevDaySigRef = useRef(null);
   useEffect(() => {
     const map = mapRef.current;
     if (!map || pts.length === 0) return;
-    if (holdView || nearbyActive) return; // a card is open, or nearby results own the view — keep it put
+    /* A card / nearby results own the view — hold it, and DON'T record the
+       signature, so a day switch made while a card is open still re-frames
+       once the card is dismissed. */
+    if (holdView || nearbyActive) return;
+    const sig = `${activeDay ?? ""}::${pts
+      .map((s) => `${s.coordinates.lat.toFixed(5)},${s.coordinates.lng.toFixed(5)}`)
+      .join("|")}`;
+    const changed = sig !== prevDaySigRef.current;
+    prevDaySigRef.current = sig;
+    if (!changed) return;                  // incidental re-render — hold the view
     if (pts.length === 1) {
       /* Sprint 36 #7 — single stop: legible planning zoom, not street level. */
       map.flyTo({ center: [pts[0].coordinates.lng, pts[0].coordinates.lat], zoom: SINGLE_STOP_ZOOM, duration: 700 });
@@ -420,7 +446,7 @@ const EditorMap = ({
       map.fitBounds([[minLng, minLat], [maxLng, maxLat]], { padding: fitPadding || FIT_PADDING, maxZoom: 15, duration: 700 });
     } catch { /* noop */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pts, fitPadding, nearbyActive]);
+  }, [pts, fitPadding, nearbyActive, activeDay, holdView]);
 
   /* "מפות נוספות" — when a reference map is loaded as an overlay, frame the map
      so the CURRENT route AND the loaded points are BOTH visible at once (so the
@@ -1040,10 +1066,36 @@ const EditorMap = ({
               <span>{selected.stop.address || selected.stop.formatted_address}</span>
             </div>
           )}
-          {/* User's own note — kept distinct from the Google snippet. */}
-          {selected.stop.note && (
-            <div style={{ marginTop: 10, fontSize: 13.5, fontWeight: 600, color: "#0D0F11", lineHeight: 1.5 }}>{selected.stop.note}</div>
-          )}
+          {/* User's own note — kept distinct from the Google snippet. Sprint 66
+              #2 — always shown and tappable to add/edit (opens the parent's
+              NoteSheet) so the personal note is reachable no matter how the stop
+              was opened. Read-only fallback when the trip isn't editable. */}
+          {onEditStopNote ? (
+            <button
+              onClick={() => onEditStopNote(selected.stop)}
+              className="tp-press"
+              aria-label={selected.stop.note ? "עריכת ההערה" : "הוספת הערה"}
+              style={{
+                marginTop: 12, width: "100%", textAlign: "start", display: "flex",
+                alignItems: "flex-start", gap: 8, padding: "10px 12px", borderRadius: 12,
+                border: `1px solid ${selected.stop.note ? "rgba(20,20,20,0.14)" : "rgba(20,20,20,0.10)"}`,
+                background: selected.stop.note ? "#F6F6F4" : "#fff", cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              <span style={{ flexShrink: 0, marginTop: 1, color: "#6B7178", display: "inline-flex" }}>
+                <Icon name="note" size={14} strokeWidth={1.9} />
+              </span>
+              <span dir="auto" style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: selected.stop.note ? 600 : 500, color: selected.stop.note ? "#0D0F11" : "#6B7178", lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                {selected.stop.note || "הוספת הערה אישית…"}
+              </span>
+              {selected.stop.note && (
+                <span style={{ flexShrink: 0, fontSize: 11.5, fontWeight: 800, color: "#6B7178" }}>עריכה</span>
+              )}
+            </button>
+          ) : selected.stop.note ? (
+            <div dir="auto" style={{ marginTop: 10, fontSize: 13.5, fontWeight: 600, color: "#0D0F11", lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{selected.stop.note}</div>
+          ) : null}
 
           {/* Primary CTA — open in Google Maps */}
           <button onClick={() => openInGoogleMaps(selected.stop)} className="tp-press"

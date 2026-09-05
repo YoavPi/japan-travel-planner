@@ -2920,6 +2920,21 @@ const EditorView = () => {
           onSavedClick={openSavedPointCard}
           onSaveCustomPin={editable ? handleSaveCustomPin : undefined}
           days={days.map((d) => ({ day: d.day, cityHe: d.cityHe, city: d.city }))}
+          /* Sprint 66 #3 — the map re-frames on a real day switch, not on
+             incidental re-renders (opening/closing a stop card). */
+          activeDay={activeDay}
+          /* Sprint 66 #2 — edit the tapped stop's note from its map detail card
+             (reuses the NoteSheet + saveNoteAt cascade). Editable trips only. */
+          onEditStopNote={editable ? (stop) => {
+            const arr = activeDayData?.attractions || [];
+            let i = arr.indexOf(stop);
+            if (i >= 0) { setNoteEditIdx(i); return; }
+            /* Continuous view / a stop from another day: jump to its day first. */
+            for (const d of days) {
+              const j = (d.attractions || []).indexOf(stop);
+              if (j >= 0) { setActiveDay(d.day); setNoteEditIdx(j); return; }
+            }
+          } : undefined}
           /* Sprint 44 #3 — persistent active-stop context. */
           focusStop={activeStop}
           /* Sprint 62 #2 — a MAP-marker selection has no return row, so clear the

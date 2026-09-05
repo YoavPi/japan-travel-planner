@@ -94,6 +94,12 @@ const StopActionsSheet = ({ stop, days = [], otherTrips = [], onMove, onCopy, on
         background: "#fff", borderTopLeftRadius: 22, borderTopRightRadius: 22,
         padding: "16px 0 24px", boxShadow: "0 -24px 60px rgba(0,0,0,0.18)",
         fontFamily: "'Noto Sans Hebrew','Inter',sans-serif",
+        /* Sprint 66 #1 — the grouped menu is taller than a phone viewport, so
+           the panel itself scrolls (bottom-anchored → top rows were clipped
+           off-screen with no way to reach them). The sticky ✕ header below
+           now works because this is the scroll container. */
+        maxHeight: "calc(100dvh - env(safe-area-inset-top, 0px) - 8px)",
+        overflowY: "auto", overscrollBehavior: "contain", WebkitOverflowScrolling: "touch",
       }}>
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
           <div style={{ width: 44, height: 5, borderRadius: 999, background: "rgba(20,20,20,0.18)" }} />
