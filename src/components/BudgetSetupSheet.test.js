@@ -154,3 +154,27 @@ test("changing the rate with no paid non-ILS items saves immediately, no confirm
 
   expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ rate: 12 }));
 });
+
+test("Escape key behavior with rate-confirm dialog", () => {
+  const onSave = jest.fn();
+  const onClose = jest.fn();
+  const config = { currency: "THB", rate: 10, categories: [] };
+  const items = [{ id: "e1", amountMinor: 10000, currency: "THB", paid: true }];
+  render(<BudgetSetupSheet open onClose={onClose} onSave={onSave} config={config} items={items} P={LIGHT} />);
+
+  // Change rate to open the confirm dialog
+  fireEvent.change(screen.getByLabelText(/שער המרה/), { target: { value: "12" } });
+  fireEvent.click(screen.getByText("שמירה"));
+
+  // Confirm dialog is open
+  expect(screen.getByText(/יעריך מחדש/)).toBeInTheDocument();
+
+  // Press Escape — should close the confirm dialog, not the sheet
+  fireEvent.keyDown(document, { key: "Escape" });
+  expect(screen.queryByText(/יעריך מחדש/)).not.toBeInTheDocument();
+  expect(onClose).not.toHaveBeenCalled();
+
+  // Press Escape again — now should close the sheet
+  fireEvent.keyDown(document, { key: "Escape" });
+  expect(onClose).toHaveBeenCalled();
+});

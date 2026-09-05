@@ -56,11 +56,15 @@ export default function BudgetSetupSheet({
   /* Esc closes; focus lands inside the panel on open. */
   useEffect(() => {
     if (!open) return undefined;
-    const onKey = (e) => { if (e.key === "Escape") onClose?.(); };
+    const onKey = (e) => {
+      if (e.key !== "Escape") return;
+      if (rateConfirm) { setRateConfirm(null); return; }
+      onClose?.();
+    };
     document.addEventListener("keydown", onKey);
     panelRef.current?.focus();
     return () => document.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [open, onClose, rateConfirm]);
 
   const allCategories = useMemo(
     () => [...BASE_CATEGORIES, ...customs], [customs]);
