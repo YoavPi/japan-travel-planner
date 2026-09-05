@@ -1695,7 +1695,7 @@ export default function EditorDesktop() {
             config={trip?.data?.budget?.config || { currency: "ILS" }}
             categories={BASE_CATEGORIES}
             dayCount={days.length}
-            P={{ ...T, panel: "#fff", danger: "#C0392B", page: "#fff" }}
+            P={{ ...T, accent: ACCENT, panel: "#fff", danger: "#C0392B", page: "#fff" }}
             onSubmit={(payload) => { saveStopCost(costFor.dayNum, costFor.idx, payload); setCostFor(null); }}
             onDelete={(id) => { removeStopCost(id); setCostFor(null); }}
             onOpenBudget={() => { setCostFor(null); navigate(`/trip/budget/${tripId}`); }}
@@ -1714,7 +1714,7 @@ export default function EditorDesktop() {
           config={trip?.data?.budget?.config || { currency: "ILS" }}
           categories={BASE_CATEGORIES}
           dayCount={days.length}
-          P={{ ...T, panel: "#fff", danger: "#C0392B", page: "#fff" }}
+          P={{ ...T, accent: ACCENT, panel: "#fff", danger: "#C0392B", page: "#fff" }}
           onSubmit={(payload) => {
             commitData((data) => addExpense(ensureBudget(data), payload));
             setQuickAddOpen(false);
