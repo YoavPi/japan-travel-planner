@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { CURRENCY_SYMBOL, minorDigits, minorFactor, parseAmount, toIlsMinor } from "../utils/budget";
+import { CURRENCY_SYMBOL, minorDigits, minorFactor, parseAmount, toIlsMinor, guessCategory } from "../utils/budget";
 import Money from "./Money";
 
 /* ══════════════════════════════════════════════════════════════
@@ -21,7 +21,7 @@ const minorToInput = (minor, currency) => {
 };
 
 export default function ExpenseSheet({
-  open, onClose, onSubmit, onDelete, expense, config, categories, dayCount, P,
+  open, onClose, onSubmit, onDelete, expense, config, categories, dayCount, P, stop, onOpenBudget,
 }) {
   const editing = !!expense;
   const tripCurrency = config?.currency || "ILS";
@@ -39,15 +39,15 @@ export default function ExpenseSheet({
 
   useEffect(() => {
     if (!open) return;
-    setLabel(expense?.label || "");
+    setLabel(expense?.label || (stop && !expense ? (stop.nameHe || stop.name || "") : ""));
     setCurrency(expense?.currency || tripCurrency);
     setAmount(expense ? minorToInput(expense.amountMinor, expense.currency || tripCurrency) : "");
-    setCategory(expense?.category || "other");
+    setCategory(expense?.category || (stop ? guessCategory(stop.category) : "other"));
     setDayRef(expense?.dayRef != null ? String(expense.dayRef) : "");
     setNote(expense?.note || "");
     setErr("");
     setConfirmDelete(false);
-  }, [open, expense, tripCurrency]);
+  }, [open, expense, tripCurrency, stop]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -77,7 +77,7 @@ export default function ExpenseSheet({
       amountMinor: parsed,
       currency,
       category,
-      dayRef: dayRef === "" ? null : Number(dayRef),
+      ...(stop ? {} : { dayRef: dayRef === "" ? null : Number(dayRef) }),
       note: note.trim(),
       ...(currencyChanged ? { paid: false, actualMinor: null } : {}),
     });
@@ -176,16 +176,25 @@ export default function ExpenseSheet({
               {categories.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
             </select>
           </div>
-          <div style={{ flex: 1 }}>
-            <label style={lbl} htmlFor="ex-day">שיוך ליום</label>
-            <select id="ex-day" style={field} value={dayRef} aria-label="שיוך ליום"
-                    onChange={(e) => setDayRef(e.target.value)}>
-              <option value="">כללי</option>
-              {Array.from({ length: dayCount || 0 }, (_, i) => i + 1).map((d) => (
-                <option key={d} value={String(d)}>{`יום ${d}`}</option>
-              ))}
-            </select>
-          </div>
+          {stop ? (
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
+              <span style={lbl}>משויך לתחנה</span>
+              <span style={{ font: `700 14px ${FONT}`, color: P.ink2, padding: "10px 0" }}>
+                {stop.nameHe || stop.name}
+              </span>
+            </div>
+          ) : (
+            <div style={{ flex: 1 }}>
+              <label style={lbl} htmlFor="ex-day">שיוך ליום</label>
+              <select id="ex-day" style={field} value={dayRef} aria-label="שיוך ליום"
+                      onChange={(e) => setDayRef(e.target.value)}>
+                <option value="">כללי</option>
+                {Array.from({ length: dayCount || 0 }, (_, i) => i + 1).map((d) => (
+                  <option key={d} value={String(d)}>{`יום ${d}`}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         <div style={{ marginBlockEnd: 14 }}>
@@ -242,6 +251,15 @@ export default function ExpenseSheet({
               </button>
             </div>
           </div>
+        )}
+
+        {onOpenBudget && (
+          <button type="button" onClick={onOpenBudget}
+                  style={{ width: "100%", minHeight: 40, marginBlockStart: 10, borderRadius: 999,
+                           border: "none", background: "transparent", color: P.ink3,
+                           font: `700 13px ${FONT}`, cursor: "pointer", textDecoration: "underline" }}>
+            למסך התקציב המלא
+          </button>
         )}
       </div>
     </div>
