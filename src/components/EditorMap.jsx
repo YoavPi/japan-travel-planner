@@ -620,16 +620,17 @@ const EditorMap = ({
           if (onMapPick) onMapPick({ lng: e.lngLat.lng, lat: e.lngLat.lat });
           return;
         }
-        /* Blank-area tap — dismiss any open detail card and smoothly
-           recenter the map on the clicked coordinates. Marker taps stop
-           propagation, so this only fires for empty map space. */
+        /* Blank-area tap — dismiss any open detail card WITHOUT moving the map.
+           Sprint 66 #5 — the tap used to recenter on the clicked coordinates;
+           exiting a stop must leave the view exactly as the user left it, so
+           the pan is gone. Marker taps stopPropagation, so this only fires for
+           empty map space. */
         setSelected(null);
         setCardMin(false);
         /* Clicking empty map closes an open reference-map overlay popup too. */
         if (overlaySel && onOverlaySelect) onOverlaySelect(null);
         /* Sprint 44 #3 — an empty-map tap clears the active-stop context. */
         if (onClearActive) onClearActive();
-        panToCoord(e.lngLat.lng, e.lngLat.lat);
         /* Sprint 36 #6 — tapping empty map collapses the Places Inbox. */
         if (onMapBackgroundClick) onMapBackgroundClick();
       }}
