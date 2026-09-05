@@ -522,6 +522,20 @@ Pre-existing bug (open since 2026-08-25, not fixed in the 8/31 Trip Files galler
 
 **Not verified live this pass:** no dev-server/browser-automation tool was available in this QA session (Puppeteer/browser MCP not connected here) to actually drive the date-range shrink and day-chip drag gestures T-BUDGET-23/25 require. Verified instead: `npm run critical` (9/9), full Jest suite (`CI=true npm test -- --watchAll=false`, 23 suites / 246 tests, including the new `classify.test.js` and the `budget.test.js` additions), `npm run build` (clean), and a source-level trace confirming both `EditorView.jsx` call sites feed `remapFileDays` and `remapExpenseDays` from the exact same local `mapping` object (no risk of the two remaps drifting out of sync) and that `remapExpenseDays` already excludes `stopRef`-linked items by design. T-BUDGET-23/24/25 should be run on-device or via a `qa`-agent pass with real browser/touch access before this is marked fully verified.
 
+### 10.6 Phase B — per-stop cost (2026-09-05)
+
+| ID | Pri | Case |
+|---|---|---|
+| T-BUDGET-27 | P0 | **Add a cost from a stop (mobile).** Open a stop's ⋯ menu → "הוסף עלות" → fill label/amount → save. The editor's ₪ chip figure updates; the stop's ⋯ menu now shows "עריכת עלות · ₪X". Reload → persists. |
+| T-BUDGET-28 | P0 | **Add a cost from a stop (desktop).** Same as above via the right-click context menu. |
+| T-BUDGET-29 | P0 | **Delete a priced stop via 3-dot / context menu (no undo path) — Tier-1 confirm.** Confirm dialog names the exact amount. Cancel → stop and cost both survive untouched. Confirm → stop removed, expense survives under "כללי" in the budget screen. |
+| T-BUDGET-30 | P0 | **Swipe-delete a priced stop (mobile, has undo).** No blocking dialog — a toast reads the amount and "עברה ל'כללי'". Tap "בטל" within 5s → stop AND its cost link are both restored (verify in the budget screen — the expense is back under the stop, not "כללי"). |
+| T-BUDGET-31 | P1 | **Move a priced stop to the bank (mobile swipe-to-bank + desktop context-menu).** Mobile: informative undo toast, undo restores the link. Desktop: no undo — Tier-1 confirm first. |
+| T-BUDGET-32 | P1 | **Copy/duplicate a priced stop never duplicates the cost.** Use "העתקה ליום אחר" / "שכפל מיקום" on a stop with a cost — the new copy shows "הוסף עלות" (no existing cost), the original keeps its own. |
+| T-BUDGET-33 | P1 | **₪ chip quick-add (mobile + desktop).** Tap the ₪ chip → a general (non-stop) expense sheet opens in place, no navigation away from the map. "למסך התקציב המלא" link inside it navigates correctly. Submitting adds a "כללי" (no day) expense, visible on the budget screen. |
+| T-BUDGET-34 | P1 | **Rate-change confirm.** With at least one paid non-ILS expense, change the exchange rate in "הגדרת תקציב" → confirm dialog names the before/after "בפועל" totals. Cancel → rate unchanged. Confirm → rate updates, paid totals re-value. Changing the rate with NO paid non-ILS items saves with no dialog. |
+| T-BUDGET-35 | P2 | **Legacy stop with no instanceId (AI/wizard/seed trip).** Add a cost to such a stop — works identically, the instanceId is stamped invisibly on first cost-save. |
+
 ---
 
 ## 11. Places Bank trip-scoping fix (2026-09-05)
@@ -557,6 +571,7 @@ Pre-existing bug (open since 2026-08-25, not fixed in the 8/31 Trip Files galler
 | Trip budget (Phase A) automated tests green | | ⬜ |
 | Trip budget (Phase A) manual cases verified | | ⬜ |
 | Trip budget day-tag remap safety fix (T-BUDGET-23..26) manual cases verified | | ⬜ |
+| Trip budget (Phase B) per-stop cost manual cases verified (T-BUDGET-27..35) | | ⬜ |
 | Places Bank trip-scoping fix (T-BANK-01..02) manual cases verified | | ⬜ |
 
 **QA verdict:** ⬜ Ship · ⬜ Ship with follow-ups · ⬜ Block
