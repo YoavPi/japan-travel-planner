@@ -42,7 +42,7 @@ export default function ExpenseSheet({
     setLabel(expense?.label || (stop && !expense ? (stop.nameHe || stop.name || "") : ""));
     setCurrency(expense?.currency || tripCurrency);
     setAmount(expense ? minorToInput(expense.amountMinor, expense.currency || tripCurrency) : "");
-    setCategory(expense?.category || (stop ? guessCategory(stop.category) : "other"));
+    setCategory(expense?.category || (stop && !expense ? guessCategory(stop.category) : "other"));
     setDayRef(expense?.dayRef != null ? String(expense.dayRef) : "");
     setNote(expense?.note || "");
     setErr("");
@@ -255,7 +255,7 @@ export default function ExpenseSheet({
 
         {onOpenBudget && (
           <button type="button" onClick={onOpenBudget}
-                  style={{ width: "100%", minHeight: 40, marginBlockStart: 10, borderRadius: 999,
+                  style={{ width: "100%", minHeight: 44, marginBlockStart: 10, borderRadius: 999,
                            border: "none", background: "transparent", color: P.ink3,
                            font: `700 13px ${FONT}`, cursor: "pointer", textDecoration: "underline" }}>
             למסך התקציב המלא

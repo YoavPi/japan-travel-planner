@@ -191,3 +191,16 @@ test("2-decimal foreign currency stop-bound round-trip is not inflated (regressi
 
   expect(onSubmit.mock.calls[0][0].amountMinor).toBe(4500);
 });
+
+test("stop-bound mode editing: category is not overwritten by stop when expense has falsy category", () => {
+  const onSubmit = jest.fn();
+  const expense = { id: "e2", label: "Activity", amountMinor: 5000, currency: "ILS", category: null, stopRef: "s1" };
+  render(<ExpenseSheet open onClose={() => {}} onSubmit={onSubmit} onDelete={() => {}} expense={expense}
+    stop={{ name: "Museum", nameHe: "מוזיאון", category: "מקדש" }}
+    config={{ currency: "ILS" }} categories={[{ key: "sightseeing", label: "אטרקציות" }, { key: "other", label: "אחר" }]}
+    dayCount={1} P={LIGHT} />);
+
+  expect(screen.getByLabelText("קטגוריה")).toHaveValue("other");
+  fireEvent.click(screen.getByText("שמירה"));
+  expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ category: "other" }));
+});
