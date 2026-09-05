@@ -102,5 +102,6 @@ Ten project agents live in `.claude/agents/`. Dispatch the narrowest one that fi
 - Design system: [DESIGN.md](DESIGN.md)
 - Architecture / infra: [docs/architecture.md](docs/architecture.md)
 - Content inventory: [CONTENT_AUDIT.md](CONTENT_AUDIT.md)
+- Feature ideas not yet scheduled: [docs/ROADMAP.md](docs/ROADMAP.md)
 - QA process: [.claude/agents/qa.md](.claude/agents/qa.md)
 - Design process: [.claude/skills/impeccable/SKILL.md](.claude/skills/impeccable/SKILL.md)
