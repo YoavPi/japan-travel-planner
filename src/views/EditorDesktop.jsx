@@ -597,7 +597,14 @@ export default function EditorDesktop() {
      (see EditorMap). `cardCoord` = the open point; `renderAnchoredCard` = the
      card body. Preview (search/bank pick) takes precedence over a focused stop. */
   const cardCoord = inboxOpen ? null : ((preview && preview.coordinates) || (focusStop && focusStop.coordinates) || null);
-  const CARD_SHELL = { width: 340, maxWidth: "86vw", background: "rgba(255,255,255,0.94)", backdropFilter: "blur(24px) saturate(180%)", WebkitBackdropFilter: "blur(24px) saturate(180%)", borderRadius: 18, border: "1px solid rgba(255,255,255,0.6)", boxShadow: "0 20px 55px rgba(0,0,0,0.28)", overflow: "hidden", fontFamily: T.font };
+  /* The map's recenter effect (EditorMap) biases the clicked point to ~72% of
+     the viewport height so this card — anchored ABOVE the point — has room to
+     clear the top edge. That headroom is finite, and a bank-point preview
+     (extra "שמירת ההערה בבנק" / "מחיקה מהבנק" rows) can be taller than it on a
+     short browser window. Capping height + scrolling internally means the
+     card is always fully reachable regardless of window height or variant,
+     instead of trusting positioning alone to always leave enough room. */
+  const CARD_SHELL = { width: 340, maxWidth: "86vw", maxHeight: "calc(68vh - 24px)", overflowY: "auto", overflowX: "hidden", background: "rgba(255,255,255,0.94)", backdropFilter: "blur(24px) saturate(180%)", WebkitBackdropFilter: "blur(24px) saturate(180%)", borderRadius: 18, border: "1px solid rgba(255,255,255,0.6)", boxShadow: "0 20px 55px rgba(0,0,0,0.28)", fontFamily: T.font };
   const renderAnchoredCard = () => {
     if (preview) return (
       <div dir="rtl" className="tp-frost" style={CARD_SHELL}>
@@ -861,6 +868,18 @@ export default function EditorDesktop() {
           {tripFilesCount > 0 && (
             <span style={{ minWidth: 18, height: 18, borderRadius: 999, padding: "0 5px", background: ACCENT, color: "#fff", fontSize: 11, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{tripFilesCount}</span>
           )}
+        </button>
+        {/* Trip budget entry point — opens the dedicated /trip/budget screen.
+            No badge yet (Phase C wires a live spent/total indicator here). */}
+        <button onClick={() => navigate(`/trip/budget/${tripId}`)}
+          title="תקציב הטיול"
+          style={{
+            flexShrink: 0, height: 40, display: "inline-flex", alignItems: "center", gap: 7, padding: "0 13px",
+            borderRadius: 10, cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 800,
+            border: `1px solid ${T.line}`, background: "#fff", color: T.ink2,
+          }}>
+          <span aria-hidden style={{ fontSize: 15, lineHeight: 1, fontWeight: 800 }}>₪</span>
+          <span>תקציב</span>
         </button>
       </header>
 

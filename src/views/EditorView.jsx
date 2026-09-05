@@ -3184,6 +3184,23 @@ const EditorView = () => {
           </button>
         )}
 
+        {/* Trip budget entry point — opens the dedicated /trip/budget screen.
+            No badge yet (Phase C wires a live spent/total indicator here). */}
+        {trip && (
+          <button
+            onClick={() => navigate(`/trip/budget/${tripId}`)}
+            title="תקציב הטיול" aria-label="תקציב הטיול" className="tp-press"
+            style={{
+              flexShrink: 0,
+              width: 44, height: 44, borderRadius: "50%", border: "none",
+              background: "#fff", color: "#1E1E24", cursor: "pointer",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.08)", fontSize: 17, fontWeight: 800, fontFamily: "inherit",
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
+            }}>
+            <span aria-hidden>₪</span>
+          </button>
+        )}
+
         {/* Sprint 62 #7 — COLLABORATOR AVATAR INDICATORS for a shared itinerary:
             a stacked cluster of the owner + invited collaborators, shown only
             when the trip actually has collaborators. */}
