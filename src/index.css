@@ -187,6 +187,39 @@ button:not(:disabled):active,
   scrollbar-width: none;
 }
 
+/* Day strip — scrollbar hidden by default (touch scrolls natively). On a
+   device with a fine pointer (mouse/trackpad) reveal a slim draggable
+   scrollbar on hover so it can be panned without a horizontal wheel, and
+   show a grab cursor over the strip body. Drag-to-pan is wired in JS. */
+.day-strip-scroll {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  cursor: grab;
+}
+.day-strip-scroll.is-grabbing {
+  cursor: grabbing;
+}
+.day-strip-scroll::-webkit-scrollbar {
+  height: 0;
+  background: transparent;
+}
+@media (hover: hover) and (pointer: fine) {
+  .day-strip-scroll:hover {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(20, 20, 20, 0.28) transparent;
+  }
+  .day-strip-scroll:hover::-webkit-scrollbar {
+    height: 8px;
+  }
+  .day-strip-scroll:hover::-webkit-scrollbar-thumb {
+    background-color: rgba(20, 20, 20, 0.28);
+    border-radius: 999px;
+  }
+  .day-strip-scroll:hover::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(20, 20, 20, 0.45);
+  }
+}
+
 /* Mapbox / MapLibre popup overrides
    The library ships a default `font: 12px/20px 'Helvetica Neue' …`
    on .mapboxgl-popup / .maplibregl-popup. `inherit` on the inner

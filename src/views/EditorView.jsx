@@ -2720,6 +2720,51 @@ const EditorView = () => {
     scrollToStopRow(0, "start");
   };
 
+  /* Sprint 66 #6 — MOUSE drag-to-pan for the day strip. A plain overflow-x
+     container can't be scrolled with a wheel-only mouse (no trackpad / tilt
+     wheel), so grab-and-drag the strip body. Mouse pointers only — touch keeps
+     its native momentum scroll; edit mode owns the pointer for day reordering.
+     A real drag (moved past the threshold) suppresses the trailing click so it
+     doesn't also switch the day. */
+  const dayStripDrag = useRef({ down: false, moved: false, startX: 0, startLeft: 0, pid: null });
+  const dayStripSuppressClick = useRef(false);
+  const onDayStripPointerDown = (e) => {
+    if (dayEditMode || e.pointerType !== "mouse" || e.button !== 0) return;
+    const el = dayStripRef.current;
+    if (!el) return;
+    dayStripDrag.current = { down: true, moved: false, startX: e.clientX, startLeft: el.scrollLeft, pid: e.pointerId };
+  };
+  const onDayStripPointerMove = (e) => {
+    const d = dayStripDrag.current;
+    const el = dayStripRef.current;
+    if (!d.down || !el) return;
+    const dx = e.clientX - d.startX;
+    if (!d.moved) {
+      if (Math.abs(dx) < 4) return;
+      d.moved = true;
+      dayStripSuppressClick.current = true;
+      el.classList.add("is-grabbing");
+      try { el.setPointerCapture(d.pid); } catch { /* noop */ }
+    }
+    el.scrollLeft = d.startLeft - dx;
+    e.preventDefault();
+  };
+  const endDayStripDrag = () => {
+    const d = dayStripDrag.current;
+    const el = dayStripRef.current;
+    if (el) {
+      el.classList.remove("is-grabbing");
+      try { if (d.pid != null) el.releasePointerCapture(d.pid); } catch { /* noop */ }
+    }
+    d.down = false;
+    /* Keep the suppress flag up for one tick so the click that follows the
+       drag release is swallowed, then clear it. */
+    if (d.moved) setTimeout(() => { dayStripSuppressClick.current = false; }, 0);
+  };
+  const onDayStripClickCapture = (e) => {
+    if (dayStripSuppressClick.current) { e.preventDefault(); e.stopPropagation(); }
+  };
+
   /* Sprint 36.5 #4 — DAY-LEVEL reorder. Dragging a day chip moves the WHOLE
      day object (all attractions, transits, notes) to a new chronological
      slot; every day is then renumbered 1..N so the strip stays sequential.
@@ -3544,10 +3589,18 @@ const EditorView = () => {
               {days.length > 0 && !continuousMode ? (
                 <div
                   ref={dayStripRef}
-                  className="scrollbar-hide"
+                  className="day-strip-scroll"
                   /* Opt out of the sheet's drag-capture so a sideways swipe here
                      scrolls the day strip instead of dragging the whole sheet. */
                   data-no-sheet-drag
+                  /* Sprint 66 #6 — mouse grab-to-pan (wheel-only mice can't
+                     scroll an overflow-x container). */
+                  onPointerDown={onDayStripPointerDown}
+                  onPointerMove={onDayStripPointerMove}
+                  onPointerUp={endDayStripDrag}
+                  onPointerCancel={endDayStripDrag}
+                  onPointerLeave={endDayStripDrag}
+                  onClickCapture={onDayStripClickCapture}
                   style={{
                     display: "flex", gap: 8, direction: "rtl", flex: 1, minWidth: 0,
                     /* Sprint 42 #3 — vertical breathing room so lifted/handled
@@ -3558,6 +3611,7 @@ const EditorView = () => {
                     overflowX: dayEditMode ? "hidden" : "auto",
                     WebkitOverflowScrolling: dayEditMode ? "auto" : "touch",
                     touchAction: dayEditMode ? "none" : "pan-x",
+                    userSelect: "none", WebkitUserSelect: "none",
                   }}>
                   {/* Sprint 46 #2 — the "סדר ימים" / "מסלול רציף" text buttons
                       were removed from the strip; the strip now holds ONLY the
