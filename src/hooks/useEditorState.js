@@ -299,15 +299,18 @@ export default function useEditorState(tripId) {
     deleteStopAt(dayNum, idx);
     const c = stop.coordinates;
     if (c && Number.isFinite(c.lat) && Number.isFinite(c.lng)) {
+      /* Trip-scoped save: this stop already belonged to THIS trip's day
+         ("העבר לבנק הנקודות" — no "כללי"/general wording), unlike the
+         search/pin flows which explicitly promise the general bank. */
       addInboxPlaces([{
         name: stop.name, nameHe: stop.nameHe || stop.name,
         category: stop.category || "אטרקציה", rating: stop.rating || "",
         lat: c.lat, lng: c.lng, source: "desktop",
         /* Preserve the stop's identity + note when it moves to the bank. */
         place_id: stop.place_id || undefined, photoUrl: stop.photoUrl || undefined, note: stop.note || undefined,
-      }]).then((saved) => setInbox((prev) => ([...(saved || []), ...(prev || [])]))).catch(() => {});
+      }], tripId).then((saved) => setInbox((prev) => ([...(saved || []), ...(prev || [])]))).catch(() => {});
     }
-  }, [trip, deleteStopAt]);
+  }, [trip, deleteStopAt, tripId]);
 
   /* Manual map pin (long-press) → save to a specific day OR the points bank.
      `target` is { day: N } or { inbox: true }. This is the desktop equivalent

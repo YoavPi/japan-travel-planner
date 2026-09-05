@@ -20,6 +20,7 @@ This is the order the files were originally written in, based on their commit hi
 | 8 | `supabase_migration_public_gallery.sql` | Aug 25 |
 | 9 | `supabase_migration_places_inbox_delete.sql` | Aug 26 |
 | 10 | `supabase_migration_admin_metrics.sql` | Aug 29 |
+| 11 | `supabase_migration_places_inbox_trip_id.sql` | Sep 5 |
 
 ## ⚠️ Uncertainty about what has already run in production
 

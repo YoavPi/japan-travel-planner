@@ -524,7 +524,24 @@ Pre-existing bug (open since 2026-08-25, not fixed in the 8/31 Trip Files galler
 
 ---
 
-## 11. Sign-off
+## 11. Places Bank trip-scoping fix (2026-09-05)
+
+**Context:** a `places_inbox.trip_id` migration (nullable) plus write-side changes (`requestInboxAt` in `EditorView.jsx`, `moveStopToInbox` in `useEditorState.js`) tag new saved points with the trip they were saved from. This pass fixes the matching READ bug: mobile's Places Bank "הבנק לטיול זה" ("the bank for this trip") tab called `listInboxPlaces()` with no `tripId`, so it showed a user's ENTIRE global pile (every saved point across every trip) instead of scoping to the current trip. Fixed in `src/views/EditorView.jsx` (the "Sprint 27 #5" auto-load effect) by passing the in-scope `tripId` (from `useParams()`) to `listInboxPlaces(tripId)`. The "כל הנקודות שלי" (global) tab's own `listInboxPlaces()` call is unchanged (still unfiltered by design). Pre-migration rows (`trip_id IS NULL`) intentionally keep showing up in every trip's "this trip" tab — that's backward compatibility, not a bug.
+
+**Desktop note:** `EditorDesktop.jsx` also has a "הבנק לטיול זה" / "כל הנקודות שלי" toggle (`bankScope` state), but it scopes "trip" via a client-side **geographic bounding box** around the trip's existing stops (`tripBounds`/`visibleInbox`), not via `trip_id` at all — a different, pre-existing mechanism untouched by this fix. `useEditorState.js`'s `loadInbox()` still calls `listInboxPlaces()` unfiltered either way. Left as-is; out of scope for this pass.
+
+**Automated** — `src/services/googleSavedPlaces.test.js` (new): covers `listInboxPlaces(tripId)` for both the Supabase-session query-builder path (asserts `.or("trip_id.eq.<id>,trip_id.is.null")` is added only when a safe `tripId` is passed, and never for the global/no-arg call) and the localStorage fallback path (no session). `src/views/EditorView.jsx` itself has no Jest harness (pre-existing, by design) — the case below needs a real browser/on-device pass with actual Supabase data.
+
+| ID | Pri | Case |
+|---|---|---|
+| T-BANK-01 | P0 | **"הבנק לטיול זה" is actually trip-scoped.** With the SAME logged-in user, save at least one point to Trip A only (e.g. via "העבר לבנק הנקודות" on a Trip A stop, or the search "save to bank" flow while Trip A is open) and at least one different point to Trip B only. Open Trip A's editor → Places Bank → "הבנק לטיול זה". Expected: Trip A's point appears; Trip B's point does NOT. Then open Trip B's editor → same tab: Trip B's point appears, Trip A's point does not. (Any pre-migration points with no `trip_id` may legitimately appear in both — that's expected, not a failure.) |
+| T-BANK-02 | P1 | **"כל הנקודות שלי" stays global.** On either trip, switch to "כל הנקודות שלי" — both Trip A's and Trip B's saved points (and any pre-migration points) appear together, unaffected by which trip is currently open. |
+
+**Not verified live this pass:** no running Supabase instance with real multi-trip saved-point data was available in this session to drive T-BANK-01/02 end-to-end. Verified instead: `npm run critical` (9/9), full Jest suite (`CI=true npm test -- --watchAll=false`, 24 suites / 252 tests, including the 6 new `googleSavedPlaces.test.js` cases), `npm run build` (clean), and a source-level trace confirming the `tripId` passed at the `EditorView.jsx` call site is the same `useParams()` value used everywhere else in the file for the current trip (not stale, not a different scope).
+
+---
+
+## 12. Sign-off
 
 | Check | Owner | Status |
 |---|---|---|
@@ -540,5 +557,6 @@ Pre-existing bug (open since 2026-08-25, not fixed in the 8/31 Trip Files galler
 | Trip budget (Phase A) automated tests green | | ⬜ |
 | Trip budget (Phase A) manual cases verified | | ⬜ |
 | Trip budget day-tag remap safety fix (T-BUDGET-23..26) manual cases verified | | ⬜ |
+| Places Bank trip-scoping fix (T-BANK-01..02) manual cases verified | | ⬜ |
 
 **QA verdict:** ⬜ Ship · ⬜ Ship with follow-ups · ⬜ Block

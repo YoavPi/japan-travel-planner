@@ -34,7 +34,18 @@ const rowToPlace = (r) => ({
   note: r.note || "",
   place_id: r.place_id || undefined,
   photoUrl: r.photo_url || undefined,
+  /* Sprint <trip-id migration> — which trip this save was tagged with, if
+     any (present once the places_inbox trip_id migration adds the column;
+     undefined/harmless before then). Rows saved before the migration, or
+     via an explicitly-"global" save flow, have no trip_id. */
+  tripId: r.trip_id || undefined,
 });
+
+/* A trip id is a client-generated `trip_xxxxxxx` string (see
+   database-schema.sql). Guard it before interpolating into a PostgREST
+   `.or()` filter string — never trust a caller-supplied id verbatim in a
+   hand-built query fragment. */
+const isSafeTripId = (id) => typeof id === "string" && /^[A-Za-z0-9_-]+$/.test(id);
 
 /* ── Sprint 27 #5 — local Places-Inbox persistence ──────────────
    Without a Supabase session the inbox ("בנק נקודות") persists in
@@ -55,25 +66,50 @@ const writeLocalInbox = (list) => {
 
 /* The user's current inbox — Supabase rows with a session, the local
    store otherwise. Returns [] when empty (NO mock fallback — the mock
-   belongs only to the explicit "connect" CTA). */
-export async function listInboxPlaces() {
+   belongs only to the explicit "connect" CTA).
+
+   `tripId` is OPTIONAL and additive: omit it (as every existing caller
+   does) to get the full, unfiltered bank — i.e. today's "כל הנקודות שלי"
+   (global) behavior, unchanged. Pass it to scope the read to "this trip's
+   bank": rows explicitly tagged with that trip_id, PLUS every untagged
+   (trip_id IS NULL) row — so saves made before this migration, or via an
+   intentionally-global save flow, keep showing up everywhere they always
+   have. Wiring the "הבנק לטיול זה" tab to pass tripId is a separate pass. */
+export async function listInboxPlaces(tripId) {
   const sbUser = await getSupabaseUser();
   if (sbUser) {
-    const { data, error } = await supabase
-      .from("places_inbox").select("*")
-      .order("created_at", { ascending: false });
+    let query = supabase.from("places_inbox").select("*").order("created_at", { ascending: false });
+    if (isSafeTripId(tripId)) query = query.or(`trip_id.eq.${tripId},trip_id.is.null`);
+    let { data, error } = await query;
+    if (error && /42703|PGRST204|column|schema cache/i.test(`${error.code || ""} ${error.message || ""}`)) {
+      /* trip_id isn't migrated into this DB yet — fall back to the plain
+         unfiltered read so the bank keeps working exactly as before. */
+      ({ data, error } = await supabase
+        .from("places_inbox").select("*")
+        .order("created_at", { ascending: false }));
+    }
     if (error) { console.warn("places_inbox fetch failed:", error.message); return []; }
     return (data || []).map(rowToPlace);
   }
-  return readLocalInbox();
+  const all = readLocalInbox();
+  if (!isSafeTripId(tripId)) return all;
+  return all.filter((p) => !p.tripId || p.tripId === tripId);
 }
 
 /* Add POIs to the inbox (Supabase insert with a session, localStorage
    append otherwise). Accepts app-shape POIs; returns the stored list
-   entries (with server ids when persisted remotely). */
-export async function addInboxPlaces(places) {
+   entries (with server ids when persisted remotely).
+
+   `tripId` is OPTIONAL: pass it to tag these rows as belonging to a
+   specific trip's bank; omit it to save as an explicitly GLOBAL point
+   (today's only behavior, and still the right call for flows whose own UI
+   copy promises "בבנק הנקודות הכללי" — the general bank). Each call site
+   (EditorView.jsx, useEditorState.js, tripService.js) carries an inline
+   comment explaining why it is or isn't tagged. */
+export async function addInboxPlaces(places, tripId) {
   const clean = (places || []).filter((p) => p && p.name && Number.isFinite(p.lat) && Number.isFinite(p.lng));
   if (!clean.length) return [];
+  const safeTripId = isSafeTripId(tripId) ? tripId : null;
   const sbUser = await getSupabaseUser();
   if (sbUser) {
     const baseRow = (p) => ({
@@ -85,24 +121,32 @@ export async function addInboxPlaces(places) {
       lat: p.lat, lng: p.lng,
       source: p.source || "manual",
     });
+    const withTrip = (row) => (safeTripId ? { ...row, trip_id: safeTripId } : row);
     /* Preferred insert carries the extended columns (note / place_id /
-       photo_url). If the DB hasn't been migrated yet it errors with an
-       undefined-column code (PostgREST PGRST204 / Postgres 42703) — we then
-       retry with just the base columns so saving never breaks. */
-    const richRows = clean.map((p) => ({
+       photo_url) plus trip_id. If the DB hasn't been migrated yet it errors
+       with an undefined-column code (PostgREST PGRST204 / Postgres 42703) —
+       we then retry progressively narrower column sets so saving never
+       breaks, regardless of which migrations have actually been applied. */
+    const richRows = clean.map((p) => withTrip({
       ...baseRow(p),
       note: p.note || null,
       place_id: p.place_id || null,
       photo_url: p.photoUrl || null,
     }));
     let { data, error } = await supabase.from("places_inbox").insert(richRows).select();
-    if (error && /42703|PGRST204|column|schema cache/i.test(`${error.code || ""} ${error.message || ""}`)) {
+    const isMissingColumn = (e) => e && /42703|PGRST204|column|schema cache/i.test(`${e.code || ""} ${e.message || ""}`);
+    if (isMissingColumn(error)) {
+      ({ data, error } = await supabase.from("places_inbox").insert(clean.map((p) => withTrip(baseRow(p)))).select());
+    }
+    if (isMissingColumn(error) && safeTripId) {
+      /* trip_id itself isn't migrated into this DB yet — final fallback:
+         base columns only, matching pre-migration behavior exactly. */
       ({ data, error } = await supabase.from("places_inbox").insert(clean.map(baseRow)).select());
     }
     if (error) throw new Error(error.message);
     return (data || []).map(rowToPlace);
   }
-  const stamped = clean.map((p) => ({ ...p, id: p.id || `loc_${Date.now()}_${_locSeq++}` }));
+  const stamped = clean.map((p) => ({ ...p, id: p.id || `loc_${Date.now()}_${_locSeq++}`, tripId: safeTripId || undefined }));
   writeLocalInbox([...stamped, ...readLocalInbox()]);
   return stamped;
 }
@@ -278,9 +322,11 @@ export function parseTakeoutFile(text, filename = "") {
 
 /* Persist imported Takeout POIs — thin wrapper over addInboxPlaces
    (Sprint 27 unified the inbox write path: Supabase with a session,
-   the local store otherwise). */
-export async function importSavedPlaces(places) {
-  return addInboxPlaces((places || []).map((p) => ({ ...p, source: "takeout" })));
+   the local store otherwise). No call site exists yet; `tripId` is
+   optional and omitted by default because a Takeout export is a whole
+   Google-account history, not scoped to any one trip — global by nature. */
+export async function importSavedPlaces(places, tripId) {
+  return addInboxPlaces((places || []).map((p) => ({ ...p, source: "takeout" })), tripId);
 }
 
 export default fetchMockGoogleSavedPlaces;

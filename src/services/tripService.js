@@ -125,8 +125,11 @@ const rebuildSkeletonDays = (prev, { days: dayCount, cityRanges = [] }) => {
   return { n, nextDays, inboxable };
 };
 
-/* Fire-and-forget rescue of orphaned places into the inbox. */
-const rescueOrphansToInbox = (inboxable) => {
+/* Fire-and-forget rescue of orphaned places into the inbox.
+   Trip-scoped: these points were pinned in THIS trip's itinerary before the
+   day count shrank out from under them, so the rescue keeps them tagged to
+   this trip (shows under "הבנק לטיול זה"), not the general/global bank. */
+const rescueOrphansToInbox = (inboxable, tripId) => {
   if (!inboxable?.length) return;
   addInboxPlaces(inboxable.map((a) => ({
     name: a.name,
@@ -136,7 +139,7 @@ const rescueOrphansToInbox = (inboxable) => {
     lat: a.coordinates.lat,
     lng: a.coordinates.lng,
     source: "skeleton-update",
-  }))).catch(() => { /* rescue is best-effort; the places also remain recoverable via undo-less re-add */ });
+  })), tripId).catch(() => { /* rescue is best-effort; the places also remain recoverable via undo-less re-add */ });
 };
 
 const STORAGE_KEY = "tp_trips_v2"; // bump to re-seed (Dubai now has sample stops)
@@ -532,7 +535,7 @@ export const tripService = {
       const prev = await this.fetchTripById(tripId);
       if (prev.readOnly) throw new Error("This trip is read-only.");
       const { n, nextDays, inboxable } = rebuildSkeletonDays(prev, { days: dayCount, cityRanges });
-      rescueOrphansToInbox(inboxable);
+      rescueOrphansToInbox(inboxable, tripId);
       const patch = {
         title: title || prev.title,
         days: n,
@@ -549,7 +552,7 @@ export const tripService = {
     if (trips[idx].readOnly) throw new Error("This trip is read-only.");
     const prev = trips[idx];
     const { n, nextDays, inboxable } = rebuildSkeletonDays(prev, { days: dayCount, cityRanges });
-    rescueOrphansToInbox(inboxable);
+    rescueOrphansToInbox(inboxable, tripId);
     trips[idx] = {
       ...prev,
       title: title || prev.title,

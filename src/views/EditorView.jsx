@@ -1806,17 +1806,20 @@ const EditorView = () => {
     ));
     setInboxUndo({ stop: moved, day: activeDay, idx, inboxId: null });
     if (moved.coordinates && Number.isFinite(moved.coordinates.lat)) {
+      /* Trip-scoped save: this stop already belonged to THIS trip's day —
+         snoozing it into the bank should keep it associated with this trip
+         (not the explicitly-"general" bank the search/pin flows offer). */
       addInboxPlaces([{
         name: moved.name, nameHe: moved.nameHe || moved.name,
         category: moved.category || "אטרקציה", rating: moved.rating || "",
         note: moved.note, lat: moved.coordinates.lat, lng: moved.coordinates.lng,
         source: "unassigned",
-      }]).then((saved) => {
+      }], tripId).then((saved) => {
         mergeIntoInbox(saved);
         if (saved && saved[0]) setInboxUndo((u) => (u && u.stop === moved ? { ...u, inboxId: saved[0].id } : u));
       }).catch(() => {});
     }
-  }, [trip, activeDay, commitDays, mergeIntoInbox]);
+  }, [trip, activeDay, commitDays, mergeIntoInbox, tripId]);
 
   /* Restore a snoozed stop back to its original day + index, dropping the
      inbox copy it created. */
@@ -2552,22 +2555,28 @@ const EditorView = () => {
   useEffect(() => {
     if (!inboxMode || inboxPlaces !== null) return;
     let live = true;
-    listInboxPlaces().then((list) => {
+    listInboxPlaces(tripId).then((list) => {
       if (live && list.length) setInboxPlaces(list);
     }).catch(() => {});
     return () => { live = false; };
-  }, [inboxMode, inboxPlaces]);
+  }, [inboxMode, inboxPlaces, tripId]);
 
   /* Sprint 59 #3 — the map-first inbox explorer. Opening the Places Inbox
      programmatically projects ALL saved points onto the map (eye overlay ON)
-     and drops the sheet to peek so the map + carousel own the workspace;
-     closing it purges the projected markers and the tapped-card overlay. */
+     and drops the sheet to peek so the map + carousel own the workspace.
+     Bug fix 2026-09-05: closing the bank used to force the eye OFF too,
+     which made EditorMap's savedSig-watching effect think "bank closed" and
+     snap the camera back to just the active day's route — discarding
+     whatever the user was looking at (a specific saved point they'd just
+     flown to, zoomed in on) with no way back short of reopening the bank.
+     The eye is the user's own toggle; leaving the bank must not silently
+     flip it. Only the tapped-point card is bank-scoped UI and still closes
+     with it. */
   useEffect(() => {
     if (inboxMode) {
       setShowAllSaved(true);
       sheetRef.current?.snapTo?.("peek");
     } else {
-      setShowAllSaved(false);
       setInboxCardMenu(null);
     }
   }, [inboxMode]);
