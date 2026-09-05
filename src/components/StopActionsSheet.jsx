@@ -55,7 +55,7 @@ const SectionRule = () => (
   <div aria-hidden style={{ height: 1, background: "rgba(20,20,20,0.08)", margin: "6px 0" }} />
 );
 
-const StopActionsSheet = ({ stop, days = [], otherTrips = [], onMove, onCopy, onCrossCopy, onSetNote, onSetLodging, onSetColor, onSetMultiDayHotel, onMoveNextDay, onSplitDay, onCopyName, onDuplicate, onAttach, attachBusy, attachmentCount = 0, onRemoveAttachment, onFindNearby, onDelete, onClose }) => {
+const StopActionsSheet = ({ stop, days = [], otherTrips = [], onMove, onCopy, onCrossCopy, onSetNote, onSetLodging, onSetColor, onSetMultiDayHotel, onMoveNextDay, onSplitDay, onCopyName, onDuplicate, onAttach, attachBusy, attachmentCount = 0, onRemoveAttachment, onFindNearby, onSetCost, stopCostLabel, onDelete, onClose }) => {
   const [mode, setMode] = useState(null); // null | 'move' | 'copy' | 'crosscopy' | 'hoteldays' | 'note'
   /* Cross-trip copy selection state. */
   const [targetTripId, setTargetTripId] = useState("");
@@ -242,6 +242,9 @@ const StopActionsSheet = ({ stop, days = [], otherTrips = [], onMove, onCopy, on
             </div>
             <Row icon="🏨" label="זה מלון לכמה ימים" onClick={() => setMode("hoteldays")} />
             <Row icon={isLodging ? "🏨" : "🛏"} label="הגדר/בטל כנקודת לינה" onClick={onSetLodging} />
+            {onSetCost && (
+              <Row icon="💰" label={stopCostLabel ? `עריכת עלות · ${stopCostLabel}` : "הוסף עלות"} onClick={onSetCost} />
+            )}
             <Row icon="📝" label={stop?.note ? "עריכת הערה" : "הוספת הערה"} onClick={() => { setNoteDraft(stop?.note || ""); setMode("note"); }} />
             {/* Sprint 61 #7 — attach a confirmation file / PDF / image. */}
             {onAttach && <Row icon="📎" label={attachBusy ? "מצרף קובץ…" : "צרף קובץ/מסמך"} onClick={attachBusy ? undefined : () => { onAttach(); }} />}
