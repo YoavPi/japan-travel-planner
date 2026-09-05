@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion, Reorder } from "motion/react";
 import { useParams, useNavigate } from "react-router-dom";
 import EditorMap from "../components/EditorMap";
@@ -499,6 +499,27 @@ export default function EditorDesktop() {
   const [ctxMenu, setCtxMenu] = useState(null);   // { x, y, idx, a } | null
   const reduceMotion = useReducedMotion();        // hook — must precede any early return
   const [ctxDaysOpen, setCtxDaysOpen] = useState(false);
+  /* openCtx's x/y are a same-tick GUESS (viewport minus an assumed menu size)
+     — a decent first paint, but the real menu can be taller/wider than that
+     guess (a long place name, the day-submenu list), which used to still
+     clip past the screen edge. This measures the ACTUALLY rendered box and
+     nudges it back on-screen; re-runs when the submenu view swaps in (its
+     height differs from the main list). No visible jump: useLayoutEffect
+     applies the correction before the browser paints. */
+  const ctxMenuRef = useRef(null);
+  useLayoutEffect(() => {
+    if (!ctxMenu || !ctxMenuRef.current) return;
+    const el = ctxMenuRef.current;
+    const pad = 8;
+    const rect = el.getBoundingClientRect();
+    let x = rect.left, y = rect.top;
+    if (rect.right > window.innerWidth - pad) x -= rect.right - (window.innerWidth - pad);
+    if (rect.bottom > window.innerHeight - pad) y -= rect.bottom - (window.innerHeight - pad);
+    x = Math.max(pad, x);
+    y = Math.max(pad, y);
+    if (x !== rect.left) el.style.left = `${x}px`;
+    if (y !== rect.top) el.style.top = `${y}px`;
+  }, [ctxMenu, ctxDaysOpen]);
   const [noteEdit, setNoteEdit] = useState(null); // { idx, draft } | null
 
   /* Pointer-native drag-reorder within the active day (Apple-grade: 1:1
@@ -1397,7 +1418,7 @@ export default function EditorDesktop() {
         <>
           <div onClick={() => { setCtxMenu(null); setCtxDaysOpen(false); }} onContextMenu={(e) => { e.preventDefault(); setCtxMenu(null); }}
             style={{ position: "fixed", inset: 0, zIndex: 500 }} />
-          <motion.div {...popMotion} dir="rtl" className="tp-pop" style={{
+          <motion.div ref={ctxMenuRef} {...popMotion} dir="rtl" className="tp-pop" style={{
             position: "fixed", top: ctxMenu.y, insetInlineStart: undefined, left: ctxMenu.x, zIndex: 501,
             minWidth: 210, background: "#fff", borderRadius: 12, border: `1px solid ${T.line}`, transformOrigin: "top right",
             boxShadow: "0 12px 40px rgba(0,0,0,0.22)", padding: 6, fontFamily: T.font, overflow: "hidden",
