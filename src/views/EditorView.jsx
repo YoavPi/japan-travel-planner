@@ -1148,6 +1148,30 @@ const EditorView = () => {
   /* Sprint 22 #7 — mock Google Saved Places inbox. null = not connected
      yet (the drawer shows the connect CTA); [] / [...] = fetched list. */
   const [inboxPlaces, setInboxPlaces] = useState(null);
+  /* Add a just-saved point to the bank optimistically (instant badge/pin
+     feedback), WITHOUT permanently poisoning the "never fetched" sentinel.
+     Adding a point while inboxPlaces is still null used to seed it straight
+     to a one-item array — from then on `inboxPlaces !== null` looked exactly
+     like "the full bank was already loaded", so both lazy-load sites (the
+     inbox-mode effect and the 👁️ eye toggle) skipped fetching the OTHER
+     ~127 saved points, permanently. Here, the optimistic item still shows
+     immediately, but a real fetch is kicked off in the background and its
+     result is merged in as soon as it resolves. */
+  const mergeIntoInbox = useCallback((saved) => {
+    setInboxPlaces((prev) => {
+      if (prev === null) {
+        listInboxPlaces().then((list) => {
+          setInboxPlaces((cur) => {
+            const known = new Set((list || []).map((x) => x.id));
+            const stillMissing = (cur || []).filter((x) => !known.has(x.id));
+            return [...stillMissing, ...(list || [])];
+          });
+        }).catch(() => {});
+        return saved;
+      }
+      return [...saved, ...prev];
+    });
+  }, []);
   /* Sprint 26 #1 — workspace exit confirmation modal. */
   const [confirmExit, setConfirmExit] = useState(false);
   /* Sprint 37 #2 — gesture UI state: row context menu (long-press), its
@@ -1696,9 +1720,9 @@ const EditorView = () => {
         name: pin.name, nameHe: pin.name, category: "נקודה אישית",
         note: pin.note, lat: pin.coordinates.lat, lng: pin.coordinates.lng,
         source: "map-longpress",
-      }]).then((saved) => setInboxPlaces((prev) => ([...saved, ...(prev || [])]))).catch(() => {});
+      }]).then((saved) => mergeIntoInbox(saved)).catch(() => {});
     }
-  }, [commitDays]);
+  }, [commitDays, mergeIntoInbox]);
 
   /* Sprint 28 #4 — the SINGLE add-stop entry handler, shared verbatim by
      both placements (day-header [+] and the bottom FAB) so the day
@@ -1769,11 +1793,11 @@ const EditorView = () => {
         note: moved.note, lat: moved.coordinates.lat, lng: moved.coordinates.lng,
         source: "unassigned",
       }]).then((saved) => {
-        setInboxPlaces((prev) => ([...saved, ...(prev || [])]));
+        mergeIntoInbox(saved);
         if (saved && saved[0]) setInboxUndo((u) => (u && u.stop === moved ? { ...u, inboxId: saved[0].id } : u));
       }).catch(() => {});
     }
-  }, [trip, activeDay, commitDays]);
+  }, [trip, activeDay, commitDays, mergeIntoInbox]);
 
   /* Restore a snoozed stop back to its original day + index, dropping the
      inbox copy it created. */
@@ -1857,14 +1881,16 @@ const EditorView = () => {
         photoUrl: stop.photoUrl || undefined,
         note: stop.note || undefined,
       }]);
-      /* Always seed from [] when the bank was never opened (prev === null),
-         so the FIRST saved point immediately shows on the bank button badge. */
-      setInboxPlaces((prev) => [...saved, ...(prev || [])]);
+      /* Shows on the bank badge immediately even when the bank was never
+         opened yet; mergeIntoInbox backfills the rest in the background
+         instead of permanently treating "one optimistic item" as "fully
+         loaded" (see its definition). */
+      mergeIntoInbox(saved);
     } catch { /* best-effort — the place remains in the preview flow */ }
     setPendingStop(null);
     setPreviewPlace(null);
     setFlyToCoord(null);
-  }, []);
+  }, [mergeIntoInbox]);
 
   /* Sprint 27 #5 — place the intercepted stop on a specific day. */
   const placeStopOnDay = useCallback((stop, dayNum) => {
