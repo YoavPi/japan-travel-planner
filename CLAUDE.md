@@ -93,8 +93,11 @@ Ten project agents live in `.claude/agents/`. Dispatch the narrowest one that fi
 | `ui-impeccable` | fast design-system compliance pass on a UI diff |
 | `qa` | tests, `npm run critical`, layout/RTL/a11y audit, manual test plan |
 | `deploy-sentinel` | "deploy to prod" — gate (clean tree, right branch) then run `npm run deploy` |
+| `product-manager` | after any feature/fix ships or is scoped — reconcile [docs/ROADMAP.md](docs/ROADMAP.md) against what actually happened, propose reprioritization |
 
 **Work log:** after any sub-agent returns, the main session appends one line to [WORKLOG.md](WORKLOG.md) (`DATE | agent | task | files | result`) and names the agent(s) used in its reply. Sub-agents don't write to the log themselves.
+
+**Roadmap:** after any feature or fix ships or is scoped — regardless of whether a sub-agent, the main session, or the user did the work — invoke `product-manager` to reconcile [docs/ROADMAP.md](docs/ROADMAP.md): move finished work into בוצע, log real follow-ups/tech debt, and propose (not force) a reordering of what's next. This runs in addition to the WORKLOG.md line above, not instead of it.
 
 ## More information
 
