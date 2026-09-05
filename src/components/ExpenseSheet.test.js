@@ -152,3 +152,55 @@ test("edit mode: switching currency on a paid expense resets paid + actual", () 
     currency: "ILS", paid: false, actualMinor: null,
   }));
 });
+
+test("stop-bound mode: no day picker, label/category seed from the stop, no dayRef in payload", () => {
+  const onSubmit = jest.fn();
+  const stop = { name: "Sensoji Temple", nameHe: "מקדש סנסוג'י", category: "מקדש" };
+  render(<ExpenseSheet open onClose={() => {}} onSubmit={onSubmit} expense={null}
+    stop={stop} config={{ currency: "ILS" }} categories={[{ key: "sightseeing", label: "אטרקציות" }, { key: "other", label: "אחר" }]}
+    dayCount={5} P={LIGHT} />);
+
+  expect(screen.queryByLabelText("שיוך ליום")).not.toBeInTheDocument();
+  expect(screen.getByLabelText("תיאור ההוצאה")).toHaveValue("מקדש סנסוג'י");
+
+  fireEvent.change(screen.getByLabelText("סכום"), { target: { value: "80" } });
+  fireEvent.click(screen.getByText("הוספה"));
+
+  expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ label: "מקדש סנסוג'י", amountMinor: 8000 }));
+  expect(onSubmit.mock.calls[0][0]).not.toHaveProperty("dayRef");
+});
+
+test("stop-bound mode: onOpenBudget renders a link to the full screen", () => {
+  const onOpenBudget = jest.fn();
+  render(<ExpenseSheet open onClose={() => {}} onSubmit={() => {}} expense={null}
+    stop={{ name: "X" }} onOpenBudget={onOpenBudget}
+    config={{ currency: "ILS" }} categories={[{ key: "other", label: "אחר" }]} dayCount={1} P={LIGHT} />);
+
+  fireEvent.click(screen.getByText("למסך התקציב המלא"));
+  expect(onOpenBudget).toHaveBeenCalled();
+});
+
+test("2-decimal foreign currency stop-bound round-trip is not inflated (regression for T-BUDGET Critical)", () => {
+  const onSubmit = jest.fn();
+  const expense = { id: "e1", label: "Dinner", amountMinor: 4500, currency: "EUR", category: "food", stopRef: "s1" };
+  render(<ExpenseSheet open onClose={() => {}} onSubmit={onSubmit} onDelete={() => {}} expense={expense}
+    stop={{ name: "Restaurant", instanceId: "s1" }}
+    config={{ currency: "EUR", rate: 4 }} categories={[{ key: "food", label: "אוכל" }]} dayCount={1} P={LIGHT} />);
+
+  fireEvent.click(screen.getByText("שמירה"));
+
+  expect(onSubmit.mock.calls[0][0].amountMinor).toBe(4500);
+});
+
+test("stop-bound mode editing: category is not overwritten by stop when expense has falsy category", () => {
+  const onSubmit = jest.fn();
+  const expense = { id: "e2", label: "Activity", amountMinor: 5000, currency: "ILS", category: null, stopRef: "s1" };
+  render(<ExpenseSheet open onClose={() => {}} onSubmit={onSubmit} onDelete={() => {}} expense={expense}
+    stop={{ name: "Museum", nameHe: "מוזיאון", category: "מקדש" }}
+    config={{ currency: "ILS" }} categories={[{ key: "sightseeing", label: "אטרקציות" }, { key: "other", label: "אחר" }]}
+    dayCount={1} P={LIGHT} />);
+
+  expect(screen.getByLabelText("קטגוריה")).toHaveValue("other");
+  fireEvent.click(screen.getByText("שמירה"));
+  expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ category: "other" }));
+});

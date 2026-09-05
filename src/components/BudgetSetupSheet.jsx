@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { BASE_CATEGORIES, CURRENCIES, formatMoney, newCategoryKey, parseAmount } from "../utils/budget";
+import { BASE_CATEGORIES, CURRENCIES, formatMoney, newCategoryKey, parseAmount, budgetImpact } from "../utils/budget";
 
 /* ══════════════════════════════════════════════════════════════
    BudgetSetupSheet — set the target, the currency and the caps.
@@ -29,7 +29,7 @@ const customsFromConfig = (config) =>
   (config?.categories || []).filter((c) => c.custom).map((c) => ({ key: c.key, label: c.label }));
 
 export default function BudgetSetupSheet({
-  open, onClose, onSave, config, P, foreignItemsPresent = false,
+  open, onClose, onSave, config, P, foreignItemsPresent = false, items = [],
 }) {
   const [total, setTotal] = useState("");
   const [currency, setCurrency] = useState("ILS");
@@ -38,6 +38,7 @@ export default function BudgetSetupSheet({
   const [customs, setCustoms] = useState([]);
   const [newCat, setNewCat] = useState("");
   const [err, setErr] = useState("");
+  const [rateConfirm, setRateConfirm] = useState(null); // { impact, payload } | null
   const panelRef = useRef(null);
 
   /* Re-seed from the live config every time the sheet opens. */
@@ -55,11 +56,15 @@ export default function BudgetSetupSheet({
   /* Esc closes; focus lands inside the panel on open. */
   useEffect(() => {
     if (!open) return undefined;
-    const onKey = (e) => { if (e.key === "Escape") onClose?.(); };
+    const onKey = (e) => {
+      if (e.key !== "Escape") return;
+      if (rateConfirm) { setRateConfirm(null); return; }
+      onClose?.();
+    };
     document.addEventListener("keydown", onKey);
     panelRef.current?.focus();
     return () => document.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [open, onClose, rateConfirm]);
 
   const allCategories = useMemo(
     () => [...BASE_CATEGORIES, ...customs], [customs]);
@@ -95,7 +100,7 @@ export default function BudgetSetupSheet({
        category would persist and the budget screen would open onto eight empty
        cards. */
     const priorKeys = new Set((config?.categories || []).map((c) => c.key));
-    onSave({
+    const payload = {
       totalIlsMinor: totalMinor || 0,
       currency,
       rate: rateNum,
@@ -108,7 +113,11 @@ export default function BudgetSetupSheet({
           ...(c.key.startsWith("c_") ? { custom: true } : {}),
         }))
         .filter((c) => c.capIlsMinor != null || priorKeys.has(c.key)),
-    });
+    };
+    const rateChanged = config?.rate != null && rateNum !== config.rate;
+    const impact = rateChanged ? budgetImpact("changeRate", { items, config, newRate: rateNum }) : null;
+    if (impact) setRateConfirm({ impact, payload });
+    else onSave(payload);
   };
 
   const field = {
@@ -233,6 +242,25 @@ export default function BudgetSetupSheet({
           </button>
         </div>
       </div>
+
+      {rateConfirm && (
+        <div dir="rtl" onClick={() => setRateConfirm(null)} style={{ position: "fixed", inset: 0, zIndex: 340, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, background: "rgba(0,0,0,0.5)" }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 360, background: P.panel, borderRadius: 20, padding: 22, textAlign: "center" }}>
+            <div style={{ font: `800 17px ${FONT}`, color: P.ink, marginBottom: 8 }}>{rateConfirm.impact.title}</div>
+            <div style={{ font: `400 13.5px ${FONT}`, color: P.ink3, lineHeight: 1.6, marginBottom: 18 }}>{rateConfirm.impact.body}</div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button type="button" onClick={() => setRateConfirm(null)}
+                style={{ flex: 1, minHeight: 46, borderRadius: 999, border: `1px solid ${P.line}`, background: "transparent", color: P.ink2, font: `700 14.5px ${FONT}`, cursor: "pointer" }}>
+                ביטול
+              </button>
+              <button type="button" onClick={() => { onSave(rateConfirm.payload); setRateConfirm(null); }}
+                style={{ flex: 1, minHeight: 46, borderRadius: 999, border: "none", background: P.danger, color: "#fff", font: `800 14.5px ${FONT}`, cursor: "pointer" }}>
+                {rateConfirm.impact.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

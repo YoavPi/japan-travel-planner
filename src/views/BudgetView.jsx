@@ -309,6 +309,7 @@ export default function BudgetView() {
         open={setupOpen}
         onClose={() => setSetupOpen(false)}
         config={config}
+        items={items}
         P={P}
         foreignItemsPresent={foreignItemsPresent}
         onSave={(next) => { setConfig(next); setSetupOpen(false); }}

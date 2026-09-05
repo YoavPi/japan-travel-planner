@@ -24,6 +24,8 @@ import { photoStrict, onPhotoErrorStrict } from "../utils/placePhoto";
 import { readPrefs } from "../services/prefsService";
 import usePlacePhotos, { photoKey } from "../utils/usePlacePhotos";
 import { computeTransit } from "../utils/transit";
+import ExpenseSheet from "../components/ExpenseSheet";
+import { budgetImpact, formatMoney, BASE_CATEGORIES, addExpense, ensureBudget } from "../utils/budget";
 
 /* Stable per-object identity for Reorder keys/values: a stop's array index
    changes as it's dragged, so we key by the attraction object itself via a
@@ -101,6 +103,7 @@ export default function EditorDesktop() {
   const distUnits = readPrefs().units; // km | mi — Settings → יחידות מרחק
   const { trip, error, days, activeDay, setActiveDay, activeDayData, mapStops, editable,
     deleteStopAt, duplicateStopAt, moveStopToDay, setStopNote, addStopToDay, setDayOrder,
+    saveStopCost, removeStopCost, costForStop, commitData,
     addTransitToDay, updateStopAt, addAttachmentToStop, removeAttachmentAt, insertAt,
     tripFiles, addTripFile, updateTripFile, removeTripFile, renameAttachmentAt,
     addDay, deleteDay, saveStartDate, applyDateRange, moveStopToInbox, saveCustomPin, addSearchedToInbox,
@@ -184,6 +187,9 @@ export default function EditorDesktop() {
   const [datesEnd, setDatesEnd] = useState("");
   const [confirmDelDay, setConfirmDelDay] = useState(null); // day number pending delete
   const [hoverDay, setHoverDay] = useState(null); // day chip under the cursor (reveals ×)
+  const [costFor, setCostFor] = useState(null);     // { dayNum, idx } | null — ExpenseSheet in stop-bound mode
+  const [budgetConfirm, setBudgetConfirm] = useState(null); // { impact, onConfirm } | null
+  const [quickAddOpen, setQuickAddOpen] = useState(false); // ExpenseSheet in non-stop-bound (₪ chip) mode
   const openDatesModal = () => {
     const startIso = trip?.settings?.startDate ? String(trip.settings.startDate).slice(0, 10) : "";
     let endIso = "";
@@ -548,6 +554,17 @@ export default function EditorDesktop() {
     setCtxMenu({ x: Math.max(pad, x), y: Math.max(pad, y), idx, a });
   };
 
+  /* Gate a budget-affecting action (deleting/moving-to-inbox a stop that has
+     a linked expense) behind a Tier-1 confirm — see budgetImpact (§5). No
+     linked expense → run immediately, no dialog. */
+  const withBudgetGate = (action, stopId, run) => {
+    const items = trip?.data?.budget?.items || [];
+    const config = trip?.data?.budget?.config || {};
+    const impact = stopId ? budgetImpact(action, { items, config, stopId }) : null;
+    if (impact) setBudgetConfirm({ impact, onConfirm: run });
+    else run();
+  };
+
   /* Active-day trajectory polyline for the map (matches the mobile dashed line). */
   const routePath = useMemo(
     () => mapStops.map((s) => [s.coordinates.lng, s.coordinates.lat]),
@@ -890,10 +907,15 @@ export default function EditorDesktop() {
             <span style={{ minWidth: 18, height: 18, borderRadius: 999, padding: "0 5px", background: ACCENT, color: "#fff", fontSize: 11, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{tripFilesCount}</span>
           )}
         </button>
-        {/* Trip budget entry point — opens the dedicated /trip/budget screen.
-            No badge yet (Phase C wires a live spent/total indicator here). */}
-        <button onClick={() => navigate(`/trip/budget/${tripId}`)}
-          title="תקציב הטיול"
+        {/* Trip budget entry point — opens a quick-add ExpenseSheet (not the
+            full /trip/budget screen directly); the sheet itself links back
+            to the full screen via onOpenBudget. No badge yet (Phase C wires
+            a live spent/total indicator here). On a read-only trip the sheet
+            would update local state but never actually save (commitData
+            skips the network write when !editable) — so on read-only, fall
+            back to the old, safe navigate-only behavior instead. */}
+        <button onClick={() => editable ? setQuickAddOpen(true) : navigate(`/trip/budget/${tripId}`)}
+          title={editable ? "הוספת הוצאה מהירה" : "תקציב הטיול"}
           style={{
             flexShrink: 0, height: 40, display: "inline-flex", alignItems: "center", gap: 7, padding: "0 13px",
             borderRadius: 10, cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 800,
@@ -1066,7 +1088,7 @@ export default function EditorDesktop() {
                       {times && <span style={{ display: "block", fontSize: 11, color: T.ink3, marginTop: 2 }}>{times}{t.refId ? ` · ${t.refId}` : ""}</span>}
                     </span>
                     {editable && (
-                      <button className="tp-row-more" onClick={(e) => { e.stopPropagation(); deleteStopAt(activeDay, item.idx); }}
+                      <button className="tp-row-more" onClick={(e) => { e.stopPropagation(); const idx = item.idx; const stopId = item.a?.instanceId; withBudgetGate("deleteStop", stopId, () => deleteStopAt(activeDay, idx)); }}
                         title="מחיקת מעבר" aria-label="מחיקת מעבר"
                         style={{ position: "absolute", insetInlineStart: 6, top: 8, width: 26, height: 26, borderRadius: 7, border: "none", background: "rgba(255,107,107,0.14)", color: "#C0392B", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit", fontSize: 13 }}>🗑</button>
                     )}
@@ -1083,7 +1105,7 @@ export default function EditorDesktop() {
                     <span aria-hidden style={{ flexShrink: 0, fontSize: 15, marginTop: 1 }}>📝</span>
                     <span dir="auto" style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: "#5A4A15", lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{nt.note}</span>
                     {editable && (
-                      <button className="tp-row-more" onClick={(e) => { e.stopPropagation(); deleteStopAt(activeDay, item.idx); }}
+                      <button className="tp-row-more" onClick={(e) => { e.stopPropagation(); const idx = item.idx; const stopId = item.a?.instanceId; withBudgetGate("deleteStop", stopId, () => deleteStopAt(activeDay, idx)); }}
                         title="מחיקת הערה" aria-label="מחיקת הערה"
                         style={{ position: "absolute", insetInlineStart: 6, top: 8, width: 26, height: 26, borderRadius: 7, border: "none", background: T.surface, color: T.ink3, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit", fontSize: 13 }}>🗑</button>
                     )}
@@ -1429,10 +1451,14 @@ export default function EditorDesktop() {
                 <CtxItem icon="note" label={ctxMenu.a.note ? "עריכת הערה" : "הוספת הערה"} onClick={() => { setNoteEdit({ idx: ctxMenu.idx, draft: ctxMenu.a.note || "" }); setCtxMenu(null); }} />
                 <CtxItem emoji="📋" label="שכפל מיקום" onClick={() => { duplicateStopAt(activeDay, ctxMenu.idx); setCtxMenu(null); }} />
                 <CtxItem emoji="📎" label="צירוף קובץ" onClick={() => { const i = ctxMenu.idx; setCtxMenu(null); promptAttach(i); }} />
-                {ctxMenu.a.coordinates && <CtxItem emoji="📥" label="העבר לבנק הנקודות" onClick={() => { moveStopToInbox(activeDay, ctxMenu.idx); setCtxMenu(null); }} />}
+                {ctxMenu.a.coordinates && <CtxItem emoji="📥" label="העבר לבנק הנקודות" onClick={() => { const idx = ctxMenu.idx; const stopId = ctxMenu.a.instanceId; setCtxMenu(null); withBudgetGate("moveStopToInbox", stopId, () => moveStopToInbox(activeDay, idx)); }} />}
                 {days.length > 1 && <CtxItem emoji="📅" label="העברה ליום…" onClick={() => setCtxDaysOpen(true)} trailing="‹" />}
                 <div style={{ height: 1, background: T.line, margin: "4px 0" }} />
-                <CtxItem emoji="🗑️" label="מחיקה" danger onClick={() => { deleteStopAt(activeDay, ctxMenu.idx); setCtxMenu(null); }} />
+                <CtxItem emoji="💰" label={costForStop(ctxMenu.a.instanceId)
+                    ? `עריכת עלות · ${formatMoney(costForStop(ctxMenu.a.instanceId).amountMinor, costForStop(ctxMenu.a.instanceId).currency || "ILS")}`
+                    : "הוסף עלות"}
+                  onClick={() => { setCostFor({ dayNum: activeDay, idx: ctxMenu.idx }); setCtxMenu(null); }} />
+                <CtxItem emoji="🗑️" label="מחיקה" danger onClick={() => { const idx = ctxMenu.idx; const stopId = ctxMenu.a.instanceId; setCtxMenu(null); withBudgetGate("deleteStop", stopId, () => deleteStopAt(activeDay, idx)); }} />
               </>
             ) : (
               <div style={{ maxHeight: 220, overflowY: "auto" }}>
@@ -1610,6 +1636,28 @@ export default function EditorDesktop() {
         </div>
       )}
 
+      {/* ── Budget-impact confirmation (Phase B, §5 Tier 1) ─── */}
+      {budgetConfirm && (
+        <div dir="rtl" onClick={() => setBudgetConfirm(null)} style={{ position: "fixed", inset: 0, zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, background: "rgba(8,10,14,0.5)", fontFamily: T.font }}>
+          <div onClick={(e) => e.stopPropagation()} className="tp-pop" style={{ width: "100%", maxWidth: 360, background: "#fff", borderRadius: 20, border: `1px solid ${T.line}`, boxShadow: "0 30px 80px rgba(0,0,0,0.4)", padding: 22, textAlign: "center" }}>
+            <div style={{ fontSize: 17, fontWeight: 800, color: T.ink, marginBottom: 8 }}>{budgetConfirm.impact.title}</div>
+            <div style={{ fontSize: 13.5, color: T.ink3, lineHeight: 1.6, marginBottom: 18 }}>
+              {budgetConfirm.impact.body}
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setBudgetConfirm(null)}
+                style={{ flex: 1, height: 46, borderRadius: 999, border: `1px solid ${T.line}`, background: "#fff", color: T.ink2, fontSize: 14.5, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>
+                ביטול
+              </button>
+              <button onClick={() => { budgetConfirm.onConfirm(); setBudgetConfirm(null); }} className="tp-press"
+                style={{ flex: 1, height: 46, borderRadius: 999, border: "none", background: "#C0392B", color: "#fff", fontSize: 14.5, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>
+                {budgetConfirm.impact.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* "מצא לי X באזור" — category picker; picks feed nearbySearch → map pins. */}
       {nearbyOrigin && (
         <NearbySearchSheet
@@ -1630,6 +1678,52 @@ export default function EditorDesktop() {
         }}>
           <span aria-hidden>⚠️</span>{attachToast}
         </div>
+      )}
+
+      {/* ── Per-stop cost (Phase B) — ExpenseSheet in stop-bound mode,
+          opened from the context menu's "💰" row. `day`/`stop` are re-derived
+          from `days` on every render (not captured once at open-time) so the
+          sheet never edits a stale snapshot while it stays open. ─── */}
+      {costFor && (() => {
+        const day = days.find((d) => d.day === costFor.dayNum);
+        const stop = day?.attractions?.[costFor.idx];
+        if (!stop) { setCostFor(null); return null; }
+        const existing = stop.instanceId ? costForStop(stop.instanceId) : null;
+        return (
+          <ExpenseSheet
+            open
+            onClose={() => setCostFor(null)}
+            stop={stop}
+            expense={existing}
+            config={trip?.data?.budget?.config || { currency: "ILS" }}
+            categories={BASE_CATEGORIES}
+            dayCount={days.length}
+            P={{ ...T, accent: ACCENT, panel: "#fff", danger: "#C0392B", page: "#fff" }}
+            onSubmit={(payload) => { saveStopCost(costFor.dayNum, costFor.idx, payload); setCostFor(null); }}
+            onDelete={(id) => { removeStopCost(id); setCostFor(null); }}
+            onOpenBudget={() => { setCostFor(null); navigate(`/trip/budget/${tripId}`); }}
+          />
+        );
+      })()}
+
+      {/* ── Quick-add (Phase B) — non-stop-bound ExpenseSheet opened from the
+          ₪ chip: a general trip expense, written via addExpense (not
+          saveStopCost — no `stop` prop is passed). ─── */}
+      {quickAddOpen && (
+        <ExpenseSheet
+          open
+          onClose={() => setQuickAddOpen(false)}
+          expense={null}
+          config={trip?.data?.budget?.config || { currency: "ILS" }}
+          categories={BASE_CATEGORIES}
+          dayCount={days.length}
+          P={{ ...T, accent: ACCENT, panel: "#fff", danger: "#C0392B", page: "#fff" }}
+          onSubmit={(payload) => {
+            commitData((data) => addExpense(ensureBudget(data), payload));
+            setQuickAddOpen(false);
+          }}
+          onOpenBudget={() => { setQuickAddOpen(false); navigate(`/trip/budget/${tripId}`); }}
+        />
       )}
 
       <style>{`

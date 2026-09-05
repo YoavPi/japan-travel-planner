@@ -24,7 +24,8 @@ import { listInboxPlaces, addInboxPlaces, removeInboxPlace, updateInboxPlace } f
 import { uploadAttachment, removeStoredFile } from "../services/attachmentService";
 import TripFilesSheet from "../components/TripFilesSheet";
 import { newFileId, remapFileDays } from "../utils/tripFiles";
-import { remapExpenseDays } from "../utils/budget";
+import { remapExpenseDays, ensureBudget, addExpense, updateExpense, removeExpense, expensesForStop, detachStopExpenses, formatMoney, toIlsMinor, BASE_CATEGORIES, budgetImpact } from "../utils/budget";
+import ExpenseSheet from "../components/ExpenseSheet";
 import useActiveTrip from "../utils/useActiveTrip";
 import Icon from "../components/Icon";
 import { setDocTitle, titleForTrip, DEFAULT_TITLE } from "../utils/docTitle";
@@ -1389,6 +1390,21 @@ const EditorView = () => {
      landing on whatever now sits at that index. */
   const attachTargetDay = useRef(null);
   const attachTargetId = useRef(null);
+  /* Per-stop cost (Phase B) — { day, idx } | null, never a bare index: the
+     sheet it opens can stay mounted across renders while the user types, and
+     if activeDay changed underneath it a bare index would resolve against
+     the WRONG day's attractions array at that same position (same async/
+     stale-reference class as the file-attach fix above). */
+  const [costFor, setCostFor] = useState(null);
+  /* The cost sheet is stop-scoped to a specific day; its render guard
+     (`costFor.day === activeDay`) already hides it when the user switches
+     days, but leaves costFor itself set — so switching back to the original
+     day silently re-mounts the sheet from scratch, discarding whatever the
+     user had typed while it was hidden. Switching days should always CLOSE
+     the sheet, not just visually hide it — so clear it here too. */
+  useEffect(() => { setCostFor(null); }, [activeDay]);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [budgetConfirm, setBudgetConfirm] = useState(null); // { impact, onConfirm } | null
   /* Sprint 65 #1 — the attachment currently open in the in-app viewer modal.
      { file, idx, fi } — idx is the active-day stop index, fi the attachment
      index within that stop, so the viewer can also delete it. */
@@ -1405,7 +1421,7 @@ const EditorView = () => {
      long-press menu). Combined with the peek-only sheet rule below.
      The "מצא ליד" nearby-search sheet (z120) belongs here too — without it the
      z260 map FABs float on top of the sheet's chips + search bar. */
-  const overlayOpen = actionsIdx >= 0 || summaryOpen || insertAt >= 0 || !!ctxMenu || datesModalOpen || noteEditIdx >= 0 || editTransitIdx >= 0 || onboardOpen || confirmExit || !!nearbyOrigin;
+  const overlayOpen = actionsIdx >= 0 || summaryOpen || insertAt >= 0 || !!ctxMenu || datesModalOpen || noteEditIdx >= 0 || editTransitIdx >= 0 || onboardOpen || confirmExit || !!nearbyOrigin || !!budgetConfirm;
 
   /* Generic day-array mutator → updates local state + persists.
      `mutate(daysCopy)` returns the new days array. */
@@ -1774,24 +1790,41 @@ const EditorView = () => {
     const day = (trip?.data?.tripData || []).find((d) => d.day === activeDay);
     const stop = day?.attractions?.[idx];
     if (!stop) return;
-    commitDays((days) => days.map((d) =>
-      d.day === activeDay ? { ...d, attractions: d.attractions.filter((_, i) => i !== idx) } : d
-    ));
-    setDeleteUndo({ stop, day: activeDay, idx });
-  }, [trip, activeDay, commitDays]);
+    const items = trip?.data?.budget?.items || [];
+    const linked = stop.instanceId ? expensesForStop(items, stop.instanceId) : [];
+    const linkedIds = linked.map((it) => it.id);
+    persistTripData((data) => {
+      const nextTripData = (data.tripData || []).map((d) =>
+        d.day === activeDay ? { ...d, attractions: d.attractions.filter((_, i) => i !== idx) } : d);
+      if (!data.budget || linkedIds.length === 0) return { ...data, tripData: nextTripData };
+      return { ...data, tripData: nextTripData,
+        budget: { ...data.budget, items: detachStopExpenses(data.budget.items, stop.instanceId) } };
+    });
+    const moneyNote = linkedIds.length
+      ? formatMoney(linked.reduce((s, it) =>
+          s + toIlsMinor(Number(it.amountMinor) || 0, it.currency || "ILS", trip.data.budget.config), 0), "ILS")
+      : null;
+    setDeleteUndo({ stop, day: activeDay, idx, detachedIds: linkedIds, moneyNote });
+  }, [trip, activeDay, persistTripData]);
 
   const undoDelete = useCallback(() => {
     setDeleteUndo((u) => {
       if (!u) return null;
-      commitDays((days) => days.map((d) => {
-        if (d.day !== u.day) return d;
-        const list = [...d.attractions];
-        list.splice(Math.min(u.idx, list.length), 0, u.stop);
-        return { ...d, attractions: list };
-      }));
+      persistTripData((data) => {
+        const nextTripData = (data.tripData || []).map((d) => {
+          if (d.day !== u.day) return d;
+          const list = [...d.attractions];
+          list.splice(Math.min(u.idx, list.length), 0, u.stop);
+          return { ...d, attractions: list };
+        });
+        if (!data.budget || !u.detachedIds?.length) return { ...data, tripData: nextTripData };
+        return { ...data, tripData: nextTripData,
+          budget: { ...data.budget, items: data.budget.items.map((it) =>
+            u.detachedIds.includes(it.id) ? { ...it, stopRef: u.stop.instanceId } : it) } };
+      });
       return null;
     });
-  }, [commitDays]);
+  }, [persistTripData]);
 
   /* Sprint 38 #3 — Swipe-right → snooze the stop into the Places Inbox with a
      non-blocking 10-second UNDO pill. We capture the origin day + index and
@@ -1801,10 +1834,21 @@ const EditorView = () => {
     const day = (trip?.data?.tripData || []).find((d) => d.day === activeDay);
     const moved = day?.attractions?.[idx];
     if (!moved) return;
-    commitDays((days) => days.map((d) =>
-      d.day === activeDay ? { ...d, attractions: d.attractions.filter((_, i) => i !== idx) } : d
-    ));
-    setInboxUndo({ stop: moved, day: activeDay, idx, inboxId: null });
+    const items = trip?.data?.budget?.items || [];
+    const linked = moved.instanceId ? expensesForStop(items, moved.instanceId) : [];
+    const linkedIds = linked.map((it) => it.id);
+    persistTripData((data) => {
+      const nextTripData = (data.tripData || []).map((d) =>
+        d.day === activeDay ? { ...d, attractions: d.attractions.filter((_, i) => i !== idx) } : d);
+      if (!data.budget || linkedIds.length === 0) return { ...data, tripData: nextTripData };
+      return { ...data, tripData: nextTripData,
+        budget: { ...data.budget, items: detachStopExpenses(data.budget.items, moved.instanceId) } };
+    });
+    const moneyNote = linkedIds.length
+      ? formatMoney(linked.reduce((s, it) =>
+          s + toIlsMinor(Number(it.amountMinor) || 0, it.currency || "ILS", trip.data.budget.config), 0), "ILS")
+      : null;
+    setInboxUndo({ stop: moved, day: activeDay, idx, inboxId: null, detachedIds: linkedIds, moneyNote });
     if (moved.coordinates && Number.isFinite(moved.coordinates.lat)) {
       /* Trip-scoped save: this stop already belonged to THIS trip's day —
          snoozing it into the bank should keep it associated with this trip
@@ -1819,23 +1863,29 @@ const EditorView = () => {
         if (saved && saved[0]) setInboxUndo((u) => (u && u.stop === moved ? { ...u, inboxId: saved[0].id } : u));
       }).catch(() => {});
     }
-  }, [trip, activeDay, commitDays, mergeIntoInbox, tripId]);
+  }, [trip, activeDay, persistTripData, mergeIntoInbox, tripId]);
 
   /* Restore a snoozed stop back to its original day + index, dropping the
      inbox copy it created. */
   const restoreFromInbox = useCallback(() => {
     setInboxUndo((u) => {
       if (!u) return null;
-      commitDays((days) => days.map((d) => {
-        if (d.day !== u.day) return d;
-        const list = [...d.attractions];
-        list.splice(Math.min(u.idx, list.length), 0, u.stop);
-        return { ...d, attractions: list };
-      }));
+      persistTripData((data) => {
+        const nextTripData = (data.tripData || []).map((d) => {
+          if (d.day !== u.day) return d;
+          const list = [...d.attractions];
+          list.splice(Math.min(u.idx, list.length), 0, u.stop);
+          return { ...d, attractions: list };
+        });
+        if (!data.budget || !u.detachedIds?.length) return { ...data, tripData: nextTripData };
+        return { ...data, tripData: nextTripData,
+          budget: { ...data.budget, items: data.budget.items.map((it) =>
+            u.detachedIds.includes(it.id) ? { ...it, stopRef: u.stop.instanceId } : it) } };
+      });
       if (u.inboxId) { setInboxPlaces((prev) => (prev || []).filter((x) => x.id !== u.inboxId)); removeInboxPlace(u.inboxId); }
       return null;
     });
-  }, [commitDays]);
+  }, [persistTripData]);
 
   /* Context menu → "Move to Day…". Moves the active-day stop at `idx`. */
   const moveStopIndexToDay = useCallback((idx, toDay) => {
@@ -1844,7 +1894,12 @@ const EditorView = () => {
       if (!from) return days;
       const [moved] = from.attractions.splice(idx, 1);
       const to = days.find((d) => d.day === toDay);
-      if (to && moved) to.attractions = dedupeDayStops([...to.attractions, moved]);
+      /* NOT deduped (matches desktop's moveStopToDay in useEditorState.js):
+         dedupeDayStops merges same-name stops and keeps the EXISTING node's
+         instanceId, silently discarding the moved one's — which would orphan
+         a linked expense (its stopRef would point at an instanceId that no
+         longer exists anywhere) and visually drop the stop with no warning. */
+      if (to && moved) to.attractions = [...to.attractions, moved];
       return days;
     });
   }, [activeDay, commitDays]);
@@ -2089,6 +2144,40 @@ const EditorView = () => {
     ));
     setCopyToast("הקובץ הוסר ✓");
   }, [activeDay, commitDays]);
+
+  /* Per-stop cost (Phase B) — mobile mirror of useEditorState's saveStopCost.
+     Stamps a lazy instanceId if missing and writes the budget in the SAME
+     persistTripData call, for the same single-writer reason documented
+     there. */
+  const saveStopCost = useCallback((idx, payload) => {
+    persistTripData((data) => {
+      const day = (data.tripData || []).find((d) => d.day === activeDay);
+      const stop = day?.attractions?.[idx];
+      if (!stop) return data;
+      let stopId = stop.instanceId;
+      let nextTripData = data.tripData;
+      if (!stopId) {
+        stopId = genInstanceId();
+        nextTripData = data.tripData.map((d) => d.day !== activeDay ? d : {
+          ...d, attractions: d.attractions.map((a, i) => i === idx ? { ...a, instanceId: stopId } : a),
+        });
+      }
+      const withBudget = ensureBudget({ ...data, tripData: nextTripData });
+      const existing = expensesForStop(withBudget.budget.items, stopId)[0];
+      return existing
+        ? updateExpense(withBudget, existing.id, payload)
+        : addExpense(withBudget, { ...payload, stopRef: stopId });
+    });
+  }, [activeDay, persistTripData]);
+
+  const removeStopCost = useCallback((expenseId) => {
+    persistTripData((data) => removeExpense(data, expenseId));
+  }, [persistTripData]);
+
+  const costForStop = useCallback((stopId) => {
+    const items = trip?.data?.budget?.items || [];
+    return expensesForStop(items, stopId)[0] || null;
+  }, [trip]);
 
   /* Sprint 65 — TRIP FILES GALLERY. Derived views over trip.data for the
      <TripFilesSheet>: general files (trip.data.files[]) + a badge count that
@@ -2389,12 +2478,17 @@ const EditorView = () => {
     setInsertAt(-1); setInsertText("");
   }, [activeDay, commitDays]);
 
-  const deleteStop = useCallback(() => {
-    commitDays((days) => days.map((d) =>
-      d.day === activeDay ? { ...d, attractions: d.attractions.filter((_, i) => i !== actionsIdx) } : d
-    ));
+  const deleteStop = useCallback((idx) => {
+    const stop = (trip?.data?.tripData || []).find((d) => d.day === activeDay)?.attractions?.[idx];
+    persistTripData((data) => {
+      const nextTripData = (data.tripData || []).map((d) =>
+        d.day === activeDay ? { ...d, attractions: d.attractions.filter((_, i) => i !== idx) } : d);
+      if (!data.budget || !stop?.instanceId) return { ...data, tripData: nextTripData };
+      return { ...data, tripData: nextTripData,
+        budget: { ...data.budget, items: detachStopExpenses(data.budget.items, stop.instanceId) } };
+    });
     setActionsIdx(-1);
-  }, [activeDay, actionsIdx, commitDays]);
+  }, [trip, activeDay, persistTripData]);
 
   /* Sprint 38 #7 — multi-day hotel = INDEPENDENT CLONES (no lock, no shared
      group). The active stop is reclassified as lodging in place; a plain
@@ -3341,12 +3435,17 @@ const EditorView = () => {
           </button>
         )}
 
-        {/* Trip budget entry point — opens the dedicated /trip/budget screen.
-            No badge yet (Phase C wires a live spent/total indicator here). */}
+        {/* Trip budget entry point — opens a quick-add expense sheet when the
+            trip is editable; on a read-only trip, commitData/persistTripData
+            skip the network save but would still update local React state, so
+            the entry would silently appear to save and then vanish on reload.
+            Fall back to the original navigate-only behavior there instead —
+            a read-only viewer can still look at the full budget screen. */}
         {trip && (
           <button
-            onClick={() => navigate(`/trip/budget/${tripId}`)}
-            title="תקציב הטיול" aria-label="תקציב הטיול" className="tp-press"
+            onClick={() => editable ? setQuickAddOpen(true) : navigate(`/trip/budget/${tripId}`)}
+            title={editable ? "הוספת הוצאה מהירה" : "תקציב הטיול"}
+            aria-label={editable ? "הוספת הוצאה מהירה" : "תקציב הטיול"} className="tp-press"
             style={{
               flexShrink: 0,
               width: 44, height: 44, borderRadius: "50%", border: "none",
@@ -4105,6 +4204,76 @@ const EditorView = () => {
         </div>
       )}
 
+      {/* Per-stop cost (Phase B) — ExpenseSheet in stop-bound mode. The
+          `costFor.day === activeDay` guard is why costFor captures the day,
+          not just an index: without it, switching the active day while this
+          sheet is open would resolve costFor.idx against the NEW day's
+          attractions array instead of closing (or staying on the original
+          stop). */}
+      {costFor && costFor.day === activeDay && activeDayData?.attractions?.[costFor.idx] && (() => {
+        const stop = activeDayData.attractions[costFor.idx];
+        const existing = stop.instanceId ? costForStop(stop.instanceId) : null;
+        return (
+          <ExpenseSheet
+            open
+            onClose={() => setCostFor(null)}
+            stop={stop}
+            expense={existing}
+            config={trip?.data?.budget?.config || { currency: "ILS" }}
+            categories={BASE_CATEGORIES}
+            dayCount={days.length}
+            P={{ ...T, panel: "#fff", danger: "#C0392B", page: "#fff" }}
+            onSubmit={(payload) => { saveStopCost(costFor.idx, payload); setCostFor(null); }}
+            onDelete={(id) => { removeStopCost(id); setCostFor(null); }}
+            onOpenBudget={() => { setCostFor(null); navigate(`/trip/budget/${tripId}`); }}
+          />
+        );
+      })()}
+
+      {/* ₪ chip quick-add (Phase B) — non-stop-bound ExpenseSheet. */}
+      {quickAddOpen && (
+        <ExpenseSheet
+          open
+          onClose={() => setQuickAddOpen(false)}
+          expense={null}
+          config={trip?.data?.budget?.config || { currency: "ILS" }}
+          categories={BASE_CATEGORIES}
+          dayCount={days.length}
+          P={{ ...T, panel: "#fff", danger: "#C0392B", page: "#fff" }}
+          onSubmit={(payload) => {
+            persistTripData((data) => addExpense(ensureBudget(data), payload));
+            setQuickAddOpen(false);
+          }}
+          onOpenBudget={() => { setQuickAddOpen(false); navigate(`/trip/budget/${tripId}`); }}
+        />
+      )}
+
+      {/* Budget-impact confirm (Phase B) — Tier-1 confirmation before an
+          action detaches a linked expense. zIndex 320: above StopActionsSheet
+          (300) and ExpenseSheet (310), so a confirm always renders on top of
+          whatever triggered it. */}
+      {budgetConfirm && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 320, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div onClick={() => setBudgetConfirm(null)} className="tp-fade" style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)" }} />
+          <div className="tp-pop" dir="rtl" style={{ position: "relative", width: "100%", maxWidth: 340, background: "#fff", borderRadius: 22, padding: "24px 22px", boxShadow: "0 30px 80px rgba(0,0,0,0.4)", textAlign: "center", fontFamily: T.font }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: T.ink, marginBottom: 6 }}>{budgetConfirm.impact.title}</div>
+            <div style={{ fontSize: 13.5, color: T.ink3, lineHeight: 1.5, marginBottom: 20 }}>
+              {budgetConfirm.impact.body}
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setBudgetConfirm(null)}
+                style={{ flex: 1, height: 48, borderRadius: 999, border: `1px solid ${T.line}`, background: T.surface, color: T.ink, fontSize: 14.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                ביטול
+              </button>
+              <button onClick={() => { budgetConfirm.onConfirm(); setBudgetConfirm(null); }}
+                style={{ flex: 1, height: 48, borderRadius: 999, border: "none", background: "#C0392B", color: "#fff", fontSize: 14.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                {budgetConfirm.impact.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Sprint 37 #2 — long-press ROW CONTEXT MENU. A tap-scrim closes it;
           the sheet-style card floats bottom-centred (mobile-first) rather
           than at the raw pointer coords so it never clips off-screen. */}
@@ -4176,7 +4345,9 @@ const EditorView = () => {
           borderRadius: 14, padding: "10px 12px 10px 16px", fontFamily: T.font,
           boxShadow: "0 14px 40px rgba(0,0,0,0.32)", display: "flex", alignItems: "center", gap: 12,
         }}>
-          <span style={{ fontSize: 13.5, fontWeight: 700, flex: 1 }}>הנקודה נמחקה — האם למחוק את הנקודה?</span>
+          <span style={{ fontSize: 13.5, fontWeight: 700, flex: 1 }}>
+            {deleteUndo.moneyNote ? `הנקודה נמחקה · ההוצאה ${deleteUndo.moneyNote} עברה ל'כללי'` : "הנקודה נמחקה — האם למחוק את הנקודה?"}
+          </span>
           <button onClick={undoDelete} style={{ border: "none", background: "#fff", color: T.ink, borderRadius: 999, padding: "7px 16px", fontFamily: "inherit", fontSize: 13, fontWeight: 800, cursor: "pointer" }}>בטל</button>
         </div>
       )}
@@ -4189,7 +4360,9 @@ const EditorView = () => {
           borderRadius: 14, padding: "10px 10px 10px 16px", fontFamily: T.font,
           boxShadow: "0 14px 40px rgba(0,0,0,0.32)", display: "flex", alignItems: "center", gap: 10,
         }}>
-          <span style={{ fontSize: 13.5, fontWeight: 700, flex: 1 }}>הנקודה הועברה לבנק הנקודות</span>
+          <span style={{ fontSize: 13.5, fontWeight: 700, flex: 1 }}>
+            {inboxUndo.moneyNote ? `הנקודה הועברה לבנק הנקודות · ההוצאה ${inboxUndo.moneyNote} עברה ל'כללי'` : "הנקודה הועברה לבנק הנקודות"}
+          </span>
           <button onClick={restoreFromInbox}
             style={{ border: "none", background: "#fff", color: T.ink, borderRadius: 999, padding: "7px 14px", fontFamily: "inherit", fontSize: 12.5, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap" }}>
             החזר ליום זה ↩️
@@ -4824,7 +4997,21 @@ const EditorView = () => {
             setActionsIdx(-1);
           }}
           onFindNearby={() => setNearbyOrigin(activeDayData.attractions[actionsIdx])}
-          onDelete={deleteStop}
+          onDelete={() => {
+            const idx = actionsIdx;
+            const stop = activeDayData.attractions[idx];
+            const items = trip?.data?.budget?.items || [];
+            const config = trip?.data?.budget?.config || {};
+            const impact = stop?.instanceId ? budgetImpact("deleteStop", { items, config, stopId: stop.instanceId }) : null;
+            if (impact) { setActionsIdx(-1); setBudgetConfirm({ impact, onConfirm: () => deleteStop(idx) }); }
+            else deleteStop(idx);
+          }}
+          onSetCost={() => { setCostFor({ day: activeDay, idx: actionsIdx }); setActionsIdx(-1); }}
+          stopCostLabel={(() => {
+            const stop = activeDayData?.attractions?.[actionsIdx];
+            const c = stop?.instanceId ? costForStop(stop.instanceId) : null;
+            return c ? formatMoney(c.amountMinor, c.currency || "ILS") : null;
+          })()}
           onClose={() => setActionsIdx(-1)}
         />
       )}
