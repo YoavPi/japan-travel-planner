@@ -65,7 +65,7 @@ Each case: **Given / When / Then**. Record Pass / Fail / Blocked + evidence (scr
 | T-AUTH-01 | P0 | **Protected routes bounce.** With no mock session, visiting `/dashboard`, `/create`, `/settings`, `/notifications`, `/trip/overview/x`, `/map/edit/x` redirects to `/auth`. |
 | T-AUTH-02 | P0 | **Mock sign-in.** On `/auth`, the mock Google/continue button creates a session and routes to `/dashboard` (or `/welcome` if not onboarded). |
 | T-AUTH-03 | P0 | **No identity leak.** After sign-in, the dashboard identity (name/email/avatar) is the mock user's — consistently the same across reloads. Sign out → `setUser(null)` → protected routes bounce again; no stale identity survives. (Full RLS/real-OAuth identity testing is prod-only.) |
-| T-AUTH-04 | P1 | **No Apple button.** `/auth` shows Google + email magic-link only; no "המשך עם Apple". |
+| T-AUTH-04 | P1 | **Google only.** `/auth` shows the "המשך עם Google" action only — no "המשך עם Apple", and no email magic-link input (temporarily removed; plumbing retained in AuthContext/authService). |
 | T-AUTH-05 | P1 | **Admin gating.** `/admin` renders only for an admin-email mock user (`utils/isAdmin`); a non-admin gets redirected/blocked, never a flash of KPI data. |
 
 ### 3.3 Dashboard (`/dashboard`)
@@ -424,7 +424,29 @@ Then close the §7.6 gaps that need a live backend / real device.
 
 ---
 
-## 9. Sign-off
+## 9. AI destination focus (2026-09-02)
+
+| ID | Pri | Case |
+|---|---|---|
+| T-FOCUS-01 | P0 | **Modal → country → focus step → region pick.** Given the AiTripModal open with a destination prediction for "Thailand" (the *country*, not the city), When "בנה מסלול" is tapped, Then a `DestinationFocus` step appears. Pick "הצפון" (Northern region) → generate. Every `day.city` in the itinerary is one of {Chiang Mai, Pai}; the itinerary description names the region explicitly. |
+| T-FOCUS-02 | P0 | **Focused generation: city count & pacing.** Given a focused trip (Thailand, Northern region, N days), When generation completes, Then the itinerary has ≤ ⌈N/3⌉ unique cities, arranged in consecutive multi-day blocks (e.g., 3 days in city A, 2 days in city B) or a hub-and-day-trips pattern for trips ≤ 4 days (e.g., Chiang Mai base + 1-day excursion). |
+| T-FOCUS-03 | P1 | **City-level destination: no focus step.** Given the AiTripModal open, When I type "Tokyo" (a city-level prediction), Then **no** `DestinationFocus` step appears; generation proceeds directly to the itinerary. |
+| T-FOCUS-04 | P1 | **Broad region (non-curated): city-picker only.** Given the modal with a pick like "Tuscany, Italy" (a region, but not in the curated 10 countries), When the focus step appears, Then `scope:"region"` and the city-picker controls render (no curated region chips), allowing free selection of cities within that region. |
+| T-FOCUS-05 | P1 | **Manual city selection in focus phase.** Given a focused trip at the `DestinationFocus` step, When "בחר ערים" is tapped, the city picker is used to add 2 cities, and "המשך" is pressed, Then generation stays within those 2 cities only (no other cities added to the itinerary). |
+| T-FOCUS-06 | P1 | **Refine after focused generation.** Given a completed focused itinerary (e.g., Thailand Northern region, 3 cities), When "בנו מחדש" or refine is tapped, Then the focus constraint is **retained** (does **not** re-open the focus step), and regeneration stays within the same region/cities. |
+| T-FOCUS-07 | P1 | **Wizard routing step: region chips (curated country).** Given the wizard `/create` flow, When a curated country like "תאילנד" is selected and Step 2 (routing) is reached, Then the UI shows "או בחרו אזור מוכן:" text + 4 region chips (e.g., North, Northeast, Central, South). Tapping one chip pre-fills the city rows for that region. The chips vanish once any cities are manually selected (non-empty `cities`). |
+| T-FOCUS-08 | P2 | **Fallback: no Places+LLM keys (localhost).** Given `localhost:3000` with no Google Places API key and no Gemini key, When the AiTripModal is opened and a broad destination is selected (Thailand), Then the focus step still renders (region chips from `FOCUS_REGIONS` are shown), the city-picker degrades to mock/sim results, and generation returns the mock itinerary without crashing. |
+| T-FOCUS-09 | P2 | **RTL + dark mode on focus step.** Given the AiTripModal with focus step rendered, When dark mode is toggled (via Dashboard header or system preference), Then the modal, focus-step chips/picker, and all text render correctly — proper contrast, right-aligned Hebrew, icons not mirrored, button styling consistent with the dark palette. |
+| T-FOCUS-10 | P1 | **Refine keeps focus constraint (no step re-shown).** Given a focused generation with `focus: { cities: [...], label: "..." }` set in state, When `runGenerate({refine: true})` is called, Then `effectiveFocus` falls back to the persisted `focus` state (which is still set), and **no** focus step is re-shown during refine (stays in the editor, straight to regeneration). |
+| T-FOCUS-11 | P2 | **Mock itinerary ignores focus; step still renders.** Given `localhost:3000` with no LLM key, When AiTripModal opens and a country/region is selected → focus step appears → cities are picked → generate, Then the `mockItinerary` function ignores the `focus` constraint and returns a mock itinerary (because the real LLM is unavailable), but **the focus step itself still renders from `FOCUS_REGIONS` data** — no crash, UI is complete. The dev server **cannot** visually demonstrate the focus constraint in action, but the wiring is testable on production. |
+| T-FOCUS-12 | P2 | **matchCuratedCountry on real Google types.** Given Places predictions for "Thailand" with real Google `types` (e.g., `["country"]`), When `matchCuratedCountry` is called on those types, Then it returns `"th"` (a curated country ID) → region chips render. Given a non-curated broad pick like "Patagonia" → `scope:"region"` → city-picker only (no chips). |
+| T-FOCUS-13 | P1 | **Wizard region-chip prefill (curated country, Hebrew).** Given the wizard `/create` flow with "תאילנד" selected, When Step 2 is reached and "הדרום והאיים" (South+Islands region) chip is tapped, Then the city rows are pre-filled with Hebrew city names from that region (e.g., "พูเก็ต" → "פוקט", "กระบี่" → "קระบี่"), and the region chips vanish once `cities` is non-empty. |
+| T-FOCUS-14 | P2 | **RTL + dark + touch on focus modal & back button.** Given the AiTripModal with focus step active, When dark mode is toggled AND the layout is inspected at 375×812, Then: (a) the modal, buttons, chips, and text are theme-aware (dark-mode colors from `useDarkMode()`), (b) the "→ חזרה" (back) button is ≥44×44px (measurable in DevTools), (c) on-device touch on the back button responds correctly (not OS-level bounce or misfire). |
+| T-FOCUS-15 | P2 | **Known limitation: city-picker autocomplete not country-biased.** Given the focus step → "בחר ערים" → city-picker autocomplete, When typing a common city name (e.g., "Bangkok"), Then results can include cities outside the picked country (because `countryBias` is not passed to the Places autocomplete query in the picker). **Confirm this is acceptable**, or file a follow-up to add `countryBias` in-phase. |
+
+---
+
+## 10. Sign-off
 
 | Check | Owner | Status |
 |---|---|---|
