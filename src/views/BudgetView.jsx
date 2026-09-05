@@ -138,7 +138,9 @@ export default function BudgetView() {
           <button
             type="button"
             aria-label="חזרה"
-            onClick={() => navigate(`/trip/overview/${tripId}`)}
+            /* Go back to wherever the user actually came from (editor or
+               overview both link here now) — not a hardcoded destination. */
+            onClick={() => navigate(-1)}
             style={{ minWidth: 44, minHeight: 44, borderRadius: 999, border: `1px solid ${P.line}`,
                      background: P.panel, color: P.ink, font: `800 17px ${FONT}`, cursor: "pointer" }}
           >
