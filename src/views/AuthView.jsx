@@ -19,8 +19,8 @@ const GOOGLE_SSO_ON = !!(process.env.REACT_APP_GOOGLE_CLIENT_ID || "");
    AuthView — premium sign-in bottom sheet (home-auth blueprint).
 
    A soft hero fills the screen; an auth sheet rises from the
-   bottom with Google / Apple / Email actions. All three run the
-   same mock signIn for now (1.2s) → redirect to the intended
+   bottom with a single Google action (Supabase OAuth in prod, mock
+   sign-in only when there is no backend) → redirect to the intended
    destination (location.state.from) or /dashboard. Backdrop or
    the close affordance returns to the home page.
    ────────────────────────────────────────────────────────────── */
@@ -56,7 +56,7 @@ const AuthBtn = ({ children, onClick, disabled, variant }) => {
 const POST_LOGIN_KEY = "tp_post_login_dest";
 
 const AuthView = () => {
-  const { signIn, signInWithSupabase, signInWithEmailLink, supabaseEnabled, signInWithGoogleToken, signingIn, isAuthenticated, initializing } = useAuth();
+  const { signIn, signInWithSupabase, supabaseEnabled, signInWithGoogleToken, signingIn, isAuthenticated, initializing } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   /* Where to land after login. The Supabase Google flow redirects away to
@@ -75,26 +75,10 @@ const AuthView = () => {
      tapped). We NEVER silently mock-sign-in on a real backend. */
   const [authErr, setAuthErr] = React.useState("");
 
-  /* Email magic-link state. */
-  const [email, setEmail] = React.useState("");
-  const [emailBusy, setEmailBusy] = React.useState(false);
-  const [emailSent, setEmailSent] = React.useState(false);
-  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
-  const sendMagicLink = async () => {
-    if (!emailValid || emailBusy) return;
-    setAuthErr(""); setEmailBusy(true);
-    /* Same destination-persistence as Google: the emailed link returns to /auth
-       in a fresh context, so stash where to land. */
-    if (location.state?.from) sessionStorage.setItem(POST_LOGIN_KEY, location.state.from);
-    try {
-      await signInWithEmailLink(email);
-      setEmailSent(true);
-    } catch (e) {
-      setAuthErr(e?.message || "שליחת הקישור נכשלה. נסו שוב.");
-    } finally {
-      setEmailBusy(false);
-    }
-  };
+  /* Email magic-link sign-in is temporarily disabled — the UI block below was
+     removed. The plumbing (AuthContext.signInWithEmailLink →
+     authService.signInWithEmailLink → supabase.auth.signInWithOtp) is left
+     intact; restore the input + "email sent" panel from git history to re-enable. */
 
   /* OAuth-loop fix — navigate in once we know the user is authenticated.
      A brand-new signed-in user (never onboarded) is routed through the
@@ -236,42 +220,8 @@ const AuthView = () => {
           </div>
           )}
 
-          {/* ── Email magic-link (passwordless), alongside Google ─── */}
-          {!initializing && supabaseEnabled && (
-            emailSent ? (
-              <div role="status" style={{ marginTop: 14, padding: "14px 14px", borderRadius: 14, background: "rgba(224,83,63,0.06)", border: `1px solid ${T.line}`, textAlign: "center" }}>
-                <div style={{ fontSize: 22, marginBottom: 4 }}>📩</div>
-                <div style={{ fontSize: 14, fontWeight: 800, color: T.ink }}>שלחנו לכם קישור התחברות</div>
-                <div style={{ fontSize: 12.5, color: T.ink3, marginTop: 4, lineHeight: 1.5 }}>
-                  בדקו את המייל <b style={{ color: T.ink2 }} dir="ltr">{email.trim()}</b> ולחצו על הקישור כדי להיכנס. (בדקו גם בספאם.)
-                </div>
-                <button onClick={() => { setEmailSent(false); setEmail(""); }}
-                  style={{ marginTop: 10, border: "none", background: "transparent", color: T.accent, fontWeight: 700, fontFamily: "inherit", fontSize: 12.5, cursor: "pointer", textDecoration: "underline" }}>
-                  שליחה לכתובת אחרת
-                </button>
-              </div>
-            ) : (
-              <>
-                {/* "או" divider */}
-                <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "16px 0 12px" }}>
-                  <div style={{ flex: 1, height: 1, background: T.line }} />
-                  <span style={{ fontSize: 12, fontWeight: 700, color: T.ink4 }}>או</span>
-                  <div style={{ flex: 1, height: 1, background: T.line }} />
-                </div>
-                <input
-                  type="email" inputMode="email" autoComplete="email" dir="ltr"
-                  value={email} onChange={(e) => setEmail(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") sendMagicLink(); }}
-                  placeholder="you@example.com"
-                  style={{ width: "100%", boxSizing: "border-box", height: 50, borderRadius: 12, border: `1px solid ${T.line}`, background: "#fff", padding: "0 14px", fontSize: 15, fontFamily: "inherit", color: T.ink, textAlign: "left" }}
-                />
-                <button onClick={sendMagicLink} disabled={!emailValid || emailBusy}
-                  style={{ width: "100%", height: 50, marginTop: 10, borderRadius: 12, border: "none", background: T.ink, color: "#fff", fontSize: 15, fontWeight: 700, fontFamily: "inherit", cursor: (!emailValid || emailBusy) ? "default" : "pointer", opacity: (!emailValid || emailBusy) ? 0.55 : 1 }}>
-                  {emailBusy ? "שולח…" : "שליחת קישור התחברות למייל"}
-                </button>
-              </>
-            )
-          )}
+          {/* Email magic-link sign-in temporarily removed — Google is the only
+              path for now. See the note near the top of this component. */}
 
           {!initializing && (
           <div style={{ fontSize: 11.5, color: T.ink4, textAlign: "center", marginTop: 18, lineHeight: 1.5 }}>
