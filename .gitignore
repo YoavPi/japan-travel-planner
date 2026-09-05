@@ -36,3 +36,6 @@ yarn-error.log*
 # design-skill scratch output
 .skillui-out/
 .env*
+
+# git worktree scratch (superpowers subagent-driven-development)
+.worktrees/
