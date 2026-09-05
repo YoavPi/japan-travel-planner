@@ -3,7 +3,10 @@ import tripService from "../services/tripService";
 import { dedupeDayStops } from "../utils/classify";
 import { listInboxPlaces, addInboxPlaces, removeInboxPlace, updateInboxPlace, fetchMockGoogleSavedPlaces } from "../services/googleSavedPlaces";
 import { addGeneralFile, updateGeneralFile, removeGeneralFile, renameStopAttachment, remapFileDays } from "../utils/tripFiles";
-import { remapExpenseDays } from "../utils/budget";
+import {
+  remapExpenseDays, ensureBudget, addExpense, updateExpense, removeExpense,
+  expensesForStop, detachStopExpenses,
+} from "../utils/budget";
 
 /* ══════════════════════════════════════════════════════════════
    useEditorState — the shared "brain" of the trip editor.
@@ -104,9 +107,16 @@ export default function useEditorState(tripId) {
   );
 
   const deleteStopAt = useCallback((dayNum, idx) => {
-    commitDays((ds) => ds.map((d) => d.day === dayNum
-      ? { ...d, attractions: d.attractions.filter((_, i) => i !== idx) } : d));
-  }, [commitDays]);
+    commitData((data) => {
+      const day = (data.tripData || []).find((d) => d.day === dayNum);
+      const stop = day?.attractions?.[idx];
+      const nextTripData = (data.tripData || []).map((d) => d.day === dayNum
+        ? { ...d, attractions: d.attractions.filter((_, i) => i !== idx) } : d);
+      if (!data.budget || !stop?.instanceId) return { ...data, tripData: nextTripData };
+      return { ...data, tripData: nextTripData,
+        budget: { ...data.budget, items: detachStopExpenses(data.budget.items, stop.instanceId) } };
+    });
+  }, [commitData]);
 
   const duplicateStopAt = useCallback((dayNum, idx) => {
     commitDays((ds) => ds.map((d) => {
@@ -131,6 +141,44 @@ export default function useEditorState(tripId) {
       });
     });
   }, [commitDays]);
+
+  /* Per-stop cost (Phase B). One expense per stop — saveStopCost creates or
+     updates it. Stamps a lazy instanceId if the stop doesn't have one yet
+     (most stops from the AI pipeline / wizard / seed data don't), and does
+     the stamp + the budget write in ONE commitData call: two separate
+     commits here would risk the second one saving over a stale snapshot of
+     the first, per the itinerary-vs-budget single-writer rule this phase is
+     built around. */
+  const saveStopCost = useCallback((dayNum, idx, payload) => {
+    commitData((data) => {
+      const day = (data.tripData || []).find((d) => d.day === dayNum);
+      const stop = day?.attractions?.[idx];
+      if (!stop) return data;
+      let stopId = stop.instanceId;
+      let nextTripData = data.tripData;
+      if (!stopId) {
+        stopId = genId();
+        nextTripData = data.tripData.map((d) => d.day !== dayNum ? d : {
+          ...d, attractions: d.attractions.map((a, i) => i === idx ? { ...a, instanceId: stopId } : a),
+        });
+      }
+      const withBudget = ensureBudget({ ...data, tripData: nextTripData });
+      const existing = expensesForStop(withBudget.budget.items, stopId)[0];
+      const next = existing
+        ? updateExpense(withBudget, existing.id, payload)
+        : addExpense(withBudget, { ...payload, stopRef: stopId });
+      return next;
+    });
+  }, [commitData]);
+
+  const removeStopCost = useCallback((expenseId) => {
+    commitData((data) => removeExpense(data, expenseId));
+  }, [commitData]);
+
+  const costForStop = useCallback((stopId) => {
+    const items = trip?.data?.budget?.items || [];
+    return expensesForStop(items, stopId)[0] || null;
+  }, [trip]);
 
   const setStopNote = useCallback((dayNum, idx, note) => {
     const clean = (note || "").trim();
@@ -458,5 +506,6 @@ export default function useEditorState(tripId) {
     addTransitToDay, updateStopAt, addAttachmentToStop, removeAttachmentAt, insertAt, addTripFile, updateTripFile, removeTripFile, renameAttachmentAt,
     addDay, deleteDay, saveStartDate, applyDateRange, moveStopToInbox, saveCustomPin, addSearchedToInbox,
     inbox, inboxLoading, loadInbox, assignInboxToDay, removeFromInbox, updateInboxNote, connectSavedPlaces,
+    saveStopCost, removeStopCost, costForStop,
   };
 }
