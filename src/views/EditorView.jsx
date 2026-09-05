@@ -2374,7 +2374,12 @@ const EditorView = () => {
       if (!from) return days;
       const [moved] = from.attractions.splice(actionsIdx, 1);
       const to = days.find((d) => d.day === toDay);
-      if (to && moved) to.attractions = dedupeDayStops([...to.attractions, moved]);
+      /* NOT deduped — same fix as moveStopIndexToDay (2026-09-06): dedupeDayStops
+         merges same-name stops and keeps the EXISTING node's instanceId, silently
+         discarding the moved one's, which orphans a linked expense (its stopRef
+         would point at an instanceId that no longer exists anywhere) and visually
+         drops the stop with no warning. Matches desktop's non-deduping moveStopToDay. */
+      if (to && moved) to.attractions = [...to.attractions, moved];
       return days;
     });
     setActionsIdx(-1);
