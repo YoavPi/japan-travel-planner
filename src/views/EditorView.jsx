@@ -24,7 +24,8 @@ import { listInboxPlaces, addInboxPlaces, removeInboxPlace, updateInboxPlace } f
 import { uploadAttachment, removeStoredFile } from "../services/attachmentService";
 import TripFilesSheet from "../components/TripFilesSheet";
 import { newFileId, remapFileDays } from "../utils/tripFiles";
-import { remapExpenseDays, ensureBudget, addExpense, updateExpense, removeExpense, expensesForStop, detachStopExpenses, formatMoney, toIlsMinor } from "../utils/budget";
+import { remapExpenseDays, ensureBudget, addExpense, updateExpense, removeExpense, expensesForStop, detachStopExpenses, formatMoney, toIlsMinor, BASE_CATEGORIES, budgetImpact } from "../utils/budget";
+import ExpenseSheet from "../components/ExpenseSheet";
 import useActiveTrip from "../utils/useActiveTrip";
 import Icon from "../components/Icon";
 import { setDocTitle, titleForTrip, DEFAULT_TITLE } from "../utils/docTitle";
@@ -1389,6 +1390,14 @@ const EditorView = () => {
      landing on whatever now sits at that index. */
   const attachTargetDay = useRef(null);
   const attachTargetId = useRef(null);
+  /* Per-stop cost (Phase B) — { day, idx } | null, never a bare index: the
+     sheet it opens can stay mounted across renders while the user types, and
+     if activeDay changed underneath it a bare index would resolve against
+     the WRONG day's attractions array at that same position (same async/
+     stale-reference class as the file-attach fix above). */
+  const [costFor, setCostFor] = useState(null);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [budgetConfirm, setBudgetConfirm] = useState(null); // { impact, onConfirm } | null
   /* Sprint 65 #1 — the attachment currently open in the in-app viewer modal.
      { file, idx, fi } — idx is the active-day stop index, fi the attachment
      index within that stop, so the viewer can also delete it. */
@@ -1405,7 +1414,7 @@ const EditorView = () => {
      long-press menu). Combined with the peek-only sheet rule below.
      The "מצא ליד" nearby-search sheet (z120) belongs here too — without it the
      z260 map FABs float on top of the sheet's chips + search bar. */
-  const overlayOpen = actionsIdx >= 0 || summaryOpen || insertAt >= 0 || !!ctxMenu || datesModalOpen || noteEditIdx >= 0 || editTransitIdx >= 0 || onboardOpen || confirmExit || !!nearbyOrigin;
+  const overlayOpen = actionsIdx >= 0 || summaryOpen || insertAt >= 0 || !!ctxMenu || datesModalOpen || noteEditIdx >= 0 || editTransitIdx >= 0 || onboardOpen || confirmExit || !!nearbyOrigin || !!budgetConfirm;
 
   /* Generic day-array mutator → updates local state + persists.
      `mutate(daysCopy)` returns the new days array. */
@@ -3351,7 +3360,7 @@ const EditorView = () => {
             No badge yet (Phase C wires a live spent/total indicator here). */}
         {trip && (
           <button
-            onClick={() => navigate(`/trip/budget/${tripId}`)}
+            onClick={() => setQuickAddOpen(true)}
             title="תקציב הטיול" aria-label="תקציב הטיול" className="tp-press"
             style={{
               flexShrink: 0,
@@ -4102,6 +4111,76 @@ const EditorView = () => {
         </div>
       )}
 
+      {/* Per-stop cost (Phase B) — ExpenseSheet in stop-bound mode. The
+          `costFor.day === activeDay` guard is why costFor captures the day,
+          not just an index: without it, switching the active day while this
+          sheet is open would resolve costFor.idx against the NEW day's
+          attractions array instead of closing (or staying on the original
+          stop). */}
+      {costFor && costFor.day === activeDay && activeDayData?.attractions?.[costFor.idx] && (() => {
+        const stop = activeDayData.attractions[costFor.idx];
+        const existing = stop.instanceId ? costForStop(stop.instanceId) : null;
+        return (
+          <ExpenseSheet
+            open
+            onClose={() => setCostFor(null)}
+            stop={stop}
+            expense={existing}
+            config={trip?.data?.budget?.config || { currency: "ILS" }}
+            categories={BASE_CATEGORIES}
+            dayCount={days.length}
+            P={{ ...T, panel: "#fff", danger: "#C0392B", page: "#fff" }}
+            onSubmit={(payload) => { saveStopCost(costFor.idx, payload); setCostFor(null); }}
+            onDelete={(id) => { removeStopCost(id); setCostFor(null); }}
+            onOpenBudget={() => { setCostFor(null); navigate(`/trip/budget/${tripId}`); }}
+          />
+        );
+      })()}
+
+      {/* ₪ chip quick-add (Phase B) — non-stop-bound ExpenseSheet. */}
+      {quickAddOpen && (
+        <ExpenseSheet
+          open
+          onClose={() => setQuickAddOpen(false)}
+          expense={null}
+          config={trip?.data?.budget?.config || { currency: "ILS" }}
+          categories={BASE_CATEGORIES}
+          dayCount={days.length}
+          P={{ ...T, panel: "#fff", danger: "#C0392B", page: "#fff" }}
+          onSubmit={(payload) => {
+            persistTripData((data) => addExpense(ensureBudget(data), payload));
+            setQuickAddOpen(false);
+          }}
+          onOpenBudget={() => { setQuickAddOpen(false); navigate(`/trip/budget/${tripId}`); }}
+        />
+      )}
+
+      {/* Budget-impact confirm (Phase B) — Tier-1 confirmation before an
+          action detaches a linked expense. zIndex 320: above StopActionsSheet
+          (300) and ExpenseSheet (310), so a confirm always renders on top of
+          whatever triggered it. */}
+      {budgetConfirm && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 320, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div onClick={() => setBudgetConfirm(null)} className="tp-fade" style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)" }} />
+          <div className="tp-pop" dir="rtl" style={{ position: "relative", width: "100%", maxWidth: 340, background: "#fff", borderRadius: 22, padding: "24px 22px", boxShadow: "0 30px 80px rgba(0,0,0,0.4)", textAlign: "center", fontFamily: T.font }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: T.ink, marginBottom: 6 }}>{budgetConfirm.impact.title}</div>
+            <div style={{ fontSize: 13.5, color: T.ink3, lineHeight: 1.5, marginBottom: 20 }}>
+              {budgetConfirm.impact.body}
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setBudgetConfirm(null)}
+                style={{ flex: 1, height: 48, borderRadius: 999, border: `1px solid ${T.line}`, background: T.surface, color: T.ink, fontSize: 14.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                ביטול
+              </button>
+              <button onClick={() => { budgetConfirm.onConfirm(); setBudgetConfirm(null); }}
+                style={{ flex: 1, height: 48, borderRadius: 999, border: "none", background: "#C0392B", color: "#fff", fontSize: 14.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                {budgetConfirm.impact.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Sprint 37 #2 — long-press ROW CONTEXT MENU. A tap-scrim closes it;
           the sheet-style card floats bottom-centred (mobile-first) rather
           than at the raw pointer coords so it never clips off-screen. */}
@@ -4825,7 +4904,21 @@ const EditorView = () => {
             setActionsIdx(-1);
           }}
           onFindNearby={() => setNearbyOrigin(activeDayData.attractions[actionsIdx])}
-          onDelete={() => deleteStop(actionsIdx)}
+          onDelete={() => {
+            const idx = actionsIdx;
+            const stop = activeDayData.attractions[idx];
+            const items = trip?.data?.budget?.items || [];
+            const config = trip?.data?.budget?.config || {};
+            const impact = stop?.instanceId ? budgetImpact("deleteStop", { items, config, stopId: stop.instanceId }) : null;
+            if (impact) { setActionsIdx(-1); setBudgetConfirm({ impact, onConfirm: () => deleteStop(idx) }); }
+            else deleteStop(idx);
+          }}
+          onSetCost={() => { setCostFor({ day: activeDay, idx: actionsIdx }); setActionsIdx(-1); }}
+          stopCostLabel={(() => {
+            const stop = activeDayData?.attractions?.[actionsIdx];
+            const c = stop?.instanceId ? costForStop(stop.instanceId) : null;
+            return c ? formatMoney(c.amountMinor, c.currency || "ILS") : null;
+          })()}
           onClose={() => setActionsIdx(-1)}
         />
       )}
