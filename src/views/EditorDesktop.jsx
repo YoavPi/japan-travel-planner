@@ -910,9 +910,12 @@ export default function EditorDesktop() {
         {/* Trip budget entry point — opens a quick-add ExpenseSheet (not the
             full /trip/budget screen directly); the sheet itself links back
             to the full screen via onOpenBudget. No badge yet (Phase C wires
-            a live spent/total indicator here). */}
-        <button onClick={() => setQuickAddOpen(true)}
-          title="הוספת הוצאה מהירה"
+            a live spent/total indicator here). On a read-only trip the sheet
+            would update local state but never actually save (commitData
+            skips the network write when !editable) — so on read-only, fall
+            back to the old, safe navigate-only behavior instead. */}
+        <button onClick={() => editable ? setQuickAddOpen(true) : navigate(`/trip/budget/${tripId}`)}
+          title={editable ? "הוספת הוצאה מהירה" : "תקציב הטיול"}
           style={{
             flexShrink: 0, height: 40, display: "inline-flex", alignItems: "center", gap: 7, padding: "0 13px",
             borderRadius: 10, cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 800,

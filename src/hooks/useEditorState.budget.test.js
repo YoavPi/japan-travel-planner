@@ -113,6 +113,25 @@ test("moveStopToInbox detaches a linked expense the same way", async () => {
   expect(items[0].stopRef).toBeNull();
 });
 
+test("deleteDay detaches (not orphans) a linked expense whose stop lived on the deleted day", async () => {
+  const trip = baseTrip();
+  trip.data.tripData.push({ day: 2, attractions: [{ instanceId: "s2", name: "Tokyo Tower", coordinates: { lat: 2, lng: 2 } }] });
+  tripService.fetchTripById.mockResolvedValue(JSON.parse(JSON.stringify(trip)));
+  const { result } = renderHook(() => useEditorState("t1"));
+  await waitFor(() => expect(result.current.trip).toBeTruthy());
+  act(() => result.current.saveStopCost(1, 0, { label: "א", amountMinor: 1000, currency: "ILS", category: "other", note: "" }));
+  tripService.saveTrip.mockClear();
+
+  act(() => result.current.deleteDay(1));
+
+  expect(result.current.trip.data.tripData).toHaveLength(1);
+  expect(result.current.trip.data.tripData[0].day).toBe(1);
+  const items = result.current.trip.data.budget.items;
+  expect(items).toHaveLength(1); // NOT deleted
+  expect(items[0].stopRef).toBeNull(); // detached, not left dangling on a gone instanceId
+  expect(tripService.saveTrip).toHaveBeenCalledTimes(1); // one atomic write
+});
+
 test("costForStop returns the linked expense or null", async () => {
   const { result } = renderHook(() => useEditorState("t1"));
   await waitFor(() => expect(result.current.trip).toBeTruthy());

@@ -1396,6 +1396,13 @@ const EditorView = () => {
      the WRONG day's attractions array at that same position (same async/
      stale-reference class as the file-attach fix above). */
   const [costFor, setCostFor] = useState(null);
+  /* The cost sheet is stop-scoped to a specific day; its render guard
+     (`costFor.day === activeDay`) already hides it when the user switches
+     days, but leaves costFor itself set — so switching back to the original
+     day silently re-mounts the sheet from scratch, discarding whatever the
+     user had typed while it was hidden. Switching days should always CLOSE
+     the sheet, not just visually hide it — so clear it here too. */
+  useEffect(() => { setCostFor(null); }, [activeDay]);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [budgetConfirm, setBudgetConfirm] = useState(null); // { impact, onConfirm } | null
   /* Sprint 65 #1 — the attachment currently open in the in-app viewer modal.
@@ -1887,7 +1894,12 @@ const EditorView = () => {
       if (!from) return days;
       const [moved] = from.attractions.splice(idx, 1);
       const to = days.find((d) => d.day === toDay);
-      if (to && moved) to.attractions = dedupeDayStops([...to.attractions, moved]);
+      /* NOT deduped (matches desktop's moveStopToDay in useEditorState.js):
+         dedupeDayStops merges same-name stops and keeps the EXISTING node's
+         instanceId, silently discarding the moved one's — which would orphan
+         a linked expense (its stopRef would point at an instanceId that no
+         longer exists anywhere) and visually drop the stop with no warning. */
+      if (to && moved) to.attractions = [...to.attractions, moved];
       return days;
     });
   }, [activeDay, commitDays]);
@@ -3356,12 +3368,17 @@ const EditorView = () => {
           </button>
         )}
 
-        {/* Trip budget entry point — opens the dedicated /trip/budget screen.
-            No badge yet (Phase C wires a live spent/total indicator here). */}
+        {/* Trip budget entry point — opens a quick-add expense sheet when the
+            trip is editable; on a read-only trip, commitData/persistTripData
+            skip the network save but would still update local React state, so
+            the entry would silently appear to save and then vanish on reload.
+            Fall back to the original navigate-only behavior there instead —
+            a read-only viewer can still look at the full budget screen. */}
         {trip && (
           <button
-            onClick={() => setQuickAddOpen(true)}
-            title="תקציב הטיול" aria-label="תקציב הטיול" className="tp-press"
+            onClick={() => editable ? setQuickAddOpen(true) : navigate(`/trip/budget/${tripId}`)}
+            title={editable ? "הוספת הוצאה מהירה" : "תקציב הטיול"}
+            aria-label={editable ? "הוספת הוצאה מהירה" : "תקציב הטיול"} className="tp-press"
             style={{
               flexShrink: 0,
               width: 44, height: 44, borderRadius: "50%", border: "none",

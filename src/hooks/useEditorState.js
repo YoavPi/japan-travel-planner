@@ -419,11 +419,24 @@ export default function useEditorState(tripId) {
     commitData((data) => {
       const arr = data.tripData || [];
       if (arr.length <= 1) return data;
+      const removedDay = arr.find((d) => d.day === dayNum);
       const filtered = arr.filter((d) => d.day !== dayNum);
       if (filtered.length === arr.length) return data;
       const mapping = { [dayNum]: null };
       filtered.forEach((d, i) => { mapping[d.day] = i + 1; });
       const renumbered = filtered.map((d, i) => ({ ...d, day: i + 1 }));
+      /* Stop-linked expenses aren't touched by remapExpenseDays (their day is
+         derived from the stop, by design) — so a stop being deleted along
+         with its day would otherwise leave its expense's stopRef pointing at
+         an instanceId that no longer exists anywhere: a silent, permanent
+         orphan. Detach every expense linked to a stop on the deleted day
+         FIRST, in this same atomic write, same pattern as deleteStopAt. */
+      let items = data.budget?.items;
+      if (items) {
+        for (const stop of removedDay?.attractions || []) {
+          if (stop?.instanceId) items = detachStopExpenses(items, stop.instanceId);
+        }
+      }
       return {
         ...data,
         tripData: renumbered,
@@ -432,7 +445,7 @@ export default function useEditorState(tripId) {
            removed day folds them back to "general" rather than dropping
            them. Stop-linked expenses are skipped — their day is derived. */
         ...(data.budget ? {
-          budget: { ...data.budget, items: remapExpenseDays(data.budget.items, mapping, renumbered.length) },
+          budget: { ...data.budget, items: remapExpenseDays(items, mapping, renumbered.length) },
         } : {}),
       };
     });
