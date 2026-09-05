@@ -24,7 +24,7 @@ import { listInboxPlaces, addInboxPlaces, removeInboxPlace, updateInboxPlace } f
 import { uploadAttachment, removeStoredFile } from "../services/attachmentService";
 import TripFilesSheet from "../components/TripFilesSheet";
 import { newFileId, remapFileDays } from "../utils/tripFiles";
-import { remapExpenseDays } from "../utils/budget";
+import { remapExpenseDays, ensureBudget, addExpense, updateExpense, removeExpense, expensesForStop, detachStopExpenses, formatMoney, toIlsMinor } from "../utils/budget";
 import useActiveTrip from "../utils/useActiveTrip";
 import Icon from "../components/Icon";
 import { setDocTitle, titleForTrip, DEFAULT_TITLE } from "../utils/docTitle";
@@ -1774,24 +1774,41 @@ const EditorView = () => {
     const day = (trip?.data?.tripData || []).find((d) => d.day === activeDay);
     const stop = day?.attractions?.[idx];
     if (!stop) return;
-    commitDays((days) => days.map((d) =>
-      d.day === activeDay ? { ...d, attractions: d.attractions.filter((_, i) => i !== idx) } : d
-    ));
-    setDeleteUndo({ stop, day: activeDay, idx });
-  }, [trip, activeDay, commitDays]);
+    const items = trip?.data?.budget?.items || [];
+    const linked = stop.instanceId ? expensesForStop(items, stop.instanceId) : [];
+    const linkedIds = linked.map((it) => it.id);
+    persistTripData((data) => {
+      const nextTripData = (data.tripData || []).map((d) =>
+        d.day === activeDay ? { ...d, attractions: d.attractions.filter((_, i) => i !== idx) } : d);
+      if (!data.budget || linkedIds.length === 0) return { ...data, tripData: nextTripData };
+      return { ...data, tripData: nextTripData,
+        budget: { ...data.budget, items: detachStopExpenses(data.budget.items, stop.instanceId) } };
+    });
+    const moneyNote = linkedIds.length
+      ? formatMoney(linked.reduce((s, it) =>
+          s + toIlsMinor(Number(it.amountMinor) || 0, it.currency || "ILS", trip.data.budget.config), 0), "ILS")
+      : null;
+    setDeleteUndo({ stop, day: activeDay, idx, detachedIds: linkedIds, moneyNote });
+  }, [trip, activeDay, persistTripData]);
 
   const undoDelete = useCallback(() => {
     setDeleteUndo((u) => {
       if (!u) return null;
-      commitDays((days) => days.map((d) => {
-        if (d.day !== u.day) return d;
-        const list = [...d.attractions];
-        list.splice(Math.min(u.idx, list.length), 0, u.stop);
-        return { ...d, attractions: list };
-      }));
+      persistTripData((data) => {
+        const nextTripData = (data.tripData || []).map((d) => {
+          if (d.day !== u.day) return d;
+          const list = [...d.attractions];
+          list.splice(Math.min(u.idx, list.length), 0, u.stop);
+          return { ...d, attractions: list };
+        });
+        if (!data.budget || !u.detachedIds?.length) return { ...data, tripData: nextTripData };
+        return { ...data, tripData: nextTripData,
+          budget: { ...data.budget, items: data.budget.items.map((it) =>
+            u.detachedIds.includes(it.id) ? { ...it, stopRef: u.stop.instanceId } : it) } };
+      });
       return null;
     });
-  }, [commitDays]);
+  }, [persistTripData]);
 
   /* Sprint 38 #3 — Swipe-right → snooze the stop into the Places Inbox with a
      non-blocking 10-second UNDO pill. We capture the origin day + index and
@@ -1801,10 +1818,21 @@ const EditorView = () => {
     const day = (trip?.data?.tripData || []).find((d) => d.day === activeDay);
     const moved = day?.attractions?.[idx];
     if (!moved) return;
-    commitDays((days) => days.map((d) =>
-      d.day === activeDay ? { ...d, attractions: d.attractions.filter((_, i) => i !== idx) } : d
-    ));
-    setInboxUndo({ stop: moved, day: activeDay, idx, inboxId: null });
+    const items = trip?.data?.budget?.items || [];
+    const linked = moved.instanceId ? expensesForStop(items, moved.instanceId) : [];
+    const linkedIds = linked.map((it) => it.id);
+    persistTripData((data) => {
+      const nextTripData = (data.tripData || []).map((d) =>
+        d.day === activeDay ? { ...d, attractions: d.attractions.filter((_, i) => i !== idx) } : d);
+      if (!data.budget || linkedIds.length === 0) return { ...data, tripData: nextTripData };
+      return { ...data, tripData: nextTripData,
+        budget: { ...data.budget, items: detachStopExpenses(data.budget.items, moved.instanceId) } };
+    });
+    const moneyNote = linkedIds.length
+      ? formatMoney(linked.reduce((s, it) =>
+          s + toIlsMinor(Number(it.amountMinor) || 0, it.currency || "ILS", trip.data.budget.config), 0), "ILS")
+      : null;
+    setInboxUndo({ stop: moved, day: activeDay, idx, inboxId: null, detachedIds: linkedIds, moneyNote });
     if (moved.coordinates && Number.isFinite(moved.coordinates.lat)) {
       /* Trip-scoped save: this stop already belonged to THIS trip's day —
          snoozing it into the bank should keep it associated with this trip
@@ -1819,23 +1847,29 @@ const EditorView = () => {
         if (saved && saved[0]) setInboxUndo((u) => (u && u.stop === moved ? { ...u, inboxId: saved[0].id } : u));
       }).catch(() => {});
     }
-  }, [trip, activeDay, commitDays, mergeIntoInbox, tripId]);
+  }, [trip, activeDay, persistTripData, mergeIntoInbox, tripId]);
 
   /* Restore a snoozed stop back to its original day + index, dropping the
      inbox copy it created. */
   const restoreFromInbox = useCallback(() => {
     setInboxUndo((u) => {
       if (!u) return null;
-      commitDays((days) => days.map((d) => {
-        if (d.day !== u.day) return d;
-        const list = [...d.attractions];
-        list.splice(Math.min(u.idx, list.length), 0, u.stop);
-        return { ...d, attractions: list };
-      }));
+      persistTripData((data) => {
+        const nextTripData = (data.tripData || []).map((d) => {
+          if (d.day !== u.day) return d;
+          const list = [...d.attractions];
+          list.splice(Math.min(u.idx, list.length), 0, u.stop);
+          return { ...d, attractions: list };
+        });
+        if (!data.budget || !u.detachedIds?.length) return { ...data, tripData: nextTripData };
+        return { ...data, tripData: nextTripData,
+          budget: { ...data.budget, items: data.budget.items.map((it) =>
+            u.detachedIds.includes(it.id) ? { ...it, stopRef: u.stop.instanceId } : it) } };
+      });
       if (u.inboxId) { setInboxPlaces((prev) => (prev || []).filter((x) => x.id !== u.inboxId)); removeInboxPlace(u.inboxId); }
       return null;
     });
-  }, [commitDays]);
+  }, [persistTripData]);
 
   /* Context menu → "Move to Day…". Moves the active-day stop at `idx`. */
   const moveStopIndexToDay = useCallback((idx, toDay) => {
@@ -2089,6 +2123,40 @@ const EditorView = () => {
     ));
     setCopyToast("הקובץ הוסר ✓");
   }, [activeDay, commitDays]);
+
+  /* Per-stop cost (Phase B) — mobile mirror of useEditorState's saveStopCost.
+     Stamps a lazy instanceId if missing and writes the budget in the SAME
+     persistTripData call, for the same single-writer reason documented
+     there. */
+  const saveStopCost = useCallback((idx, payload) => {
+    persistTripData((data) => {
+      const day = (data.tripData || []).find((d) => d.day === activeDay);
+      const stop = day?.attractions?.[idx];
+      if (!stop) return data;
+      let stopId = stop.instanceId;
+      let nextTripData = data.tripData;
+      if (!stopId) {
+        stopId = genInstanceId();
+        nextTripData = data.tripData.map((d) => d.day !== activeDay ? d : {
+          ...d, attractions: d.attractions.map((a, i) => i === idx ? { ...a, instanceId: stopId } : a),
+        });
+      }
+      const withBudget = ensureBudget({ ...data, tripData: nextTripData });
+      const existing = expensesForStop(withBudget.budget.items, stopId)[0];
+      return existing
+        ? updateExpense(withBudget, existing.id, payload)
+        : addExpense(withBudget, { ...payload, stopRef: stopId });
+    });
+  }, [activeDay, persistTripData]);
+
+  const removeStopCost = useCallback((expenseId) => {
+    persistTripData((data) => removeExpense(data, expenseId));
+  }, [persistTripData]);
+
+  const costForStop = useCallback((stopId) => {
+    const items = trip?.data?.budget?.items || [];
+    return expensesForStop(items, stopId)[0] || null;
+  }, [trip]);
 
   /* Sprint 65 — TRIP FILES GALLERY. Derived views over trip.data for the
      <TripFilesSheet>: general files (trip.data.files[]) + a badge count that
@@ -2389,12 +2457,17 @@ const EditorView = () => {
     setInsertAt(-1); setInsertText("");
   }, [activeDay, commitDays]);
 
-  const deleteStop = useCallback(() => {
-    commitDays((days) => days.map((d) =>
-      d.day === activeDay ? { ...d, attractions: d.attractions.filter((_, i) => i !== actionsIdx) } : d
-    ));
+  const deleteStop = useCallback((idx) => {
+    const stop = (trip?.data?.tripData || []).find((d) => d.day === activeDay)?.attractions?.[idx];
+    persistTripData((data) => {
+      const nextTripData = (data.tripData || []).map((d) =>
+        d.day === activeDay ? { ...d, attractions: d.attractions.filter((_, i) => i !== idx) } : d);
+      if (!data.budget || !stop?.instanceId) return { ...data, tripData: nextTripData };
+      return { ...data, tripData: nextTripData,
+        budget: { ...data.budget, items: detachStopExpenses(data.budget.items, stop.instanceId) } };
+    });
     setActionsIdx(-1);
-  }, [activeDay, actionsIdx, commitDays]);
+  }, [trip, activeDay, persistTripData]);
 
   /* Sprint 38 #7 — multi-day hotel = INDEPENDENT CLONES (no lock, no shared
      group). The active stop is reclassified as lodging in place; a plain
@@ -4100,7 +4173,9 @@ const EditorView = () => {
           borderRadius: 14, padding: "10px 12px 10px 16px", fontFamily: T.font,
           boxShadow: "0 14px 40px rgba(0,0,0,0.32)", display: "flex", alignItems: "center", gap: 12,
         }}>
-          <span style={{ fontSize: 13.5, fontWeight: 700, flex: 1 }}>הנקודה נמחקה — האם למחוק את הנקודה?</span>
+          <span style={{ fontSize: 13.5, fontWeight: 700, flex: 1 }}>
+            {deleteUndo.moneyNote ? `הנקודה נמחקה · ההוצאה ${deleteUndo.moneyNote} עברה ל'כללי'` : "הנקודה נמחקה — האם למחוק את הנקודה?"}
+          </span>
           <button onClick={undoDelete} style={{ border: "none", background: "#fff", color: T.ink, borderRadius: 999, padding: "7px 16px", fontFamily: "inherit", fontSize: 13, fontWeight: 800, cursor: "pointer" }}>בטל</button>
         </div>
       )}
@@ -4113,7 +4188,9 @@ const EditorView = () => {
           borderRadius: 14, padding: "10px 10px 10px 16px", fontFamily: T.font,
           boxShadow: "0 14px 40px rgba(0,0,0,0.32)", display: "flex", alignItems: "center", gap: 10,
         }}>
-          <span style={{ fontSize: 13.5, fontWeight: 700, flex: 1 }}>הנקודה הועברה לבנק הנקודות</span>
+          <span style={{ fontSize: 13.5, fontWeight: 700, flex: 1 }}>
+            {inboxUndo.moneyNote ? `הנקודה הועברה לבנק הנקודות · ההוצאה ${inboxUndo.moneyNote} עברה ל'כללי'` : "הנקודה הועברה לבנק הנקודות"}
+          </span>
           <button onClick={restoreFromInbox}
             style={{ border: "none", background: "#fff", color: T.ink, borderRadius: 999, padding: "7px 14px", fontFamily: "inherit", fontSize: 12.5, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap" }}>
             החזר ליום זה ↩️
@@ -4748,7 +4825,7 @@ const EditorView = () => {
             setActionsIdx(-1);
           }}
           onFindNearby={() => setNearbyOrigin(activeDayData.attractions[actionsIdx])}
-          onDelete={deleteStop}
+          onDelete={() => deleteStop(actionsIdx)}
           onClose={() => setActionsIdx(-1)}
         />
       )}
