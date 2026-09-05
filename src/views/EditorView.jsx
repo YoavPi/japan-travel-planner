@@ -1381,7 +1381,14 @@ const EditorView = () => {
      stop index awaiting a file; `attachBusy` gates the upload spinner. */
   const [attachBusy, setAttachBusy] = useState(false);
   const attachInputRef = useRef(null);
-  const attachTargetIdx = useRef(-1);
+  /* Bug fix 2026-09-05 — the native file picker is async and can outlive the
+     stop it was opened for (reorder/delete/day-switch while the dialog is
+     open). Address the target by day + a stable instanceId (stamped here if
+     the stop doesn't have one yet) instead of a raw array index, so the file
+     lands on the right stop — or is reported as failed — instead of silently
+     landing on whatever now sits at that index. */
+  const attachTargetDay = useRef(null);
+  const attachTargetId = useRef(null);
   /* Sprint 65 #1 — the attachment currently open in the in-app viewer modal.
      { file, idx, fi } — idx is the active-day stop index, fi the attachment
      index within that stop, so the viewer can also delete it. */
@@ -2000,34 +2007,61 @@ const EditorView = () => {
     setCopyToast("המיקום שוכפל ✓");
   }, [trip, activeDay, commitDays]);
 
-  /* Sprint 61 #5 — open the native file picker for the active-day stop `index`. */
+  /* Sprint 61 #5 — open the native file picker for the active-day stop `index`.
+     Bug fix 2026-09-05: also stamp+capture a stable instanceId for that stop
+     (day + id, not the array index) so the async picker can find the right
+     stop even if the array changes underneath it before the file resolves. */
   const requestAttach = useCallback((index) => {
-    attachTargetIdx.current = index;
+    const day = activeDay;
+    const stop = (trip?.data?.tripData || []).find((d) => d.day === day)?.attractions?.[index];
+    if (!stop) return;
+    let id = stop.instanceId;
+    if (!id) {
+      id = genInstanceId();
+      commitDays((days) => days.map((d) =>
+        d.day === day
+          ? { ...d, attractions: d.attractions.map((a, i) => (i === index ? { ...a, instanceId: id } : a)) }
+          : d
+      ));
+    }
+    attachTargetDay.current = day;
+    attachTargetId.current = id;
     if (attachInputRef.current) { attachInputRef.current.value = ""; attachInputRef.current.click(); }
-  }, []);
+  }, [trip, activeDay, commitDays]);
 
   /* Sprint 61 #5 — a picked file is uploaded (Supabase Storage → durable URL,
-     else a session object URL) and appended to the stop's attachments[]. */
+     else a session object URL) and appended to the stop's attachments[].
+     Bug fix 2026-09-05: resolve the target stop by (day, instanceId) captured
+     at request time, not by activeDay/index at completion time — the user may
+     have switched days, reordered, or deleted the stop while the native
+     picker was open. If the stop is genuinely gone, say so instead of
+     showing a false "✓ צורף" success toast. */
   const onAttachFilePicked = useCallback(async (e) => {
     const file = e.target.files && e.target.files[0];
-    const index = attachTargetIdx.current;
-    if (!file || index < 0) return;
+    const targetDay = attachTargetDay.current;
+    const targetId = attachTargetId.current;
+    if (!file || targetDay == null || !targetId) return;
     setAttachBusy(true);
     try {
       const meta = await uploadAttachment(trip?.id, file);
-      commitDays((days) => days.map((d) =>
-        d.day === activeDay
-          ? { ...d, attractions: d.attractions.map((a, i) => i === index ? { ...a, attachments: [...(a.attachments || []), meta] } : a) }
-          : d
-      ));
-      setCopyToast(meta.persisted ? "הקובץ צורף ✓" : "הקובץ צורף (זמני) ✓");
+      let attached = false;
+      commitDays((days) => days.map((d) => {
+        if (d.day !== targetDay) return d;
+        return { ...d, attractions: d.attractions.map((a) => {
+          if (a.instanceId !== targetId) return a;
+          attached = true;
+          return { ...a, attachments: [...(a.attachments || []), meta] };
+        }) };
+      }));
+      setCopyToast(attached ? (meta.persisted ? "הקובץ צורף ✓" : "הקובץ צורף (זמני) ✓") : "התחנה כבר לא קיימת — הקובץ לא צורף");
     } catch (err) {
       setCopyToast(/too large/.test(err?.message || "") ? "הקובץ גדול מדי (מקס' 15MB)" : "צירוף הקובץ נכשל");
     } finally {
       setAttachBusy(false);
-      attachTargetIdx.current = -1;
+      attachTargetDay.current = null;
+      attachTargetId.current = null;
     }
-  }, [trip, activeDay, commitDays]);
+  }, [trip, commitDays]);
 
   /* Sprint 61 #5 — open an attached document in a new browser tab. */
   /* Sprint 65 #1 — open the attachment in the IN-APP viewer modal instead of a

@@ -422,6 +422,17 @@ Then close the §7.6 gaps that need a live backend / real device.
 |---|---|---|
 | T-FILES-20 | P2 | **Sheet keyboard dismissal.** TripFilesSheet closes via backdrop scrim-click and Esc key. **Known gap:** no explicit focus-trap or `<dialog>` Esc integration at the sheet level — verify keyboard dismissal is currently acceptable (tap-to-close works; Esc works if something inside the sheet doesn't consume it). If keyboard support needs strengthening, file a follow-up task. |
 
+### 8.8 Per-stop attachment race fix (2026-09-05)
+
+Pre-existing bug (open since 2026-08-25, not fixed in the 8/31 Trip Files gallery work): `onAttachFilePicked` addressed its target stop by array index captured when the native file picker opened. Because the picker is async, a reorder/delete/day-switch while it was open could attach the file to the wrong stop — or none at all, while still showing a "✓ צורף" success toast. Fixed by capturing (day, instanceId) at request time and resolving by that stable id when the upload resolves, with an honest failure toast if the stop is genuinely gone.
+
+| ID | Pri | Case |
+|---|---|---|
+| T-FILES-21 | P0 | **Reorder during the picker.** On a stop, tap "📎 צרף קובץ" to open the native picker — before selecting a file, reorder that day's stops (drag one above it) or delete a different stop on the same day so the target's array index shifts. Pick a file. **Expected:** the file attaches to the originally-tapped stop (verify by name), not to whatever now sits at the old index. |
+| T-FILES-22 | P0 | **Day switch during the picker.** Tap "📎 צרף קובץ" on a day-1 stop, then (without picking a file yet) switch the active day to day 2, then pick a file. **Expected:** the file attaches to the day-1 stop, not to whatever is at the same index on day 2. |
+| T-FILES-23 | P1 | **Target genuinely deleted.** Tap "📎 צרף קובץ" on a stop, then delete that exact stop before picking a file. Pick a file. **Expected:** toast reads "התחנה כבר לא קיימת — הקובץ לא צורף" (not a false "✓ צורף"), and no attachment is silently written elsewhere. |
+| T-FILES-24 | P2 | **Legacy stop with no instanceId (AI/wizard/seed trips).** Attach a file to a stop that predates the instanceId convention (e.g. a freshly AI-generated trip, before any manual edit stamps one). **Expected:** works exactly as before — the id is stamped lazily on first attach, no visible difference to the user. |
+
 ---
 
 ## 9. AI destination focus (2026-09-02)
