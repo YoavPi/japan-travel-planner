@@ -1,5 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import BrandMark from "./BrandMark";
 import { useAuth } from "../context/AuthContext";
 
 /* ══════════════════════════════════════════════════════════════
@@ -100,7 +101,7 @@ const SiteFooter = () => {
 
         <div className="sf-bottom" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 44, paddingTop: 22, borderTop: `1px solid ${T.line}` }}>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 15, fontWeight: 800, color: T.ink }}>
-            <span aria-hidden style={{ width: 24, height: 24, borderRadius: 8, background: T.ink, color: T.bg, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>◈</span>
+            <span aria-hidden style={{ width: 24, height: 24, borderRadius: 8, background: T.ink, color: T.bg, display: "inline-flex", alignItems: "center", justifyContent: "center" }}><BrandMark size={14} /></span>
             מסלול
           </span>
           <span style={{ fontSize: 13, color: T.ink4 }}>© {new Date().getFullYear()} מסלול · תכנון טיולים חכם · נבנה בישראל 🇮🇱</span>

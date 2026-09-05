@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import SiteFooter from "./SiteFooter";
+import BrandMark from "./BrandMark";
 import { setDocTitle, DEFAULT_TITLE } from "../utils/docTitle";
 
 /* ══════════════════════════════════════════════════════════════
@@ -52,7 +53,7 @@ const LegalLayout = ({ title, updated, children }) => {
       <nav style={{ position: "sticky", top: 0, zIndex: 40, width: "100%", background: "rgba(255,255,255,0.9)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", borderBottom: `1px solid ${T.line}` }}>
         <div style={{ maxWidth: 1240, margin: "0 auto", padding: "0 32px", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <button onClick={() => navigate("/")} style={{ display: "inline-flex", alignItems: "center", gap: 8, border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", fontSize: 18, fontWeight: 800, color: T.ink }}>
-            <span aria-hidden style={{ width: 28, height: 28, borderRadius: 9, background: T.ink, color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>◈</span>
+            <span aria-hidden style={{ width: 28, height: 28, borderRadius: 9, background: T.ink, color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><BrandMark size={16} /></span>
             מסלול
           </button>
           <button onClick={() => navigate("/")} style={{ border: `1.5px solid ${T.line}`, background: "#fff", color: T.ink2, borderRadius: 999, padding: "8px 18px", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>

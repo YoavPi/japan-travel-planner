@@ -1,5 +1,6 @@
 import React from "react";
 import SiteFooter from "../components/SiteFooter";
+import BrandMark from "../components/BrandMark";
 
 /* ══════════════════════════════════════════════════════════════
    LandingDesktop — the ≥1024px marketing site, built FULL-BLEED
@@ -68,7 +69,7 @@ const LandingDesktop = ({ navigate, isAuthenticated, user, activeId, activeTrip,
         <div style={{ maxWidth: 1240, margin: "0 auto", padding: "0 32px", height: 68, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 22 }}>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 18, fontWeight: 800, letterSpacing: "-0.02em", color: T.ink }}>
-              <span aria-hidden style={{ width: 28, height: 28, borderRadius: 9, background: T.ink, color: T.bg, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>◈</span>
+              <span aria-hidden style={{ width: 28, height: 28, borderRadius: 9, background: T.ink, color: T.bg, display: "inline-flex", alignItems: "center", justifyContent: "center" }}><BrandMark size={16} /></span>
               מסלול
             </span>
             <span style={{ fontSize: 14, color: T.ink3 }}>

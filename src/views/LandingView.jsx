@@ -9,6 +9,7 @@ import SwipeBackContainer from "../components/SwipeBackContainer";
 import useIsDesktop from "../hooks/useIsDesktop";
 import LandingDesktop from "./LandingDesktop";
 import SiteFooter from "../components/SiteFooter";
+import BrandMark from "../components/BrandMark";
 
 /* ──────────────────────────────────────────────────────────────
    LandingView — the SaaS platform HOME PAGE ("עמוד הבית הראשי").
@@ -192,7 +193,7 @@ const LandingView = () => {
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             {isDesktop && (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 16, fontWeight: 800, letterSpacing: "-0.02em", color: T.ink }}>
-                <span aria-hidden style={{ width: 26, height: 26, borderRadius: 8, background: T.ink, color: T.bg, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>◈</span>
+                <span aria-hidden style={{ width: 26, height: 26, borderRadius: 8, background: T.ink, color: T.bg, display: "inline-flex", alignItems: "center", justifyContent: "center" }}><BrandMark size={15} /></span>
                 מסלול
               </span>
             )}

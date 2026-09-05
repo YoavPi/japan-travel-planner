@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import MapCard from "../components/MapCard";
 import Icon from "../components/Icon";
+import BrandMark from "../components/BrandMark";
 import PublishToGalleryModal from "../components/PublishToGalleryModal";
 import isAdminEmail from "../utils/isAdmin";
 
@@ -52,7 +53,7 @@ const DashboardDesktop = ({
         borderBottom: `1px solid ${P.line}`,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span aria-hidden style={{ width: 30, height: 30, borderRadius: 9, background: P.ink, color: P.panel, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 800 }}>◈</span>
+          <span aria-hidden style={{ width: 30, height: 30, borderRadius: 9, background: P.ink, color: P.panel, display: "inline-flex", alignItems: "center", justifyContent: "center" }}><BrandMark size={17} /></span>
           <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.022em", color: P.ink }}>המפות שלי</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

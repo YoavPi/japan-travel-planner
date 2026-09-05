@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" fill="none" role="img" aria-label="מסלול">
+  <title>מסלול — logo mark</title>
+  <desc>A planned route bending from an open start point to a destination pin.</desc>
+  <path d="M65 66 L65 49 Q65 41 57 41 L39 41 Q32 41 32 48 L32 56"
+        stroke="#E0533F" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="65" cy="66" r="8.5" stroke="#E0533F" stroke-width="7"/>
+  <path fill="#E0533F" fill-rule="evenodd" d="M32 59.2C24.85 45.55 19 36.06 19 28A13 13 0 1 1 45 28C45 36.06 39.15 45.55 32 59.2ZM36.6 28A4.6 4.6 0 1 0 27.4 28A4.6 4.6 0 1 0 36.6 28Z"/>
+</svg>
