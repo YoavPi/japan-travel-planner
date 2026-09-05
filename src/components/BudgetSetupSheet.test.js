@@ -127,3 +127,30 @@ test("the dialog is labelled for screen readers", () => {
   render(<BudgetSetupSheet {...baseProps()} />);
   expect(screen.getByRole("dialog")).toHaveAccessibleName("הגדרת תקציב");
 });
+
+test("changing the rate with paid non-ILS items shows a confirm before saving", () => {
+  const onSave = jest.fn();
+  const config = { currency: "THB", rate: 10, categories: [] };
+  const items = [{ id: "e1", amountMinor: 10000, currency: "THB", paid: true }];
+  render(<BudgetSetupSheet open onClose={() => {}} onSave={onSave} config={config} items={items} P={LIGHT} />);
+
+  fireEvent.change(screen.getByLabelText(/שער המרה/), { target: { value: "12" } });
+  fireEvent.click(screen.getByText("שמירה"));
+
+  expect(onSave).not.toHaveBeenCalled();
+  expect(screen.getByText(/יעריך מחדש/)).toBeInTheDocument();
+
+  fireEvent.click(screen.getByText("עדכן שער"));
+  expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ rate: 12 }));
+});
+
+test("changing the rate with no paid non-ILS items saves immediately, no confirm", () => {
+  const onSave = jest.fn();
+  const config = { currency: "THB", rate: 10, categories: [] };
+  render(<BudgetSetupSheet open onClose={() => {}} onSave={onSave} config={config} items={[]} P={LIGHT} />);
+
+  fireEvent.change(screen.getByLabelText(/שער המרה/), { target: { value: "12" } });
+  fireEvent.click(screen.getByText("שמירה"));
+
+  expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ rate: 12 }));
+});
