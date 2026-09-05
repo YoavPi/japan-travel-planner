@@ -446,7 +446,59 @@ Then close the §7.6 gaps that need a live backend / real device.
 
 ---
 
-## 10. Sign-off
+## 10. Trip budget — Phase A (2026-09-05)
+
+**Scope:** the budget engine + the dedicated `/trip/budget/:tripId` screen only. Per-stop cost entry, the editor quick-add chip, the trip-overview/dashboard indicators, the sharing toggle, and receipts-on-expenses are Phase B/C — not covered here; do not fail this run on their absence.
+
+**Automated** — Jest suite (`budget.test.js`, `tripService.budget.test.js`, `useBudget.test.js`, `Money`/`BudgetSetupSheet.test.js`, `ExpenseSheet.test.js`, `ExpenseRow.test.js`, `BudgetView.test.js`, `useEditorState.instanceId.test.js`). All P0 functional cases below are additionally covered by an automated assertion; manual re-verification confirms real-browser behaviour (parsing, RTL layout, dark mode) the jsdom suite can't.
+
+**Manual verification** — browser-driven round-trip and edge-case tests, demo mode (no Supabase keys).
+
+### 10.1 Setting up a budget
+
+| ID | Pri | Case |
+|---|---|---|
+| T-BUDGET-01 | P0 | **First-time setup.** `/trip/budget/:id` on a trip with no budget → empty state "עוד לא הגדרת תקציב לטיול" + "הגדרת תקציב" button (no add-expense button, no bar). Set total 15,000 ₪, currency יֵן, שער 0.023 → שמירה → screen now shows ₪0 / ₪15,000, a progress bar at 0%, and "נותרו ₪15,000.00". |
+| T-BUDGET-02 | P1 | **Category caps, and only the ones you set.** In the same setup sheet, cap "לינה" 5,000 and "אוכל" 2,000, leave the rest blank → שמירה. The budget screen's category groups show exactly Lodging and Food (each with its cap) — **not all eight base categories**. Re-open "עריכת התקציב": the two capped rows still show their numbers; any category you never touched has no leftover row. |
+| T-BUDGET-03 | P1 | **Custom category.** In setup, type a new category name ("מזכרות"), "הוספת קטגוריה", give it a cap → שמירה → the category appears on the budget screen under that Hebrew label with its own bar. |
+| T-BUDGET-04 | P2 | **Invalid inputs rejected.** Negative or non-numeric total/cap/rate → inline "סכום לא תקין" (or "שער המרה לא תקין") alert, no save, sheet stays open. |
+| T-BUDGET-05 | P1 | **No target set, expenses exist.** Add an expense before ever setting a total (or clear an existing total to blank) → the screen shows the spent figure and "לא הוגדר יעד" — **no progress bar, no "נותרו/חריגה" line, no allocation line**. (Regression guard for a bug caught in review: a zero target used to render a negative "remaining" and an invalid progress bar.) |
+
+### 10.2 Expenses — add / edit / delete
+
+| ID | Pri | Case |
+|---|---|---|
+| T-BUDGET-06 | P0 | **Add a standalone expense.** "הוספת הוצאה" → תיאור + סכום (in the trip's own currency) + קטגוריה + יום (or "כללי") → הוספה. Row appears in the correct category group (and, switching to "לפי יום", the correct day group); the trip's spent/planned figures update immediately. |
+| T-BUDGET-07 | P0 | **Edit an expense.** Tap a row → sheet pre-fills every field, button reads "שמירה" (not "הוספה") → change the amount → שמירה → the row and the totals update; no duplicate row created. |
+| T-BUDGET-08 | P0 | **Delete an expense.** Open a row → "מחיקת ההוצאה" → confirm "כן, למחוק" → row disappears, totals shrink accordingly. Canceling the first tap leaves the row untouched. |
+| T-BUDGET-09 | P1 | **Foreign-currency amount entry.** Trip currency = יֵן: add an expense of ¥1,200 → row shows "¥1,200" with a "≈ ₪…" secondary line computed from the trip's rate. Toggle the currency chip to ₪ before saving → the same numeric entry now saves as shekels, no silent unit confusion. |
+| T-BUDGET-10 | **P0** | **2-decimal foreign currency round-trip (regression guard).** With the trip currency set to a 2-decimal currency (euro/dollar/pound/baht/dirham/franc — anything but יֵן/וון), open an **existing** expense in that currency and press שמירה **without changing anything**. The saved amount must be unchanged (e.g. €45.50 stays €45.50). This is the exact bug the final review caught: before the fix, any non-shekel, non-yen currency was silently inflated ×100 on a plain open-and-save. |
+| T-BUDGET-11 | P1 | **Changing an expense's currency after it was marked paid.** Mark an expense שולם with a different actual amount, then re-open it and switch its currency → a note "שינוי מטבע יאפס את סימון \"שולם\"" appears, and saving clears both the paid tick and the recorded actual amount (never silently reinterprets the old actual figure in the new currency). |
+| T-BUDGET-12 | P1 | **Trip currency locked while foreign expenses exist.** With at least one non-shekel, non-trip-currency expense present, open "עריכת התקציב" → the מטבע היעד dropdown is disabled with the note "יש הוצאות במטבע זר — שינוי המטבע ייפתח בהמשך" (currency conversion is a later phase; changing the trip currency out from under existing foreign amounts is blocked, not silently wrong). |
+
+### 10.3 The paid → "was it different?" flow
+
+| ID | Pri | Case |
+|---|---|---|
+| T-BUDGET-13 | P0 | **Mark paid, same amount.** Tap ✓ on a row → "האם העלות הייתה שונה?" prompt → "לא, אותו סכום" → row shows "שולם" (a text chip, not just a colour change); "בפועל" total increases by the planned amount. |
+| T-BUDGET-14 | P0 | **Mark paid, different amount.** Tap ✓ → "כן" → one numeric field appears → enter the real amount → אישור → row now shows both the actual amount and (smaller, beside it) the original planned figure; "בפועל" reflects the real number, "מתוכנן" is unchanged. |
+| T-BUDGET-15 | P1 | **Un-paying.** On an already-paid, different-actual row, tap the ✓ again → it un-marks immediately with **no prompt**, and the recorded actual amount is cleared (re-marking it paid later asks "was it different" fresh). |
+| T-BUDGET-16 | P2 | **Invalid actual amount.** In the "כן" numeric field, enter text/negative → no crash, no callback fires until a valid amount is entered. |
+
+### 10.4 The screen itself
+
+| ID | Pri | Case |
+|---|---|---|
+| T-BUDGET-17 | P0 | **Category vs. day grouping.** Default view groups by category (with cap bars). Toggle "לפי יום" → the same expenses regroup under "כללי" + "יום N" headers, matching which day each standalone expense was filed under. |
+| T-BUDGET-18 | P0 | **Over-budget stated in words, not just colour.** Push spending past the total → the bar turns to the danger colour AND the state line reads "חריגה של ₪…" (never colour alone). A category whose own cap is exceeded shows its own "חריגה" text tag next to its bar. |
+| T-BUDGET-19 | P1 | **Read-only trip (e.g. the Japan sample, or a view-only share).** The screen shows every number but no "הוספת הוצאה" button and no "עריכת התקציב" button; tapping a row does not open the edit sheet. |
+| T-BUDGET-20 | P1 | **Load failure.** Force `fetchTripById` to fail (offline, bad id) → the screen shows a clear "לא ניתן לטעון את התקציב" message instead of a blank page or a crash. |
+| T-BUDGET-21 | P1 | **RTL + dark mode + touch targets.** Both sheets and the main screen: right-aligned Hebrew text, no mirrored/backwards layout, all interactive controls (✓, add/edit/delete, chips, toggle) ≥44×44px, readable contrast in dark mode. The ✓ prompt and the currency chips especially — they're the newest interaction on the screen. |
+| T-BUDGET-22 | P2 | **Keyboard dismissal.** Both the setup sheet and the expense sheet close on Esc. **Known gap (Phase D follow-up):** neither sheet traps focus yet — `aria-modal` was deliberately removed rather than left inaccurate; a real focus trap + restore lands with the Phase D design pass. |
+
+---
+
+## 11. Sign-off
 
 | Check | Owner | Status |
 |---|---|---|
@@ -458,5 +510,8 @@ Then close the §7.6 gaps that need a live backend / real device.
 | Dark mode + RTL clean on all primary screens | | ⬜ |
 | Trip Files gallery automated tests green | | ⬜ |
 | Trip Files gallery manual cases verified | | ⬜ |
+| AI destination focus manual cases verified | | ⬜ |
+| Trip budget (Phase A) automated tests green | | ⬜ |
+| Trip budget (Phase A) manual cases verified | | ⬜ |
 
 **QA verdict:** ⬜ Ship · ⬜ Ship with follow-ups · ⬜ Block

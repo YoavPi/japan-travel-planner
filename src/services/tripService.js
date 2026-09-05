@@ -30,6 +30,7 @@ import { cityTransitions, lodgingOverrides } from "../data/transportData";
 import { supabase, getSupabaseUser } from "../lib/supabase";
 import { addInboxPlaces } from "./googleSavedPlaces";
 import { track } from "../analytics/posthog";
+import { summarize } from "../utils/budget";
 
 /* ── Sprint 26 — Supabase persistence layer ─────────────────────
    Every CRUD method now branches: with a live Supabase session the
@@ -53,6 +54,10 @@ export const rowToTrip = (r) => r && ({
   center: r.settings?.center || null,
   settings: r.settings || {},
   data: r.data || { tripData: [], cityTransitions: [], lodgingOverrides: {} },
+  /* Lifted OUT of `data` so it survives the `data` strip that fetchAllTrips
+     performs — the dashboard grid renders its budget mini-indicator from this
+     and never loads the full item list. */
+  budgetSummary: r.data?.budget?.summary || null,
   isPublic: !!r.is_public,
   galleryCategory: r.gallery_category || null,
   galleryDescription: r.gallery_description || null,
@@ -258,8 +263,26 @@ const writeStore = (trips) => {
 };
 
 /* Lightweight list projection (omit the heavy `data` payload so
-   the dashboard grid stays snappy). */
-const toSummary = ({ data, ...rest }) => rest;
+   the dashboard grid stays snappy) — but lift the budget summary out
+   first, so the grid can still render its mini-indicator. */
+const toSummary = ({ data, ...rest }) => ({
+  ...rest,
+  budgetSummary: rest.budgetSummary ?? data?.budget?.summary ?? null,
+});
+
+/* ── Budget summary: DERIVED, NEVER AUTHORED ─────────────────────
+   Any patch carrying a budget gets its `summary` re-derived here,
+   before the write. This is deliberately in saveTrip rather than in a
+   dedicated budget method: budget-bearing writes also arrive through
+   the GENERIC editor path (useEditorState persists `{ data }` after a
+   stop mutation), and a summary that only refreshed on a budget-
+   specific call would leave the dashboard card showing a stale figure.
+   No extra read is needed — the whole budget is already in the patch. */
+const withBudgetSummary = (patch) => {
+  const b = patch?.data?.budget;
+  if (!b) return patch;
+  return { ...patch, data: { ...patch.data, budget: { ...b, summary: summarize(b) } } };
+};
 
 export const tripService = {
   /* All trips visible to a user (owned + shared-to). For the mock
@@ -405,7 +428,8 @@ export const tripService = {
   },
 
   /* Persist edits to an existing trip's payload. */
-  async saveTrip(tripId, patch) {
+  async saveTrip(tripId, rawPatch) {
+    const patch = withBudgetSummary(rawPatch);
     const sbUser = await getSupabaseUser();
     if (sbUser) {
       /* Owner fast-path (defense-in-depth: scope to the owner in addition to

@@ -26,6 +26,7 @@ import AdminView from "./views/AdminView";
 import NotificationsView from "./views/NotificationsView";
 import ResponsiveEditor from "./views/ResponsiveEditor";
 import TripOverviewView from "./views/TripOverviewView";
+import BudgetView from "./views/BudgetView";
 import OnboardingView, { isOnboarded } from "./views/OnboardingView";
 import SharePermissionsModal from "./components/SharePermissionsModal";
 import PrivacyPage from "./views/PrivacyPage";
@@ -144,6 +145,14 @@ const AnimatedRoutes = () => {
           element={
             <ProtectedRoute>
               <TripOverviewView />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/trip/budget/:tripId"
+          element={
+            <ProtectedRoute>
+              <BudgetView />
             </ProtectedRoute>
           }
         />
