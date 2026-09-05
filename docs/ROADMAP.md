@@ -4,7 +4,7 @@
 
 ## 📋 הבא בתור
 
-- **ניהול תקציב לטיול — שלבים B/C/D** — Phase A (מנוע + מסך ייעודי) כבר **בפרוד** (ראו "בוצע"), לא "סקופ פתוח" יותר. נותר לפי הספק: הוצאה פר-עצירה + `StopActionsSheet`, צ'יפ הוספה-מהירה בעורך, אינדיקטורים במסלול/דשבורד + טוסט חריגה, טוגל ב-ShareSheet, שלב באשף, קבלות בגלריית הקבצים, מעבר ידני RTL/dark. ספק: [docs/superpowers/specs/2026-09-03-trip-budget-design.md](../docs/superpowers/specs/2026-09-03-trip-budget-design.md). הבא בתור לביצוע לפי הרצף שהמשתמש כבר אישר (אחרי AI focus A שפורס היום).
+- **ניהול תקציב לטיול — שלבים B/C/D** — Phase A (מנוע + מסך ייעודי) כבר **בפרוד** (ראו "בוצע"). מתוכה נשלף גם פרק-הכנה ל-Phase B ופורס בנפרד: **B1-B4 (bugfix + groundwork) כבר בפרוד** (2026-09-05, קומיט `280e9fd`) — remap ל-`budget.items[]` במובייל (date-shrink/reorder) + `withFreshInstanceId` לשכפולי עצירה + פונקציות טהורות אינרטיות (`expensesForStop`, `detachStopExpenses`, `budgetImpact`). זה *לא* שאר Phase B — זה פרק-הכנה בלבד. שאר Phase B בפועל (הוצאה פר-עצירה + `StopActionsSheet`, צ'יפ הוספה-מהירה בעורך, אינדיקטורים במסלול/דשבורד + טוסט חריגה, טוגל ב-ShareSheet, שלב באשף, קבלות בגלריית הקבצים, מעבר ידני RTL/dark) עדיין לא בנוי. שתי החלטות שהמשתמש כבר אישר לשאר Phase B: (א) לעבוד הלאה על שאר ה-UI של Phase B בתור השלב הבא; (ב) צ'יפ ה-₪ בעורך יתנהג כהוספה-מהירה-במקום ולא כניווט למסך מלא — שינוי התנהגות מכוון ביחס למה שפורס ב-Phase A לפני 3 ימים, כדי שקורא עתידי לא יתבלבל כשההתנהגות תשתנה. ספק: [docs/superpowers/specs/2026-09-03-trip-budget-design.md](../docs/superpowers/specs/2026-09-03-trip-budget-design.md).
 - **בדיקת שגיאות AI יומית** — `ai_errors` נכתב אבל אין סקירה יזומה; המשתמש רואה רק הודעה גנרית. תקוע כרגע כי פיצ'ר ה-AI down (מכסת Gemini).
 - **החלפת שפה he/en** (בהשראת MupDay) — נדחה בכוונה; i18n מלא = חוב כבד (RTL + אלפי מחרוזות). לשקול קודם רק עמודי שיווק/משפט.
 
@@ -31,6 +31,7 @@
 
 - **AI focus — שלבים A+B (FOCUS_REGIONS + self-gating GEO)** (B: 2026-09-02, בפרוד; A: 2026-09-05, בפרוד) — שלב B: כלל (GEO) + `maxCities` ב-`api/_lib/prompt.js`, יעד מדינה/אזור מוגבל למספר ערים לפי אורך הטיול בלי לפזר ימים בודדים בין ערים רחוקות; קומיט a06f3ad. שלב A: צ'יפי FOCUS_REGIONS + בוחר 1–3 ערים במודל ה-AI (`DestinationFocus.jsx`) — היה בנוי/נבדק/עבר ביקורת מ-2026-09-02 אך ישב בלי פריסה; פורס היום, קומיט 709e2ee, `verify:prod` עבר על maslul-app.vercel.app. המשך פתוח: `countryBias` לא מחובר — ראו "חוב טכני".
 - **תקציב טיול — Phase A** (2026-09-05, בפרוד) — מנוע (`src/utils/budget.js`, יחידות-מינוריות שלמות, שני-מטבעות-שער-אחד, `rollup()`), מסך ייעודי `/trip/budget/:tripId`, נקודות כניסה בעורך (מובייל+דסקטופ). המשך בשלבים B/C/D — ראו "הבא בתור".
+- **תקציב טיול — Phase B1-B4 (bugfix + groundwork)** (2026-09-05, בפרוד, קומיט `280e9fd`) — שני באגים אמיתיים ב-Phase A שהתגלו ב-design pass של `architect` ל-Phase B: (1) `applyDateRange`/`reorderDays` במובייל לא remap-ו את `budget.items[]` בשינוי-טווח-תאריכים/סידור-מחדש, רק `files[]` (בדסקטופ `useEditorState.js` כבר עשה את שניהם) — הוצאה עצמאית מתויגת-יום יכלה להישאר עם `dayRef` תלוי-באוויר; (2) שלושה מסלולי שכפול-עצירה במובייל (`copyStopToDay`, `setStopAsMultiDayHotel`, `copyStopToOtherTrip`) שמרו את אותו `instanceId` — תוקן ע"י `withFreshInstanceId`. גם נחת גרעין אינרטי לשלב הבא (`expensesForStop`, `detachStopExpenses`, `budgetImpact` ב-`budget.js`, לא מחובר ל-UI עדיין). `npm run critical` 9/9, 246 טסטים, build נקי. **בדיקת QA ידנית על-מכשיר עדיין לא בוצעה בפועל** (T-BUDGET-23/24/25) — ראו "חוב טכני פתוח".
 - **Trip Files gallery** (2026-08-31, בפרוד) — קובץ כללי לתחנה, גלריה מקובצת (כללי → יום N), אפלוד/עריכה/מחיקה מ-Storage. באג פתוח מהעבודה הזו — ראו "חוב טכני".
 - בניית טיול ב-AI (Sprint 67–68) — פייפליין מלא Gemini+Places+haversine.
 - גלריה ציבורית (2026-08-25) — פרסום/צפייה/מועדפים/gate להתחברות.
@@ -46,6 +47,7 @@
 - 🐛 באג קבצים על נקודה (מ-2026-08-25) — עדיין פתוח. כנראה זהה ל-`onAttachFilePicked` ✅-toast bug שצוין כ-follow-up ב-"Trip Files gallery" (31/8) ולא תוקן שם.
 - אימייל ליצירת קשר — placeholder הוסר, לחבר כתובת אמיתית.
 - `countryBias` ב-`DestinationFocus.jsx` לא מחובר ע"י `AiTripModal.jsx` — בוחר הערים הידני בשלב הפוקוס לא מוטה למדינה/אזור שנבחר (חסר bbox למדינה). קוסמטי/דיוק, לא באג נכונות. נמצא במהלך פריסת AI focus שלב A (2026-09-05).
+- 🧪 QA ידנית עדיין לא בוצעה בפועל ל-T-BUDGET-23/24/25 (`docs/QA-TEST-PLAN.md`) — date-range shrink + day-reorder עם הוצאה מתויגת-יום, על מכשיר אמיתי (drag/date-picker לא ניתנים לאוטומציה בסביבת ה-QA הזמינה). קוד נבדק בעיון (`mapping` משותף לשני ה-remap-ים) אך לא הופעל חי. נפתח יחד עם Phase B1-B4 (2026-09-05, קומיט `280e9fd`).
 
 ---
 
