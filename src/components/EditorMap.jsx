@@ -891,7 +891,10 @@ const EditorMap = ({
               setSelected({ idx: i, stop: s });
               setCardMin(false);
               if (cropOnClick) flyToStop(s.coordinates.lng, s.coordinates.lat);
-              else panToCoord(s.coordinates.lng, s.coordinates.lat);
+              /* Sprint 66 #4 — when the parent owns the active-stop context it
+                 also drives the fly+zoom (via flyToCoord), so skip the redundant
+                 pre-pan; keep the plain pan only for a bare consumer. */
+              else if (!onActiveStop) panToCoord(s.coordinates.lng, s.coordinates.lat);
               /* Sprint 44 #3 — mirror into the parent's active-stop context. */
               if (onActiveStop) onActiveStop(s);
               if (onMarkerClick) onMarkerClick(s, i);

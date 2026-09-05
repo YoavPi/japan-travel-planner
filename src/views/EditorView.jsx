@@ -2938,8 +2938,15 @@ const EditorView = () => {
           /* Sprint 44 #3 — persistent active-stop context. */
           focusStop={activeStop}
           /* Sprint 62 #2 — a MAP-marker selection has no return row, so clear the
-             return stack (only a timeline-row tap via navigateToStop sets it). */
-          onActiveStop={(s) => { returnStopIdx.current = -1; setActiveStop(s); }}
+             return stack (only a timeline-row tap via navigateToStop sets it).
+             Sprint 66 #4 — tapping a pin flies + zooms to that stop, same as a
+             timeline-row tap; closing the card leaves the view where it landed. */
+          onActiveStop={(s) => {
+            returnStopIdx.current = -1;
+            const c = s?.coordinates;
+            if (c && Number.isFinite(c.lat) && Number.isFinite(c.lng)) setFlyToCoord({ lat: c.lat, lng: c.lng });
+            setActiveStop(s);
+          }}
           /* Sprint 62 #2 — NAVIGATION RETURN STACK: closing a stop-detail card
              that was opened from a timeline row re-expands the schedule to MID
              and scrolls back to that exact row (restoring the user's context).
