@@ -599,19 +599,17 @@ discharged in wording:
 When v2 moves the budget to its own table with its own RLS, the promise can be
 upgraded along with the mechanism — and only then.
 
-### 4.9 Open decision for the team
+### 4.9 Decided — write access for `edit` collaborators
 
 **Does `budgetShared: true` grant an `edit`-role collaborator write access to
-the budget, or read-only?**
+the budget, or read-only?** Decided by the owner (2026-09-06): **write** — same
+rights as the itinerary. The table above already reflects this.
 
-The table above assumes **write** — same rights as the itinerary.
-
-*Recommendation: keep it as write.* A "collaborators may see but not edit the
-budget" mode requires a second flag, a second guard in `useBudget` (which today
-keys purely off `trip.readOnly`), and a second explanation in the UI — for a
-distinction the toggle's own label ("הצג") does not imply. If the team wants
-separate money permissions, that is a permissions model, not a visibility
-switch, and it belongs in v2 alongside the RLS work.
+A "collaborators may see but not edit the budget" mode would have required a
+second flag, a second guard in `useBudget` (which today keys purely off
+`trip.readOnly`), and a second explanation in the UI — for a distinction the
+toggle's own label ("הצג") does not imply. Separate money permissions remain a
+v2 concern, alongside the RLS work.
 
 ---
 
@@ -986,25 +984,19 @@ Gates unchanged: `npm run critical` stays 9/9 · `CI=true npm test -- --watchAll
 
 ## 11. Open decisions for the team
 
-Only genuinely unresolved items. Everything else in this document is decided.
+All three resolved by the owner (2026-09-06), each matching this spec's own
+recommendation — no further change needed elsewhere in this document.
 
 1. **Does `budgetShared: true` grant an `edit`-role collaborator *write* access
-   to the budget, or read-only?** (§4.9) — *Recommendation: write, same rights as
-   the itinerary.* Separate money permissions are a permissions model, not a
-   visibility switch, and belong with the v2 RLS work.
+   to the budget, or read-only?** (§4.9) — **Decided: write**, same rights as
+   the itinerary. §4.5's table already reflects this.
 2. **Should `settings.budgetShared` default to `true` for trips that already
-   have collaborators?** Nothing is shared today, so `false` is not a
-   regression for anyone. But an owner who has already invited three people and
-   then sets a budget will not understand why they can't see it.
-   *Recommendation: keep the default `false` universally, and show a one-time
-   Tier-2 line inside `BudgetSetupSheet` on the first save when the trip has
-   collaborators: `השותפים לא רואים את התקציב. אפשר לשתף מתפריט השיתוף.`* The
-   alternative — defaulting to shared — makes finances visible to third parties
-   as a side effect of a setting the owner never touched, which is the wrong
-   direction to be wrong in.
-3. **Is `85%` the right `nearCap` threshold?** It is a guess, not a measured
-   number. It is a single constant in `budget.js` and costs nothing to change
-   once real budgets exist. Flagged so it doesn't calcify by accident.
+   have collaborators?** — **Decided: no, universal `false`** (§4.5), plus the
+   one-time Tier-2 line in `BudgetSetupSheet` on first save when the trip has
+   collaborators: `השותפים לא רואים את התקציב. אפשר לשתף מתפריט השיתוף.`
+3. **Is `85%` the right `nearCap` threshold?** — **Decided: 85%**, as specified
+   throughout (§0, §1, §2). Still a judgment call rather than a measured
+   number — revisit once real budgets accumulate usage data.
 
 ### Decided here, contradicting the predecessor — stated out loud
 
