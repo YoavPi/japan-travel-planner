@@ -518,8 +518,8 @@ const DayStopList = ({
      the very top of the timeline. */
   flightsFirst = false,
   /* Sprint 11 — live field-ops mode (only when this trip is the
-     "active"/live trip). Reveals per-stop check-off + rollover. */
-  liveOps = false, onToggleComplete, onRollover, onMoveForward, nextDayNum = null,
+     "active"/live trip). Reveals per-stop check-off. */
+  liveOps = false, onToggleComplete, onMoveForward,
   /* Sprint 21 — Trip-Mode gated affordances. `tripActive` (the green
      "טיול פעיל" badge state) reveals the per-stop completion checkbox and
      the explicit "העבר ליום הבא" move button. `onNavigate` makes tapping a
@@ -985,12 +985,6 @@ const DayStopList = ({
                 <Icon name="chevronEnd" size={12} strokeWidth={2.2} /> העבר ליום הבא
               </button>
             )}
-            {liveOps && !tripActive && !done && nextDayNum != null && (
-              <button onClick={(e) => { e.stopPropagation(); onRollover && onRollover(idx, nextDayNum); }}
-                style={{ marginTop: 6, alignSelf: "flex-start", border: "none", background: "transparent", padding: 0, cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 700, color: CORAL, display: "inline-flex", alignItems: "center", gap: 4 }}>
-                <Icon name="chevronEnd" size={12} strokeWidth={2.2} /> העבירו ליום המחרת
-              </button>
-            )}
 
             {/* Sprint 61 #1 — DIRECTLY-INTERACTIVE NOTE TICKET: the light-gray
                 panel is now a tap target that opens the rapid inline editor.
@@ -1233,7 +1227,6 @@ const EditorView = () => {
   const [editTransitIdx, setEditTransitIdx] = useState(-1);
   /* Sprint 27 #5 — a searched place awaiting routing: the interception
      prompt offers "בנק הנקודות" vs. a specific day. */
-  const [pendingStop, setPendingStop] = useState(null);
   const [filter, setFilter] = useState("all");
   /* Sprint 23 #6 — collapsed/expanded state of the two category filter
      controls (timeline sheet + inbox drawer) and the inbox's own filter. */
@@ -1262,7 +1255,6 @@ const EditorView = () => {
      Kept SEPARATE from `copyToast` (which hardcodes a ✅) so an upload FAILURE
      is never rendered as a success. Auto-dismisses after ~2.5s. */
   const [filesToast, setFilesToast] = useState("");
-  const [inboxGeoFilter, setInboxGeoFilter] = useState(null); // {west,south,east,north} | null
   /* Sprint 58 #5 — the inbox grid card whose "➕ שבץ ביום זה" micro-overlay is open. */
   const [inboxCardMenu, setInboxCardMenu] = useState(null);
   /* Real photo for the open saved-point card — the place's OWN Google Maps
@@ -1320,17 +1312,12 @@ const EditorView = () => {
      so the ✕ return stack can re-expand the sheet and scroll back to it. */
   const returnStopIdx = useRef(-1);
   /* Sprint 39 #1 — day reorder is now an explicit "Edit Mode" (סדר ימים):
-     a normal tap always switches day; reordering happens only via a chip's
-     drag handle while `dayEditMode` is on. `from`/`over` drive the live
-     insertion indicator, `dx` tracks the grabbed chip under the finger. */
+     a normal tap always switches day; reordering happens via the ▲/▼ rows
+     in the day-reorder modal while `dayEditMode` is on. */
   const [dayEditMode, setDayEditMode] = useState(false);
   /* Sprint 41 #3 — "מסלול רציף": collapse the per-day sections into ONE
      cumulative timeline with globally sequential stop numbers (1..N). */
   const [continuousMode, setContinuousMode] = useState(false);
-  /* Sprint 42 #5 — an unassigned inbox place the user flew to on the map,
-     shown in a floating "➕ הוספה לטיול שלי" card with a day picker. */
-  const [assignCard, setAssignCard] = useState(null); // the unassigned place, or null
-  const [assignDaysOpen, setAssignDaysOpen] = useState(false); // day-picker expanded?
   /* Sprint 43 #2 — the trip's calendar start date (ISO yyyy-mm-dd) lives in
      settings.startDate; this modal sets/modifies it at any time. */
   const [datesModalOpen, setDatesModalOpen] = useState(false);
@@ -1345,12 +1332,7 @@ const EditorView = () => {
   /* Sprint 47 #3 — live map viewport bounds ({west,south,east,north}), updated
      by EditorMap after every move, consumed as the top-priority search bias. */
   const viewportRef = useRef(null);
-  const [dayDrag, setDayDrag] = useState({ from: -1, over: -1, dx: 0 });
-  const dayDragRef = useRef({ from: -1, over: -1, dx: 0 });
-  const dayDragActive = useRef(false);
-  const dayGrabX = useRef(0);
   const dayChipRefs = useRef([]);
-  const setDayDragState = (next) => { dayDragRef.current = next; setDayDrag(next); };
   /* Dual-state bottom sheet (Sprint 19b.4): track the sheet's snap so the
      map omnibox + schedule collapse together. "peek" = collapsed (only the
      day chips float over a fully-open map); half/full = expanded. */
@@ -1435,7 +1417,8 @@ const EditorView = () => {
      long-press menu). Combined with the peek-only sheet rule below.
      The "מצא ליד" nearby-search sheet (z120) belongs here too — without it the
      z260 map FABs float on top of the sheet's chips + search bar. */
-  const overlayOpen = actionsIdx >= 0 || summaryOpen || insertAt >= 0 || !!ctxMenu || datesModalOpen || noteEditIdx >= 0 || editTransitIdx >= 0 || onboardOpen || confirmExit || !!nearbyOrigin || !!budgetConfirm;
+  const overlayOpen = actionsIdx >= 0 || summaryOpen || insertAt >= 0 || !!ctxMenu || datesModalOpen || noteEditIdx >= 0 || editTransitIdx >= 0 || onboardOpen || confirmExit || !!nearbyOrigin || !!budgetConfirm
+    || filesSheetOpen || quickAddOpen || !!costFor || !!attachViewer || !!notePrompt || !!addChoice;
 
   /* Generic day-array mutator → updates local state + persists.
      `mutate(daysCopy)` returns the new days array. */
@@ -1686,12 +1669,10 @@ const EditorView = () => {
      the stop, apply a spatial box around its coordinates, and reveal the
      Places-Inbox saved markers residing in that cluster. */
   /* "מצא לי X באזור" from a stop's map card — opens the category picker (was the
-     old saved-points-nearby query). Clearing the geo-filter keeps that state
-     used and removes any stale saved-point filter. */
+     old saved-points-nearby query). */
   const searchAroundStop = useCallback((stop) => {
     const c = stop?.coordinates || (Number.isFinite(stop?.lat) ? { lat: stop.lat, lng: stop.lng } : null);
     if (!c || !Number.isFinite(c.lat) || !Number.isFinite(c.lng)) return;
-    setInboxGeoFilter(null);
     setActiveStop(null); // drop the card
     setNearbyOrigin(stop); // open the nearby-places picker
   }, []);
@@ -1978,7 +1959,6 @@ const EditorView = () => {
          loaded" (see its definition). */
       mergeIntoInbox(saved);
     } catch { /* best-effort — the place remains in the preview flow */ }
-    setPendingStop(null);
     setPreviewPlace(null);
     setFlyToCoord(null);
   }, [mergeIntoInbox]);
@@ -1988,7 +1968,6 @@ const EditorView = () => {
     commitDays((days) => days.map((d) =>
       d.day === dayNum ? { ...d, attractions: dedupeDayStops([...d.attractions, stop]) } : d
     ));
-    setPendingStop(null);
   }, [commitDays]);
 
   /* "מפות נוספות" — reset popup/adds when the loaded map changes (or clears). */
@@ -2329,23 +2308,6 @@ const EditorView = () => {
       d.day === dayNum ? { ...d, _dayDone: !d._dayDone } : d
     ));
   }, [commitDays]);
-
-  /* Sprint 11 — rollover an unvisited stop: splice it out of the
-     current day and inject it at the TOP of `toDay`'s list (reset
-     its completed flag), then persist. */
-  const rolloverStop = useCallback((index, toDay) => {
-    commitDays((days) => {
-      const from = days.find((d) => d.day === activeDay);
-      if (!from) return days;
-      const list = [...from.attractions];
-      const [moved] = list.splice(index, 1);
-      if (!moved) return days;
-      from.attractions = list;
-      const to = days.find((d) => d.day === toDay);
-      if (to) to.attractions = dedupeDayStops([{ ...moved, completed: false }, ...to.attractions]);
-      return days;
-    });
-  }, [activeDay, commitDays]);
 
   /* Add a stop to the active day (dedup enforced). */
   const handleAddStop = useCallback((stop) => {
@@ -2920,39 +2882,6 @@ const EditorView = () => {
     if (newActiveIdx >= 0) setActiveDay(newActiveIdx + 1);
   }, [days, activeDay, commitDays, trip, persistTripData]);
 
-  /* Sprint 39 #1 — drag begins ONLY from a chip's handle (rendered in edit
-     mode). Pointer capture on the handle keeps the gesture alive even if the
-     finger leaves the chip; the grabbed chip tracks the finger via `dx`, and
-     `over` (chip geometry, RTL-safe on raw pixel bounds) drives the insertion
-     indicator. The reorder + renumber commits once, on release. */
-  const onDayHandleDown = (idx) => (e) => {
-    if (!editable) return;
-    e.preventDefault();
-    e.stopPropagation();
-    dayDragActive.current = true;
-    dayGrabX.current = e.clientX;
-    setDayDragState({ from: idx, over: idx, dx: 0 });
-    try { navigator.vibrate && navigator.vibrate(50); } catch { /* unsupported — ignore */ }
-    try { e.currentTarget.setPointerCapture?.(e.pointerId); } catch { /* no-op */ }
-  };
-  const onDayPointerMove = (e) => {
-    if (!dayDragActive.current) return;
-    const x = e.clientX;
-    let over = dayDragRef.current.over;
-    dayChipRefs.current.forEach((el, i) => {
-      if (!el) return;
-      const r = el.getBoundingClientRect();
-      if (x >= r.left && x <= r.right) over = i;
-    });
-    setDayDragState({ from: dayDragRef.current.from, over, dx: x - dayGrabX.current });
-  };
-  const endDayDrag = () => {
-    if (!dayDragActive.current) return;
-    dayDragActive.current = false;
-    const { from, over } = dayDragRef.current;
-    if (from >= 0 && over >= 0 && from !== over) reorderDays(from, over);
-    setDayDragState({ from: -1, over: -1, dx: 0 });
-  };
 
   /* Filtered, city-grouped projection used when a category filter
      is active (spec §8): groups matching stops by city across all
@@ -3003,11 +2932,6 @@ const EditorView = () => {
       await tripService.setActiveTrip(null);
     } catch { /* local flag — non-fatal */ }
   };
-
-  const nextDayNum = useMemo(() => {
-    const future = days.filter((d) => d.day > activeDay).map((d) => d.day).sort((a, b) => a - b);
-    return future.length ? future[0] : null;
-  }, [days, activeDay]);
 
   /* Sprint 38 #4 — export the itinerary to a clean UTF-8 CSV (opens in Excel
      with Hebrew intact thanks to the ﻿ BOM). Columns: Day, City, Place,
@@ -3066,10 +2990,6 @@ const EditorView = () => {
           savedPlaces={(() => {
             if (!inboxPlaces) return [];
             if (showAllSaved) return inboxPlaces; // Sprint 58 #8 — project ALL
-            if (inboxGeoFilter) {
-              const b = inboxGeoFilter;
-              return inboxPlaces.filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && p.lat >= b.south && p.lat <= b.north && p.lng >= b.west && p.lng <= b.east);
-            }
             return inboxMode ? inboxPlaces : [];
           })()}
           savedLabels={showAllSaved}
@@ -3304,60 +3224,36 @@ const EditorView = () => {
             {/* Sprint 59 #5 — flat re-skin: deep charcoal header band with a
                 high-contrast ✕ close target in the upper-inline-end margin. */}
             <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px", background: "#1E1E24" }}>
-              <span aria-hidden style={{ fontSize: 20, lineHeight: 1 }}>{dayEditMode ? "⇅" : "🔢"}</span>
+              <span aria-hidden style={{ fontSize: 20, lineHeight: 1 }}>⇅</span>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 15.5, fontWeight: 800, color: "#fff" }}>{dayEditMode ? "סידור ימים מחדש" : "מסלול רציף"}</div>
-                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.65)", marginTop: 1 }}>{dayEditMode ? "שנו את סדר הימים · לחצו עדכן לשמירה" : "תצוגה רציפה של כל תחנות הטיול"}</div>
+                <div style={{ fontSize: 15.5, fontWeight: 800, color: "#fff" }}>סידור ימים מחדש</div>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.65)", marginTop: 1 }}>שנו את סדר הימים · לחצו עדכן לשמירה</div>
               </div>
-              <button onClick={dayEditMode ? abortReorder : clearFocusModes} title="סגירה" aria-label="סגירה" className="tp-press"
+              <button onClick={abortReorder} title="סגירה" aria-label="סגירה" className="tp-press"
                 style={{ flexShrink: 0, width: 36, height: 36, borderRadius: "50%", border: "none", background: "#fff", color: "#1E1E24", cursor: "pointer", fontFamily: "inherit", fontSize: 15, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>✕</button>
             </div>
             <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "12px 14px" }}>
-              {dayEditMode ? (
-                days.map((d, i) => {
-                  const col = cityColor(d.city);
-                  const stopN = (d.attractions || []).filter((a) => !a._transit && !a._inlineNote && !a._inlineTransit).length;
-                  return (
-                    <div key={d.day} style={{ display: "flex", alignItems: "center", gap: 10, border: `1px solid ${d.day === activeDay ? col : T.line}`, borderRadius: 12, padding: "8px 10px", marginBottom: 8, background: d.day === activeDay ? `${col}12` : "#fff" }}>
-                      <span style={{ flexShrink: 0, width: 30, height: 30, borderRadius: "50%", background: col, color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800 }}>{d.day}</span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 14, fontWeight: 800, color: T.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d.cityHe || d.city || `יום ${d.day}`}</div>
-                        <div style={{ fontSize: 11.5, color: T.ink3, marginTop: 1 }}>{stopN} תחנות{tripStartDate ? ` · ${pillDateLabel(tripStartDate, d.day)}` : ""}</div>
-                      </div>
-                      <button onClick={() => reorderDays(i, i - 1)} disabled={i === 0} aria-label="הזזה למעלה"
-                        style={{ flexShrink: 0, width: 34, height: 34, borderRadius: 10, border: `1px solid ${T.line}`, background: i === 0 ? T.surface : "#fff", color: i === 0 ? T.ink4 : T.ink, cursor: i === 0 ? "default" : "pointer", fontFamily: "inherit", fontSize: 14 }}>▲</button>
-                      <button onClick={() => reorderDays(i, i + 1)} disabled={i === days.length - 1} aria-label="הזזה למטה"
-                        style={{ flexShrink: 0, width: 34, height: 34, borderRadius: 10, border: `1px solid ${T.line}`, background: i === days.length - 1 ? T.surface : "#fff", color: i === days.length - 1 ? T.ink4 : T.ink, cursor: i === days.length - 1 ? "default" : "pointer", fontFamily: "inherit", fontSize: 14 }}>▼</button>
-                    </div>
-                  );
-                })
-              ) : (() => {
-                let n = 0; const rows = [];
-                days.forEach((d) => (d.attractions || []).forEach((a) => {
-                  if (a._transit || a._inlineNote || a._inlineTransit) return;
-                  n++; rows.push({ n, day: d.day, name: a.nameHe || a.name, city: d.cityHe || d.city, col: cityColor(d.city) });
-                }));
-                if (!rows.length) return <div style={{ textAlign: "center", color: T.ink3, fontSize: 13, padding: "30px 6px" }}>אין תחנות במסלול עדיין</div>;
-                return rows.map((r) => (
-                  <div key={r.n} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 4px", borderBottom: `1px solid ${T.line}` }}>
-                    <span style={{ flexShrink: 0, width: 26, height: 26, borderRadius: "50%", background: r.col, color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800 }}>{r.n}</span>
+              {days.map((d, i) => {
+                const col = cityColor(d.city);
+                const stopN = (d.attractions || []).filter((a) => !a._transit && !a._inlineNote && !a._inlineTransit).length;
+                return (
+                  <div key={d.day} style={{ display: "flex", alignItems: "center", gap: 10, border: `1px solid ${d.day === activeDay ? col : T.line}`, borderRadius: 12, padding: "8px 10px", marginBottom: 8, background: d.day === activeDay ? `${col}12` : "#fff" }}>
+                    <span style={{ flexShrink: 0, width: 30, height: 30, borderRadius: "50%", background: col, color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800 }}>{d.day}</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div dir="auto" style={{ fontSize: 14, fontWeight: 700, color: T.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.name}</div>
-                      <div style={{ fontSize: 11, color: T.ink3, marginTop: 1 }}>יום {r.day} · {r.city}</div>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: T.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d.cityHe || d.city || `יום ${d.day}`}</div>
+                      <div style={{ fontSize: 11.5, color: T.ink3, marginTop: 1 }}>{stopN} תחנות{tripStartDate ? ` · ${pillDateLabel(tripStartDate, d.day)}` : ""}</div>
                     </div>
+                    <button onClick={() => reorderDays(i, i - 1)} disabled={i === 0} aria-label="הזזה למעלה"
+                      style={{ flexShrink: 0, width: 34, height: 34, borderRadius: 10, border: `1px solid ${T.line}`, background: i === 0 ? T.surface : "#fff", color: i === 0 ? T.ink4 : T.ink, cursor: i === 0 ? "default" : "pointer", fontFamily: "inherit", fontSize: 14 }}>▲</button>
+                    <button onClick={() => reorderDays(i, i + 1)} disabled={i === days.length - 1} aria-label="הזזה למטה"
+                      style={{ flexShrink: 0, width: 34, height: 34, borderRadius: 10, border: `1px solid ${T.line}`, background: i === days.length - 1 ? T.surface : "#fff", color: i === days.length - 1 ? T.ink4 : T.ink, cursor: i === days.length - 1 ? "default" : "pointer", fontFamily: "inherit", fontSize: 14 }}>▼</button>
                   </div>
-                ));
-              })()}
+                );
+              })}
             </div>
             <div style={{ display: "flex", gap: 10, padding: "12px 14px", borderTop: `1px solid ${T.line}` }}>
-              {dayEditMode ? (
-                <>
-                  <button onClick={abortReorder} className="tp-press" style={{ flex: 1, height: 46, borderRadius: 14, border: `1px solid ${T.line}`, background: "#fff", color: T.ink2, fontSize: 14.5, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>בטל</button>
-                  <button onClick={commitReorder} className="tp-press" style={{ flex: 1, height: 46, borderRadius: 14, border: "none", background: T.ink, color: "#fff", fontSize: 14.5, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>עדכן</button>
-                </>
-              ) : (
-                <button onClick={clearFocusModes} className="tp-press" style={{ flex: 1, height: 46, borderRadius: 14, border: "none", background: T.ink, color: "#fff", fontSize: 14.5, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>סיום</button>
-              )}
+              <button onClick={abortReorder} className="tp-press" style={{ flex: 1, height: 46, borderRadius: 14, border: `1px solid ${T.line}`, background: "#fff", color: T.ink2, fontSize: 14.5, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>בטל</button>
+              <button onClick={commitReorder} className="tp-press" style={{ flex: 1, height: 46, borderRadius: 14, border: "none", background: T.ink, color: "#fff", fontSize: 14.5, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>עדכן</button>
             </div>
           </div>
         </div>
@@ -3390,7 +3286,6 @@ const EditorView = () => {
           ) : (
             editable
               ? <EditorSearchBar
-                  onAddStop={(stop) => setPendingStop(stop)}
                   onPreview={handlePreview}
                   onResults={setSearchResults}
                   activeDay={activeDay}
@@ -3563,9 +3458,7 @@ const EditorView = () => {
             position: "fixed", zIndex: 260,
             insetInlineStart: 16,
             /* Rest 16px above the sheet's top border for the current snap. */
-            bottom: sheetSnap === "peek"
-              ? "calc(env(safe-area-inset-bottom, 0px) + 128px)"
-              : "calc(50vh + 16px)",
+            bottom: "calc(env(safe-area-inset-bottom, 0px) + 128px)",
             display: "inline-flex", alignItems: "center", justifyContent: "center",
             /* Premium rounded-full capsule. When the bank holds saved points it
                switches to an accent-tinted fill (+ ring) so the user sees, right
@@ -3597,9 +3490,7 @@ const EditorView = () => {
           /* Sprint 54 #4 — above the sheet so the speed-dial and its expansion
              buttons render cleanly instead of clipping behind the day pills. */
           position: "fixed", zIndex: 260, insetInlineEnd: 16,
-          bottom: sheetSnap === "peek"
-            ? "calc(env(safe-area-inset-bottom, 0px) + 128px)"
-            : "calc(50vh + 16px)",
+          bottom: "calc(env(safe-area-inset-bottom, 0px) + 128px)",
           display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 12, fontFamily: T.font,
           transition: "bottom 320ms cubic-bezier(0.22,1,0.36,1)",
         }}>
@@ -3648,9 +3539,7 @@ const EditorView = () => {
         <div style={{
           /* Sprint 54 #4 — above the sheet; unmounts during focus-lock modes. */
           position: "fixed", zIndex: 260, left: "50%", transform: "translateX(-50%)",
-          bottom: sheetSnap === "peek"
-            ? "calc(env(safe-area-inset-bottom, 0px) + 128px)"
-            : "calc(50vh + 16px)",
+          bottom: "calc(env(safe-area-inset-bottom, 0px) + 128px)",
           display: "flex", gap: 12, fontFamily: T.font,
           transition: "bottom 320ms cubic-bezier(0.22,1,0.36,1)",
         }}>
@@ -3739,22 +3628,15 @@ const EditorView = () => {
                     const CHARCOAL = "#1E1E24";
                     const on = d.day === activeDay;
                     const dayDone = !!d._dayDone;
-                    const beingDragged = dayDrag.from === i;
-                    const dropTarget = dayEditMode && dayDrag.from >= 0 && dayDrag.over === i && dayDrag.from !== i;
                     return (
                       <div
                         key={d.day}
                         role="button"
                         tabIndex={0}
                         ref={(el) => { dayChipRefs.current[i] = el; }}
-                        /* Sprint 39 #1 / 47 #5 — normal tap switches day; in edit
-                           mode the WHOLE chip is the drag surface (the legacy
-                           black ⇅ handle sub-icon was removed for clean pills). */
-                        onClick={() => { if (!dayEditMode && !beingDragged) selectDay(d.day); }}
-                        onPointerDown={dayEditMode ? onDayHandleDown(i) : undefined}
-                        onPointerMove={dayEditMode ? onDayPointerMove : undefined}
-                        onPointerUp={dayEditMode ? endDayDrag : undefined}
-                        onPointerCancel={dayEditMode ? endDayDrag : undefined}
+                        /* Sprint 39 #1 / 47 #5 — normal tap switches day; reordering
+                           happens via the day-reorder modal's ▲/▼ rows, not on the chip. */
+                        onClick={() => { if (!dayEditMode) selectDay(d.day); }}
                         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectDay(d.day); } }}
                         title={`יום ${d.day}`}
                         style={{
@@ -3762,21 +3644,18 @@ const EditorView = () => {
                              gray text, active = solid charcoal rounded rectangle.
                              No soft circles, no drop shadows. */
                           flexShrink: 0, position: "relative", minWidth: 60, height: 60, padding: "0 10px", borderRadius: 14,
-                          border: dropTarget ? `2px dashed ${CHARCOAL}` : (dayEditMode && !on && !beingDragged ? "1px solid #E4E4E8" : "none"),
-                          background: (on || beingDragged) ? CHARCOAL : (dropTarget ? "rgba(30,30,36,0.06)" : (dayEditMode ? "#fff" : "transparent")),
-                          color: (on || beingDragged) ? "#fff" : T.ink3,
+                          border: dayEditMode && !on ? "1px solid #E4E4E8" : "none",
+                          background: on ? CHARCOAL : (dayEditMode ? "#fff" : "transparent"),
+                          color: on ? "#fff" : T.ink3,
                           cursor: dayEditMode ? "default" : "pointer", display: "flex", flexDirection: "column",
                           alignItems: "center", justifyContent: "center", fontFamily: "inherit", lineHeight: 1.05,
                           boxShadow: "none",
-                          opacity: beingDragged ? 0.9 : (dayDone && !on ? 0.55 : 1),
-                          transform: beingDragged ? `translateX(${dayDrag.dx}px) scale(1.05)` : "scale(1)",
-                          transition: dayDrag.from >= 0 ? "none" : "transform 0.18s ease, opacity 0.18s ease",
+                          opacity: dayDone && !on ? 0.55 : 1,
+                          transition: "transform 0.18s ease, opacity 0.18s ease",
                           /* Normal mode: pan-x so a swipe that STARTS on a chip still
-                             scrolls the strip (a tap is unaffected). Edit mode: none,
-                             so the pointer-drag reorder owns the gesture. */
+                             scrolls the strip (a tap is unaffected). */
                           touchAction: dayEditMode ? "none" : "pan-x",
                           userSelect: "none", WebkitUserSelect: "none",
-                          zIndex: beingDragged ? 5 : "auto",
                         }}>
                         <span style={{ fontSize: tripStartDate ? 15 : 16, fontWeight: 800, lineHeight: 1 }}>{d.day}</span>
                         {/* Sprint 43 #4 — with dates set, show the calendar
@@ -4020,13 +3899,11 @@ const EditorView = () => {
                     liveOps={isActiveTrip}
                     tripActive={tripMode}
                     onToggleComplete={toggleComplete}
-                    onRollover={rolloverStop}
                     onMoveForward={moveStopForward}
                     onNavigate={navigateToStop}
                     onEditTransit={(i) => setEditTransitIdx(i)}
                     onSetTransitMode={setTransitMode}
                     flightsFirst={activeDayData?.day === (days[0]?.day ?? 1)}
-                    nextDayNum={nextDayNum}
                     onRequestDelete={deleteStopAt}
                     onRequestInbox={requestInboxAt}
                     onOpenContextMenu={(idx, x, y) => { setCtxSub(null); setCtxMenu({ idx, x, y }); }}
@@ -4060,51 +3937,6 @@ const EditorView = () => {
             )}
           </div>
         </EditorBottomSheet>
-      )}
-
-      {/* Sprint 42 #5 — floating "add unassigned inbox place to a day" card.
-          Appears when a still-unassigned Places-Inbox point is tapped/flown
-          to; the CTA reveals a quick day picker that drops it into the day. */}
-      {assignCard && (
-        <div dir="rtl" className="tp-fade" style={{
-          position: "fixed", left: "50%", transform: "translateX(-50%)",
-          bottom: "calc(env(safe-area-inset-bottom, 0px) + 96px)", zIndex: 92,
-          width: "min(92vw, 420px)", background: "#fff", borderRadius: 18,
-          boxShadow: "0 18px 50px rgba(0,0,0,0.3)", border: `1px solid ${T.line}`,
-          padding: "14px 16px", fontFamily: T.font,
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span aria-hidden style={{ width: 30, height: 30, borderRadius: "50%", background: "rgba(107,113,120,0.15)", color: T.ink3, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 14, flexShrink: 0 }}>★</span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 14.5, fontWeight: 800, color: T.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{assignCard.nameHe || assignCard.name}</div>
-              <div style={{ fontSize: 11.5, color: T.ink3 }}>{assignCard.category || "נקודה שמורה"} · לא משובץ</div>
-            </div>
-            <button onClick={() => { setAssignCard(null); setAssignDaysOpen(false); }} aria-label="סגירה"
-              style={{ width: 30, height: 30, borderRadius: "50%", border: "none", background: T.surface, color: T.ink3, cursor: "pointer", flexShrink: 0, fontFamily: "inherit" }}>✕</button>
-          </div>
-          {!assignDaysOpen ? (
-            <button onClick={() => setAssignDaysOpen(true)} className="tp-press"
-              style={{ marginTop: 12, width: "100%", height: 46, borderRadius: 14, border: "none", background: T.ink, color: "#fff", fontSize: 14.5, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-              ➕ הוספה לטיול שלי
-            </button>
-          ) : (
-            <div style={{ marginTop: 12 }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: T.ink3, marginBottom: 8 }}>לאיזה יום להוסיף?</div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", maxHeight: 148, overflowY: "auto" }}>
-                {days.map((d) => (
-                  <button key={d.day}
-                    onClick={() => { assignInboxPlace(assignCard, d.day); setAssignCard(null); setAssignDaysOpen(false); }}
-                    className="tp-press"
-                    style={{ minWidth: 60, padding: "9px 12px", borderRadius: 12, cursor: "pointer", fontFamily: "inherit", textAlign: "center", border: `1.5px solid ${cityColor(d.city)}55`, background: `${cityColor(d.city)}12`, color: T.ink }}>
-                    <span style={{ display: "block", fontSize: 14, fontWeight: 800 }}>יום {d.day}</span>
-                    <span style={{ display: "block", fontSize: 10, color: T.ink3, marginTop: 1 }}>{d.cityHe || d.city || ""}</span>
-                  </button>
-                ))}
-                {days.length === 0 && <div style={{ fontSize: 12.5, color: T.ink3, padding: "6px 2px" }}>אין ימים במסלול עדיין</div>}
-              </div>
-            </div>
-          )}
-        </div>
       )}
 
       {/* Add-stop sheet */}
@@ -4149,40 +3981,6 @@ const EditorView = () => {
           onAdd={(segment) => updateTransitAt(editTransitIdx, segment)}
           onClose={() => setEditTransitIdx(-1)}
         />
-      )}
-
-      {/* Sprint 27 #5 — add-to-trip routing interception: the searched
-          place goes to the generic inbox OR to an explicit day. */}
-      {pendingStop && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 64, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-          <div onClick={() => setPendingStop(null)} className="tp-fade" style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)" }} />
-          <div dir="rtl" className="tp-pop" style={{ position: "relative", width: "100%", maxWidth: 360, background: "#fff", borderRadius: 20, padding: "20px 18px", boxShadow: "0 30px 80px rgba(0,0,0,0.35)", fontFamily: T.font }}>
-            <div style={{ fontSize: 15.5, fontWeight: 800, color: T.ink, marginBottom: 4 }}>לאן לשייך את המקום?</div>
-            <div style={{ fontSize: 12.5, color: T.ink3, marginBottom: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{pendingStop.nameHe || pendingStop.name}</div>
-
-            {/* Option A — generic Places Inbox */}
-            <button onClick={() => saveStopToInbox(pendingStop)}
-              style={{ width: "100%", height: 48, borderRadius: 14, border: `1.5px dashed ${T.line}`, background: T.surface, color: T.ink2, fontSize: 13.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 14 }}>
-              🗂️ שמור בבנק הנקודות הכללי
-            </button>
-
-            {/* Option B — a specific day */}
-            <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: T.ink3, marginBottom: 8 }}>שייך ליום ספציפי</div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", maxHeight: 180, overflowY: "auto" }}>
-              {days.map((d) => (
-                <button key={d.day} onClick={() => placeStopOnDay(pendingStop, d.day)}
-                  style={{ minWidth: 52, padding: "8px 10px", borderRadius: 12, border: `1px solid ${T.line}`, background: T.surface, cursor: "pointer", fontFamily: "inherit", textAlign: "center" }}>
-                  <span style={{ display: "block", fontSize: 14, fontWeight: 800, color: T.ink }}>יום {d.day}</span>
-                  <span style={{ display: "block", fontSize: 10, color: T.ink3, marginTop: 1 }}>{d.cityHe || d.city}</span>
-                </button>
-              ))}
-            </div>
-            <button onClick={() => setPendingStop(null)}
-              style={{ marginTop: 14, width: "100%", height: 40, borderRadius: 999, border: `1px solid ${T.line}`, background: "transparent", color: T.ink2, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-              ביטול
-            </button>
-          </div>
-        </div>
       )}
 
       {/* Sprint 7 — Place preview card */}
@@ -4564,16 +4362,9 @@ const EditorView = () => {
           control strip + a bottom horizontal snap-carousel of mini-cards.
           Swiping the carousel pans the map to the centred card's marker. */}
       {trip && inboxMode && (() => {
-        const inBounds = (s) => {
-          if (!inboxGeoFilter) return true;
-          const b = inboxGeoFilter;
-          return Number.isFinite(s.lat) && Number.isFinite(s.lng)
-            && s.lat >= b.south && s.lat <= b.north && s.lng >= b.west && s.lng <= b.east;
-        };
         const tripVisible = unifiedStops
           .filter((s) => s.assignedDay == null)
-          .filter((s) => inboxFilter === "all" || categoryBucket(s.category) === inboxFilter)
-          .filter(inBounds);
+          .filter((s) => inboxFilter === "all" || categoryBucket(s.category) === inboxFilter);
         const items = inboxTab === "global" ? (globalPoints || []) : tripVisible;
         /* Sprint 59 #3 — FLUID FOCUS PANNING: debounce the scroll, find the
            card nearest the carousel centre, and fly the map to its marker. */
@@ -4661,7 +4452,7 @@ const EditorView = () => {
                 <div style={{ margin: "0 12px", background: "#fff", borderRadius: 12, padding: "14px 16px", boxShadow: "0 6px 24px rgba(0,0,0,0.16)", fontSize: 13, color: T.ink3, lineHeight: 1.5, pointerEvents: "auto" }}>
                   {inboxTab === "global"
                     ? "עדיין אין נקודות בטיולים אחרים. כל מקום שתשמרו יופיע כאן."
-                    : (inboxGeoFilter ? "אין נקודות שמורות בתוך אזור המפה הנוכחי" : "כל הנקודות כבר שובצו במסלול 🎉")}
+                    : "כל הנקודות כבר שובצו במסלול 🎉"}
                 </div>
               ) : (
                 <div onScroll={onCarouselScroll}
