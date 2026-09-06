@@ -18,6 +18,7 @@ import { listFavoriteIds } from "../services/favoritesService";
 import { track } from "../analytics/posthog";
 import { boundsForDestination, autocomplete, getDetails, isPlacesEnabled, nearbySearch } from "../services/googlePlaces";
 import { computeTransit } from "../utils/transit";
+import { readableInkOn } from "../utils/contrast";
 import { dedupeDayStops, categoryEmoji, classifyLocation, withFreshInstanceId } from "../utils/classify";
 import { readPrefs } from "../services/prefsService";
 import { listInboxPlaces, addInboxPlaces, removeInboxPlace, updateInboxPlace } from "../services/googleSavedPlaces";
@@ -847,9 +848,21 @@ const DayStopList = ({
         const dragging = pos != null && dragIdx === pos;
         /* Sprint 55 — FLAT 3-COLOUR CARD SYSTEM: solid white blocks, a charcoal
            index badge, and a single coral accent reserved for hotels + high
-           ratings. Legacy pastel `_theme` background overrides are dropped. */
+           ratings. The pastel `_theme` CARD BACKGROUND stays dropped — the flat
+           white block is deliberate.
+           2026-09-06 — but `_theme` was left with no rendering path at all here,
+           so the colour pickers (this sheet's PASTELS + the long-press THEMES)
+           were write-only: the user picked a colour and nothing ever changed in
+           the day timeline they were looking at. The colour now lands on the
+           INDEX BADGE, matching how the continuous-route list already paints it,
+           without reintroducing pastel card fills. Foreground is derived, never
+           assumed — the two palettes span `#EBCB93` to `#0D0F11` and a
+           hard-coded white was 1.55:1 on the lightest. */
         const CHARCOAL = "#1E1E24";
         const CORAL = "#FF6B6B";
+        /* done (dimmed) > user's explicit colour > lodging > default */
+        const badgeBg = done ? T.ink4 : (a._theme || (lodging ? CORAL : CHARCOAL));
+        const badgeFg = readableInkOn(badgeBg);
         const subtitle = lodging ? `מלון${hotelSpan ? ` · ${hotelSpan.total} לילות` : ""}` : (a.category || "");
         const hasNav = a.coordinates && Number.isFinite(a.coordinates.lat) && Number.isFinite(a.coordinates.lng);
         const rNum = parseFloat(String(a.rating));
@@ -882,13 +895,14 @@ const DayStopList = ({
                 to two lines (never truncated to a single clipped line). The
                 interactive buttons live on a dedicated secondary row below. */}
             <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-              {/* Solid charcoal (coral for lodging) index badge. */}
+              {/* Index badge — charcoal by default, coral for lodging, or the
+                  stop's own `_theme` colour when the user has set one. */}
               <div aria-hidden style={{
                 flexShrink: 0, width: 28, height: 28, borderRadius: 8, marginTop: 1,
-                background: done ? T.ink4 : (lodging ? CORAL : CHARCOAL), color: "#fff",
+                background: badgeBg, color: badgeFg,
                 display: "flex", alignItems: "center", justifyContent: "center",
                 fontSize: 13, fontWeight: 800, fontVariantNumeric: "tabular-nums",
-              }}>{lodging ? <Icon name="bed" size={15} strokeWidth={2} color="#fff" /> : (pos != null ? pos + 1 : "•")}</div>
+              }}>{lodging ? <Icon name="bed" size={15} strokeWidth={2} color={badgeFg} /> : (pos != null ? pos + 1 : "•")}</div>
 
               <div
                 onClick={() => canNavigate && onNavigate(a)}
@@ -3922,7 +3936,7 @@ const EditorView = () => {
                             onClick={() => { if (canNav && a.coordinates) setFlyToCoord({ lat: a.coordinates.lat, lng: a.coordinates.lng }); }}
                             title={canNav ? "מעבר למיקום על המפה" : undefined}
                             style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "9px 0", borderBottom: `1px solid ${T.line}`, cursor: canNav ? "pointer" : "default", position: "relative", zIndex: 1 }}>
-                            <div style={{ width: 30, height: 30, borderRadius: "50%", flexShrink: 0, background: a._theme || col, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12.5, fontWeight: 800, fontVariantNumeric: "tabular-nums", marginTop: 1 }}>{globalIdx}</div>
+                            <div style={{ width: 30, height: 30, borderRadius: "50%", flexShrink: 0, background: a._theme || col, color: readableInkOn(a._theme || col), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12.5, fontWeight: 800, fontVariantNumeric: "tabular-nums", marginTop: 1 }}>{globalIdx}</div>
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div dir="auto" style={{ fontSize: 14.5, fontWeight: 700, color: T.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.nameHe || a.name}</div>
                               {a.category && <div style={{ fontSize: 11, color: T.ink3, marginTop: 1 }}>{a.category}{a.rating ? ` · ${a.rating}` : ""}</div>}
