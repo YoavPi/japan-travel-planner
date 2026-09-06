@@ -1034,53 +1034,43 @@ removable; verify before cutting.
 
 ## 11. Open decisions for the product owner
 
-These are not mine to resolve.
+Q1, Q2, Q6, Q7 decided by the owner (2026-09-06). Q3, Q4, Q5 still open.
 
-**Q1 — Does the AI planner keep a top-of-funnel position?**
-§3.2 demotes it from a hero button to a fork *after* the destination is chosen, on the grounds
-that five CTAs is no CTA and that a guest cannot evaluate "AI itinerary" before seeing anything.
-If AI is the intended acquisition hook, the whole hierarchy changes and the hero needs a second
-composition. **Needs a call before Fold 0 is built.**
+**Q1 — Does the AI planner keep a top-of-funnel position? DECIDED: no.**
+Moves to the post-destination fork, per this spec's §3.2 recommendation. Five CTAs is no CTA;
+a guest cannot evaluate "AI itinerary" before seeing anything.
 
-**Q2 — Can a guest complete wizard steps 1–2 before authenticating?**
-Today `/create` is a `ProtectedRoute`, so a guest who types "יפן" hits `/auth` immediately. Letting
-them also pick duration and cities (held in `sessionStorage`, gated only at *save*) would likely be
-the single largest conversion lever on this page. It also touches `ProtectedRoute` and the
-guest→user data handoff, which is adjacent to the documented SEV1 auth-identity incident.
-**High value, real risk. Owner + `architect` + `db-architect`, not this spec.**
+**Q2 — Can a guest complete wizard steps 1–2 before authenticating? DECIDED: not now.**
+Keep the existing `ProtectedRoute` gate as-is. This was flagged as the single largest conversion
+lever on the page, but also the highest-risk item (touches `ProtectedRoute` and the guest→user data
+handoff, adjacent to the documented SEV1 auth-identity incident) — owner chose to not take that risk
+on for this pass. Revisit separately, with `architect` + `db-architect`, if conversion data later
+justifies it.
 
 **Q3 — How many trips are actually published to the public gallery right now?**
-Fold 3's strip is specified to degrade honestly at n=0/1–3/4+ (§7.2), but the fold's *composition*
-differs meaningfully between "we have 12" and "we have 2". I cannot query production.
-**Owner: give me the number, or approve building all three states.**
+Still open — I cannot query production. Fold 3's strip degrades honestly at n=0/1–3/4+ (§7.2), but
+its *composition* differs meaningfully between "we have 12" and "we have 2". **Owner: give the
+number, or approve building all three states and letting the real count decide at ship time.**
 
 **Q4 — Persistent CTA on scroll?**
-The spec has no sticky nav and no floating CTA bar. On a six-fold scroll a mobile visitor is a long
-way from the hero field by Fold 3. Options: (a) nothing, trust Fold 5; (b) a slim bottom bar that
-appears after Fold 2 — which collides with the global `BottomDock`; (c) a compact search that
-docks into the nav after the hero scrolls out. **(c) is the most defensible but is real work.**
+Still open. Options: (a) nothing, trust Fold 5; (b) a slim bottom bar after Fold 2 — collides with
+the global `BottomDock`; (c) a compact search that docks into the nav after the hero scrolls out.
+**My lean: (c), but it is real work — worth a separate decision once the base six folds are built,
+not a blocker for starting.**
 
 **Q5 — A theme toggle on the marketing surface?**
-Everywhere else dark mode is a Settings preference, which a logged-out visitor has never seen. A
-first-time guest with OS dark mode gets the dark landing with no way to switch. Add a small toggle
-in the nav, or follow the pref silently? **My lean: follow silently.** The switch is one more
-control on a page whose whole point is having one control.
+Still open. **My lean: follow the OS/browser preference silently, no toggle** — one more control on
+a page whose whole point is having one control. Treat as decided-by-default unless the owner
+objects before implementation.
 
-**Q6 — Does a destination-inspiration fold survive at all?**
-The current page has one (Section C, 6 country cards). This spec absorbs its job into the hero
-chips and the footer's `מקומות פופולריים` column. A separate fold would be a seventh fold and would
-compete with Fold 3's gallery strip for the same "look at trips" attention.
-**My lean: no separate fold.** But it is the owner's call whether inspiration browsing is a real
-entry mode for this audience.
+**Q6 — Does a destination-inspiration fold survive at all? DECIDED: no separate fold.**
+Its job is absorbed into the hero chips and the footer's `מקומות פופולריים` column, per this spec's
+lean — it would otherwise compete with Fold 3's gallery strip for the same "look at trips" attention.
 
-**Q7 — Is `hero_couple_fuji.png` acceptable as the public front-door image?**
-It is already public on `/japan` and `/welcome`, so this is not a new exposure. But there is a
-difference between "on the example-trip page" and "the first thing every visitor sees, forever."
-`promo/STORYBOARD.md` flags identity/privacy as needing sign-off for the video; the same question
-applies here, and the answer may differ. **If the answer is no, the hero needs a different owned
-photograph — not stock.** Several candidates exist in `/public/photos/source/`
-(e.g. `day07_shirakawago.jpg`, `day06_kenrokuen.jpg`), though none has people in it, which costs
-the fold its warmth.
+**Q7 — Is `hero_couple_fuji.png` acceptable as the public front-door image? DECIDED: yes.**
+Ships as the permanent hero photo. Already public on `/japan` and `/welcome`, so this is not a new
+exposure — the owner confirmed the "first thing every visitor sees, forever" bar is acceptable for
+this specific image.
 
 ---
 
