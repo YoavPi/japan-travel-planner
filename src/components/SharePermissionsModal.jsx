@@ -14,10 +14,13 @@ import Icon from "./Icon";
        get an inline role dropdown צופה/עורך + הסר)
      • "גישה כללית" link row with a copy button
 
-   Persists the collaborator list through tripService.updateSharing
-   (writes even on read-only example trips — sharing metadata is not
-   itinerary content). Works for any trip id, so the same component
-   serves the dashboard card menu AND the ActiveTripBar long-press.
+   Sprint 66 — the list is read/written through tripService.listShares
+   / addShare / updateShareRole / removeShare, which persist to the
+   per-recipient `trip_shares` table. A recipient can only ever read
+   their OWN row, so opening this sheet (or the raw map payload) never
+   exposes one collaborator's email to another. Works for any trip id,
+   so the same component serves the dashboard card menu AND the
+   ActiveTripBar long-press.
 
    Props:
      tripId    — the trip to manage
@@ -49,11 +52,15 @@ const SharePermissionsModal = ({ tripId, onClose, onChanged }) => {
   const [copied, setCopied] = useState(false);
   const [err, setErr] = useState("");
 
-  /* Load the trip + lock body scroll while open. */
+  /* Load the trip meta + the (owner-only) share list, then lock body
+     scroll while open. */
   useEffect(() => {
     let live = true;
-    tripService.fetchTripById(tripId)
-      .then((t) => { if (live) { setTrip(t); setCollabs(Array.isArray(t.collaborators) ? t.collaborators : []); } })
+    Promise.all([
+      tripService.fetchTripById(tripId),
+      tripService.listShares(tripId).catch(() => []),
+    ])
+      .then(([t, shares]) => { if (live) { setTrip(t); setCollabs(Array.isArray(shares) ? shares : []); } })
       .catch(() => { if (live) setErr("טעינת המסלול נכשלה."); });
     return () => { live = false; };
   }, [tripId]);
@@ -72,14 +79,15 @@ const SharePermissionsModal = ({ tripId, onClose, onChanged }) => {
       : `${window.location.origin}/map/edit/${trip.id}`;
   }, [trip]);
 
-  /* Optimistic write-through to the store. */
-  const persist = async (next) => {
+  /* Optimistic list mutation with a single-op persist + revert. */
+  const run = async (next, op) => {
     const prev = collabs;
     setCollabs(next);
+    setErr("");
     setBusy(true);
     try {
-      const updated = await tripService.updateSharing(tripId, next);
-      onChanged && onChanged(updated);
+      await op();
+      onChanged && onChanged({ id: tripId, sharedCount: next.length });
     } catch {
       setCollabs(prev); // revert on failure
       setErr("שמירת ההרשאות נכשלה.");
@@ -95,16 +103,34 @@ const SharePermissionsModal = ({ tripId, onClose, onChanged }) => {
     if (collabs.some((c) => (c.email || "").toLowerCase() === e) || (owner?.email || "").toLowerCase() === e) {
       setErr("לאדם הזה כבר יש גישה."); return;
     }
-    const person = { id: `u_${e.replace(/[^a-z0-9]/g, "").slice(0, 10)}_${Date.now().toString(36)}`, name: e.split("@")[0], email: e, role, avatar: null };
+    /* Optimistic row — the real id from addShare replaces it on success. */
+    const temp = { id: `tmp_${Date.now().toString(36)}`, name: e.split("@")[0], email: e, role, avatar: null };
     setEmail("");
-    persist([...collabs, person]);
-    /* Analytics — growth loop: a collaborator was invited, sliced by role. */
-    track("trip_shared", { via: "invite", role });
+    (async () => {
+      const prev = collabs;
+      setCollabs([...collabs, temp]);
+      setBusy(true);
+      try {
+        const rec = await tripService.addShare(tripId, e, role);
+        setCollabs((cur) => cur.map((c) => (c.id === temp.id && rec ? rec : c)));
+        onChanged && onChanged({ id: tripId, sharedCount: prev.length + 1 });
+        /* Analytics — growth loop: a collaborator was invited, sliced by role. */
+        track("trip_shared", { via: "invite", role });
+      } catch {
+        setCollabs(prev);
+        setErr("שמירת ההרשאות נכשלה.");
+      } finally {
+        setBusy(false);
+      }
+    })();
   };
 
   const changeRole = (id, value) => {
-    if (value === "remove") { persist(collabs.filter((c) => c.id !== id)); return; }
-    persist(collabs.map((c) => (c.id === id ? { ...c, role: value } : c)));
+    if (value === "remove") {
+      run(collabs.filter((c) => c.id !== id), () => tripService.removeShare(tripId, id));
+      return;
+    }
+    run(collabs.map((c) => (c.id === id ? { ...c, role: value } : c)), () => tripService.updateShareRole(tripId, id, value));
   };
 
   const copyLink = async () => {

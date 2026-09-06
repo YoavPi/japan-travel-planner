@@ -48,7 +48,9 @@ export const rowToTrip = (r) => r && ({
   role: "owner",
   readOnly: !!r.read_only,
   owner: { id: r.owner_id, name: r.owner_name || "" },
-  collaborators: r.collaborators || [],
+  /* Sprint 66 — the share list lives in `trip_shares` (per-recipient
+     RLS), NOT on the trips row, so a recipient can never read another
+     recipient's email. Owners load it via tripService.listShares(). */
   tripMemo: r.trip_memo || undefined,
   lastEdited: r.last_edited || r.created_at,
   center: r.settings?.center || null,
@@ -72,7 +74,8 @@ const tripPatchToRow = (patch = {}) => {
   if ("days" in patch) row.days = patch.days;
   if ("meta" in patch) row.meta = patch.meta;
   if ("readOnly" in patch) row.read_only = patch.readOnly;
-  if ("collaborators" in patch) row.collaborators = patch.collaborators;
+  /* `collaborators` intentionally NOT mapped — deprecated column (Sprint 66).
+     Sharing goes through tripService.addShare / removeShare / updateShareRole. */
   if ("tripMemo" in patch) row.trip_memo = patch.tripMemo ?? null;
   if ("settings" in patch) row.settings = patch.settings;
   if ("data" in patch) row.data = patch.data;
@@ -328,34 +331,31 @@ export const tripService = {
          mine. "המפות שלי" = maps I created; a map others shared with me lives
          under "שותפו איתי". */
       const email = (sbUser.email || "").toLowerCase();
-      /* Trip ids where I am a table-collaborator (the other genuine sharing
-         source besides the JSONB `collaborators`). Used to tell a REAL share
-         apart from a merely-PUBLIC trip: the unscoped read also returns every
-         is_public=true trip (the gallery's public-read RLS), and those must NOT
-         land in "שותפו איתי" just because I have an account. */
-      let collabIds = new Set();
+      /* Sprint 66 — genuine "shared with me" is decided by `trip_shares`, the
+         per-recipient share table. ONE round trip: RLS returns only my own
+         rows (recipient-select), so `.eq` on my email is enough. This also
+         tells a REAL share apart from a merely-PUBLIC trip — the unscoped
+         read above returns every is_public=true row (gallery public-read RLS),
+         and those must NOT land in "שותפו איתי" just because I have an account. */
+      const myShareRole = {};
       try {
-        const { data: tc } = await supabase.from("trip_collaborators").select("trip_id").eq("user_id", sbUser.id);
-        collabIds = new Set((tc || []).map((r) => r.trip_id));
-      } catch { /* table may not exist in some envs — JSONB check still applies */ }
+        const { data: shares } = await supabase
+          .from("trip_shares").select("trip_id, access_level")
+          .eq("shared_with_email", email);
+        (shares || []).forEach((s) => { myShareRole[s.trip_id] = s.access_level === "edit" ? "edit" : "view"; });
+      } catch { /* table missing in some envs — shared list just stays empty */ }
       return (data || []).map((row) => {
         const trip = rowToTrip(row);
         if (!trip) return null;
         const { data: _d, ...rest } = trip;
         const mine = row.owner_id ? row.owner_id === sbUser.id : (!rest.owner?.id || rest.owner.id === sbUser.id);
         if (mine) return { ...rest, role: "owner", shared: false };
-        /* Genuine share = I'm in the collaborators JSONB (by email) OR the
-           trip_collaborators table. If neither, this row is only visible because
-           it's PUBLIC — exclude it from the dashboard's shared list. */
-        const jsonbCollab = Array.isArray(row.collaborators)
-          ? row.collaborators.find((c) => (c.email || "").toLowerCase() === email)
-          : null;
-        if (!jsonbCollab && !collabIds.has(row.id)) return null;
-        /* SHARED trip — resolve the REAL per-user role from the collaborators
-           JSONB by email (same logic as fetchTripById). Previously every shared
-           trip was hardcoded role:"edit", so a VIEW collaborator saw an "עריכה"
-           button and edit affordances they didn't actually have. */
-        const canEdit = jsonbCollab?.role === "edit";
+        /* Not mine — a genuine share only if an explicit trip_shares row is
+           addressed to my email. Otherwise this row is visible purely because
+           it's PUBLIC → keep it out of the dashboard's shared list. */
+        const shareRole = myShareRole[row.id];
+        if (!shareRole) return null;
+        const canEdit = shareRole === "edit";
         return {
           ...rest,
           role: canEdit ? "edit" : "view",
@@ -376,32 +376,39 @@ export const tripService = {
   async fetchTripById(tripId) {
     const sbUser = await getSupabaseUser();
     if (sbUser) {
-      /* Sprint 64 — SINGLE RLS-GOVERNED READ. Owner AND collaborator access are
-         both decided by the "Collaborators can view shared trip details" policy
-         (see supabase_migration_fix_shared_trip_load.sql), so we no longer scope
-         the read to owner_id (that scoping blocked non-owners from opening a
-         shared trip → "לא ניתן לטעון את הטיול"). The row comes back iff the
-         viewer is the owner, the trip's owner is null (legacy), or the viewer is
-         a collaborator (trip_collaborators table OR the collaborators JSONB). */
+      /* Sprint 64/66 — SINGLE RLS-GOVERNED READ. Owner AND recipient access are
+         both decided by RLS ("Owners can always read own trips" OR the
+         "trips: shared read" policy, which consults `trip_shares` through a
+         SECURITY DEFINER fn — see supabase_migration_shares_private.sql), so we
+         don't scope the read to owner_id (that blocked non-owners from opening
+         a shared trip → "לא ניתן לטעון את הטיול"). The row comes back iff the
+         viewer is the owner, the owner is null (legacy), the viewer has a
+         `trip_shares` row, the trip is public, or the viewer is a global admin. */
       const { data, error } = await supabase
         .from("trips").select("*").eq("id", tripId).maybeSingle();
       if (error) throw new Error(error.message);
       if (data) {
         const trip = rowToTrip(data);
         /* Role resolution — no strict client-side gate; RLS already authorized
-           the read. Owners edit fully; 'edit' collaborators get a WRITABLE
+           the read. Owners edit fully; 'edit' recipients get a WRITABLE
            editor; everyone else renders read-only. */
         if (data.owner_id && data.owner_id === sbUser.id) {
           trip.role = "owner";
           return trip;
         }
         const email = (sbUser.email || "").toLowerCase();
-        const collab = Array.isArray(data.collaborators)
-          ? data.collaborators.find((c) => (c.email || "").toLowerCase() === email)
-          : null;
-        if (collab) {
+        /* Sprint 66 — per-recipient role from `trip_shares` (RLS returns only
+           my own row here). Replaces the old scan of the trips-row JSONB. */
+        let shareRow = null;
+        try {
+          const { data: sr } = await supabase
+            .from("trip_shares").select("access_level")
+            .eq("trip_id", tripId).eq("shared_with_email", email).maybeSingle();
+          shareRow = sr || null;
+        } catch { /* table missing in some envs — fall through to public/read-only */ }
+        if (shareRow) {
           /* A real person-to-person share (view/edit). */
-          const canEdit = collab.role === "edit";
+          const canEdit = shareRow.access_level === "edit";
           trip.role = canEdit ? "edit" : "view";
           trip.readOnly = !canEdit;
           trip.shared = true;
@@ -473,34 +480,110 @@ export const tripService = {
     return this.saveTrip(tripId, { cover });
   },
 
-  /* Update a trip's sharing/permissions (collaborator list).
-     Sharing metadata is NOT itinerary content, so this is allowed
-     even on read-only example trips — only the day payload is
-     locked by `readOnly`. Returns the updated summary. */
-  async updateSharing(tripId, collaborators) {
-    const clean = Array.isArray(collaborators) ? collaborators : [];
+  /* ── Sharing (Sprint 66) ─────────────────────────────────────
+     The collaborator list lives in `trip_shares`, NOT on the trips
+     row — per-recipient RLS means a recipient can only ever read the
+     ONE row addressed to their own email, so nobody a map is shared
+     with can see the other recipients' addresses. The owner (via
+     trips.owner_id) and a global admin see every row for the trip.
+     Sharing metadata is not itinerary content, so these are allowed
+     even on read-only example trips. ───────────────────────────── */
+
+  /* Owner/admin: everyone this trip is shared with. */
+  async listShares(tripId) {
     const sbUser = await getSupabaseUser();
     if (sbUser) {
       const { data, error } = await supabase
-        .from("trips").update({ collaborators: clean })
-        .eq("id", tripId).eq("owner_id", sbUser.id).select().maybeSingle();
+        .from("trip_shares")
+        .select("id, shared_with_email, access_level, display_name, created_at")
+        .eq("trip_id", tripId)
+        .order("created_at", { ascending: true });
       if (error) throw new Error(error.message);
-      if (!data) throw new Error(`Trip not found: ${tripId}`);
-      const { data: _d, ...summary } = rowToTrip(data);
-      return summary;
+      return (data || []).map((r) => ({
+        id: r.id,
+        email: r.shared_with_email,
+        name: r.display_name || (r.shared_with_email || "").split("@")[0],
+        role: r.access_level === "edit" ? "edit" : "view",
+      }));
     }
-    await delay(200);
+    await delay(120);
+    const trip = readStore().find((t) => t.id === tripId);
+    return Array.isArray(trip?.collaborators) ? trip.collaborators : [];
+  },
+
+  /* Owner: add — or re-role — a person by email. Idempotent on
+     (trip, email). Returns the normalised share record. */
+  async addShare(tripId, email, role = "view") {
+    const e = (email || "").trim().toLowerCase();
+    const lvl = role === "edit" ? "edit" : "view";
+    if (!e) throw new Error("email-required");
+    const sbUser = await getSupabaseUser();
+    if (sbUser) {
+      const { data, error } = await supabase
+        .from("trip_shares")
+        .upsert(
+          { trip_id: tripId, shared_with_email: e, access_level: lvl, display_name: e.split("@")[0] },
+          { onConflict: "trip_id,shared_with_email" },
+        )
+        .select("id, shared_with_email, access_level, display_name")
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      return data && {
+        id: data.id,
+        email: data.shared_with_email,
+        name: data.display_name || data.shared_with_email.split("@")[0],
+        role: data.access_level === "edit" ? "edit" : "view",
+      };
+    }
+    await delay(120);
     const trips = readStore();
     const idx = trips.findIndex((t) => t.id === tripId);
     if (idx === -1) throw new Error(`Trip not found: ${tripId}`);
-    trips[idx] = { ...trips[idx], collaborators: clean };
+    const list = Array.isArray(trips[idx].collaborators) ? trips[idx].collaborators : [];
+    const rec = { id: `u_${e.replace(/[^a-z0-9]/g, "").slice(0, 10)}_${Date.now().toString(36)}`, name: e.split("@")[0], email: e, role: lvl, avatar: null };
+    trips[idx] = { ...trips[idx], collaborators: [...list.filter((c) => (c.email || "").toLowerCase() !== e), rec] };
     writeStore(trips);
-    return toSummary(trips[idx]);
+    return rec;
+  },
+
+  /* Owner: change a share's access level. */
+  async updateShareRole(tripId, shareId, role) {
+    const lvl = role === "edit" ? "edit" : "view";
+    const sbUser = await getSupabaseUser();
+    if (sbUser) {
+      const { error } = await supabase.from("trip_shares").update({ access_level: lvl }).eq("id", shareId);
+      if (error) throw new Error(error.message);
+      return;
+    }
+    await delay(120);
+    const trips = readStore();
+    const idx = trips.findIndex((t) => t.id === tripId);
+    if (idx === -1) return;
+    const list = Array.isArray(trips[idx].collaborators) ? trips[idx].collaborators : [];
+    trips[idx] = { ...trips[idx], collaborators: list.map((c) => (c.id === shareId ? { ...c, role: lvl } : c)) };
+    writeStore(trips);
+  },
+
+  /* Owner: revoke a share. */
+  async removeShare(tripId, shareId) {
+    const sbUser = await getSupabaseUser();
+    if (sbUser) {
+      const { error } = await supabase.from("trip_shares").delete().eq("id", shareId);
+      if (error) throw new Error(error.message);
+      return;
+    }
+    await delay(120);
+    const trips = readStore();
+    const idx = trips.findIndex((t) => t.id === tripId);
+    if (idx === -1) return;
+    const list = Array.isArray(trips[idx].collaborators) ? trips[idx].collaborators : [];
+    trips[idx] = { ...trips[idx], collaborators: list.filter((c) => c.id !== shareId) };
+    writeStore(trips);
   },
 
   /* Sprint 19.3 — persist a per-trip logistical sticky memo. A memo is
      dashboard metadata (a personal reminder), NOT itinerary content, so
-     like `updateSharing` it is permitted even on read-only example trips.
+     like the sharing methods it is permitted even on read-only example trips.
      Returns the updated summary. */
   async saveTripMemo(tripId, memo) {
     const clean = (memo || "").trim();

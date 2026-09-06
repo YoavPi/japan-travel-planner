@@ -86,9 +86,14 @@ check(
   "Trip reads/writes should be scoped to the signed-in user."
 );
 check(
-  "SHARING: fetchAllTrips excludes non-collaborator public trips",
-  /!jsonbCollab\s*&&\s*!collabIds\.has\([^)]*\)\)\s*return null/.test(trip),
-  "fetchAllTrips does an unscoped read that RLS's public-read (is_public=true) allows for the gallery. A non-owned row must be dropped unless the user is a real collaborator (collaborators JSONB by email OR trip_collaborators), or every user sees every PUBLIC trip in 'שותפו איתי'."
+  "SHARING: fetchAllTrips excludes non-recipient public trips",
+  /const shareRole = myShareRole\[row\.id\];\s*\n\s*if \(!shareRole\) return null;/.test(trip),
+  "fetchAllTrips does an unscoped read that RLS's public-read (is_public=true) allows for the gallery. A non-owned row must be dropped unless an explicit trip_shares row is addressed to the user's email, or every user sees every PUBLIC trip in 'שותפו איתי'."
+);
+check(
+  "SHARING: the collaborator list is never surfaced on the trips row",
+  !/collaborators:\s*r\.collaborators/.test(trip) && !/row\.collaborators\s*=\s*patch\.collaborators/.test(trip),
+  "rowToTrip / tripPatchToRow must NOT read or write trips.collaborators (Sprint 66 — the share list moved to the per-recipient trip_shares table so a recipient can't read another recipient's email)."
 );
 
 /* ── ADMIN — the overview endpoint must gate on admin BEFORE any
