@@ -2781,11 +2781,9 @@ const EditorView = () => {
     const di = days.findIndex((d) => d.day === n);
     if (di >= 0) { try { dayChipRefs.current[di]?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" }); } catch { /* noop */ } }
     /* The map flies to the day's first coordinate (driven by the activeDay
-       change); the schedule sheet MINIMIZES to peek so the map + the day's
-       route own the screen. The user pulls the sheet up when they want the
-       full itinerary — selecting a day is a "show me this day on the map"
-       gesture, not a "read the list" one. */
-    sheetRef.current?.snapTo?.("peek");
+       change). The sheet KEEPS its current snap: tap a day with the sheet
+       open and it stays open (browse days against the list); tap it collapsed
+       and it stays collapsed (browse days against the map). */
     /* Sprint 62 #1 — synchronize the schedule scroll position with the map: jump
        the timeline back to the TOP (first stop row) of the newly selected day. */
     returnStopIdx.current = -1;
@@ -3314,7 +3312,11 @@ const EditorView = () => {
 
       {/* Ambient status row (badge / field-ops), below the top row. */}
       <header className="tp-ed-header" style={{
-        position: "absolute", top: 72, insetInlineStart: 0, insetInlineEnd: 0, zIndex: 40,
+        /* A focus mode (continuous / reorder) drops the search row by 40px
+           (see the top row's `top` above). This row must follow, or the
+           pushed-down search bar covers the files/budget chips. */
+        position: "absolute", top: focusActive ? 116 : 72, insetInlineStart: 0, insetInlineEnd: 0, zIndex: 40,
+        transition: "top 0.24s cubic-bezier(0.22,1,0.36,1)",
         boxSizing: "border-box", maxWidth: "100vw",
         display: "flex", alignItems: "center", gap: 8, padding: "12px 16px",
       }}>
