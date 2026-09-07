@@ -36,6 +36,10 @@
   color: var(--m-ink);
   font-family: var(--m-sans);
   line-height: 1.65;
+  /* The global BottomDock is position:fixed over this route (~62px tall,
+     floating 16-18px off the edge). Without this reserve the footer sits
+     underneath it. The previous LandingView carried the same allowance. */
+  padding-block-end: calc(112px + env(safe-area-inset-bottom, 0px));
 }
 .lp *,
 .lp *::before,
@@ -273,31 +277,6 @@
 }
 .demo-out:hover { text-decoration: underline; }
 
-/* ══ FOLD 2 — paper ══ */
-.f2 { background: var(--m-paper); padding-block: clamp(56px, 7vw, 92px); }
-.f2-lede { margin: 14px 0 0; font-size: clamp(16.5px, 4.2vw, 20px); line-height: 1.62; color: var(--m-ink-2); max-width: 50ch; }
-.f2-grid { display: grid; gap: 30px; margin-block-start: 30px; align-items: center; }
-@media (min-width: 1024px) { .f2-grid { grid-template-columns: 44fr 56fr; } }
-.f2-shot { background: #fff; border: 1px solid var(--m-line); border-radius: 20px; overflow: hidden; box-shadow: 0 26px 60px rgba(28, 35, 51, 0.16); }
-.f2-shot-bar { display: flex; align-items: center; gap: 7px; padding: 11px 14px; background: #F6F6F4; border-block-end: 1px solid var(--m-line); }
-.f2-shot-bar i { width: 8px; height: 8px; border-radius: 50%; background: #CFC5B2; }
-.f2-row { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-block-end: 1px solid rgba(20, 20, 20, 0.05); }
-.f2-n { width: 26px; height: 26px; flex-shrink: 0; border-radius: 8px; background: #1E1E24; color: #fff; display: grid; place-items: center; font: 800 12px 'Inter', sans-serif; }
-.f2-t b { font-size: 14px; font-weight: 700; color: #0D0F11; }
-.f2-t em { font-style: normal; display: block; font-size: 11.5px; color: #6B7178; margin-block-start: 2px; }
-.f2-h { margin-inline-start: auto; font: 700 11.5px 'Inter', sans-serif; color: #6B7178; }
-.f2-cap { margin: 0; padding: 12px 14px; font-size: 13px; font-weight: 600; color: var(--m-ink-3); text-align: center; }
-.f2-claims { margin: 0; padding: 0; list-style: none; display: grid; gap: 16px; }
-.f2-claims li {
-  position: relative; padding-inline-start: 24px;
-  font-size: 16.5px; font-weight: 700; color: var(--m-ink); line-height: 1.45;
-}
-.f2-claims li::before {
-  content: ""; position: absolute; inset-inline-start: 0; inset-block-start: 7px;
-  width: 11px; height: 11px; border-radius: 50%;
-  border: 2.5px solid var(--m-accent);
-}
-
 /* ══ FOLD 3 — the vermillion drench ══ */
 /* Hierarchy here comes from WEIGHT AND SIZE ONLY, never opacity:
    a tinted cream (#F7D9CF) on #C0392B measures 4.09:1 and fails.
@@ -354,4 +333,113 @@
 @media (prefers-reduced-motion: reduce) {
   .lp *, .lp *::before, .lp *::after { animation: none !important; transition: none !important; }
   .tp-seam-path { stroke-dashoffset: 0; }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   FOLD 1 — "what is this actually for". Paper ground.
+
+   The `.ui` blocks below are the product's own interface rendered
+   inline. They deliberately use the APP surface tokens from
+   src/utils/theme.js — #FFFFFF panel, #0D0F11 ink, #6B7178 ink3,
+   #E0533F accent — and NOT the marketing palette, because they are
+   depicting the app. Mixing the two is what makes an in-page product
+   shot read as an illustration instead of a screenshot.
+   ══════════════════════════════════════════════════════════════ */
+.fw { background: var(--m-paper); padding-block: clamp(56px, 7vw, 96px); }
+.fw-lede {
+  margin: 16px 0 0; max-width: 54ch;
+  font-size: clamp(16.5px, 4.2vw, 20px); line-height: 1.62; color: var(--m-ink-2);
+}
+.fw-stages { list-style: none; margin: 0; padding: 0; display: grid; gap: clamp(38px, 5vw, 64px); margin-block-start: clamp(36px, 4vw, 56px); }
+.fw-stage { display: grid; gap: 22px; align-items: center; }
+@media (min-width: 900px) {
+  .fw-stage { grid-template-columns: 43fr 57fr; gap: clamp(28px, 4vw, 56px); }
+  /* Alternate which side the product shot sits on so the three stages
+     read as a rhythm rather than a stack of identical rows. */
+  .fw-stage:nth-child(even) .fw-txt { order: 2; }
+}
+.fw-num {
+  display: inline-grid; place-items: center;
+  width: 34px; height: 34px; border-radius: 50%;
+  background: var(--m-vermillion); color: #fff;
+  font: 800 16px 'Inter', sans-serif; font-variant-numeric: tabular-nums;
+  margin-block-end: 14px;
+}
+.fw-txt h3 {
+  margin: 0; font-family: var(--m-serif); font-weight: 700;
+  font-size: clamp(21px, 3vw, 30px); letter-spacing: -0.01em; line-height: 1.2;
+  color: var(--m-ink);
+}
+.fw-txt p { margin: 12px 0 0; font-size: 16.5px; line-height: 1.65; color: var(--m-ink-2); max-width: 46ch; }
+.fw-claims { margin: 18px 0 0; padding: 0; list-style: none; display: grid; gap: 11px; }
+.fw-claims li {
+  position: relative; padding-inline-start: 22px;
+  font-size: 15.5px; font-weight: 700; color: var(--m-ink); line-height: 1.45;
+}
+.fw-claims li::before {
+  content: ""; position: absolute; inset-inline-start: 0; inset-block-start: 6px;
+  width: 10px; height: 10px; border-radius: 50%; border: 2.5px solid var(--m-accent);
+}
+.fw-vis { display: grid; gap: 14px; }
+@media (min-width: 560px) { .fw-vis-pair { grid-template-columns: 1fr 1fr; align-items: start; } }
+
+/* ── the product's own UI, app tokens ── */
+.ui {
+  background: #FFFFFF; border: 1px solid rgba(20, 20, 20, 0.08); border-radius: 16px;
+  overflow: hidden; box-shadow: 0 18px 44px rgba(63, 54, 38, 0.13);
+  font-family: var(--m-sans);
+}
+.ui-bar {
+  display: flex; align-items: center; gap: 7px; padding: 11px 14px;
+  background: #F6F6F4; border-block-end: 1px solid rgba(20, 20, 20, 0.08);
+  font-size: 12px; font-weight: 700; color: #6B7178;
+}
+.ui-bar i { width: 8px; height: 8px; border-radius: 50%; background: #CFC5B2; flex-shrink: 0; }
+.ui-bar span { margin-inline-start: 6px; }
+.ui-bar-t { font-size: 13px; font-weight: 800; color: #0D0F11; }
+.ui-bar-t span { margin-inline-start: 0; }
+.ui-badge, .ui-mini {
+  margin-inline-start: auto; border-radius: 999px; padding: 2px 9px;
+  font: 800 11.5px 'Inter', sans-serif; font-variant-numeric: tabular-nums;
+}
+.ui-badge { background: #E0533F; color: #fff; }
+.ui-mini { background: #F6F6F4; color: #2A3036; }
+.ui-bar-live { background: #0D0F11; color: #F5F6F7; font-weight: 800; font-size: 12.5px; }
+.ui-dot { width: 8px; height: 8px; border-radius: 50%; background: #1FB36B; flex-shrink: 0; }
+
+.ui-row {
+  display: flex; align-items: center; gap: 10px; padding: 11px 14px;
+  border-block-end: 1px solid rgba(20, 20, 20, 0.05);
+}
+.ui-row:last-child { border-block-end: none; }
+.ui-n {
+  width: 26px; height: 26px; flex-shrink: 0; border-radius: 8px;
+  background: #1E1E24; color: #fff; display: grid; place-items: center;
+  font: 800 12px 'Inter', sans-serif;
+}
+.ui-t { flex: 1; min-width: 0; }
+.ui-t b { display: block; font-size: 14px; font-weight: 700; color: #0D0F11; line-height: 1.3; }
+.ui-t em { display: block; font-style: normal; font-size: 11.5px; color: #6B7178; margin-block-start: 2px; }
+.ui-h { font: 700 11.5px 'Inter', sans-serif; color: #6B7178; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.ui-file {
+  flex-shrink: 0; min-width: 38px; padding: 4px 7px; border-radius: 7px;
+  background: #FDECE9; color: #B83A2B; text-align: center;
+  font: 800 10px 'Inter', sans-serif; letter-spacing: 0.02em;
+}
+/* #2B7B71 measured 4.26:1 on #E4EFE5 and fails AA for a 10px label. */
+.ui-file-img { background: #E4EFE5; color: #256E64; }
+.ui-meter { height: 7px; margin: 12px 14px 4px; border-radius: 999px; background: #EFEFEC; overflow: hidden; }
+.ui-meter span { display: block; block-size: 100%; background: #E0533F; border-radius: 999px; }
+.ui-amt { flex-shrink: 0; font: 700 12px 'Inter', sans-serif; color: #2A3036; font-variant-numeric: tabular-nums; }
+.ui-amt.is-full { color: #B83A2B; }
+.ui-row.is-done .ui-t b { color: #6B7178; }
+.ui-check {
+  width: 22px; height: 22px; flex-shrink: 0; border-radius: 50%;
+  background: #1FB36B; color: #fff; display: grid; place-items: center; font-size: 12px; font-weight: 800;
+}
+.ui-ring { width: 22px; height: 22px; flex-shrink: 0; border-radius: 50%; border: 2px solid #A4AAB1; }
+.ui-nav {
+  flex-shrink: 0; border-radius: 999px; padding: 5px 12px;
+  background: #F6F6F4; border: 1px solid rgba(20, 20, 20, 0.08);
+  font: 700 11.5px var(--m-sans); color: #2A3036;
 }

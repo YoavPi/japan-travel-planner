@@ -260,6 +260,141 @@ const LandingView = () => {
 
       <RouteSeam variant={0} />
 
+      {/* ── Fold 1 — What this is actually for. ─────────────────
+          Added because the question people kept asking was not "is it
+          good" but "what is it FOR". The arc is one sentence: plan it,
+          keep everything about it in one place, then actually use it on
+          the trip. Three stages, numbered — and the numbering is
+          load-bearing, because this IS a sequence in time. The old
+          "in the field" fold is absorbed here as stage 3 rather than
+          repeating the same argument twice on one page. */}
+      <section className="fw">
+        <div className="lp-wrap">
+          <h2>מה בעצם עושים עם מסלול?</h2>
+          <p className="fw-lede">
+            בונים את הטיול פעם אחת, שומרים עליו במקום אחד, ואז פותחים אותו בשטח —
+            במקום לחפש הכל מחדש בין צילומי מסך, מיילים והודעות בוואטסאפ.
+          </p>
+
+          <ol className="fw-stages">
+            <li className="fw-stage">
+              <div className="fw-txt">
+                <span className="fw-num" aria-hidden="true">1</span>
+                <h3>מתכננים יום אחר יום</h3>
+                <p>
+                  מחפשים מקום, והוא נכנס ליום שלו בציר הזמן ומופיע מיד על המפה.
+                  גוררים כדי לשנות סדר, והמערכת מחשבת מחדש את זמני המעבר בין העצירות.
+                </p>
+              </div>
+              <div className="fw-vis">
+                <div className="ui">
+                  <div className="ui-bar"><i /><i /><i /><span>יום 1 · טוקיו</span></div>
+                  <div className="ui-row">
+                    <span className="ui-n">1</span>
+                    <span className="ui-t"><b>האראג׳וקו ואומוטסנדו</b><em>רחוב</em></span>
+                    <span className="ui-h">09:20</span>
+                  </div>
+                  <div className="ui-row">
+                    <span className="ui-n">2</span>
+                    <span className="ui-t"><b>AFURI האראג׳וקו</b><em>ראמן · 14 דק׳ הליכה</em></span>
+                    <span className="ui-h">12:00</span>
+                  </div>
+                  <div className="ui-row">
+                    <span className="ui-n">3</span>
+                    <span className="ui-t"><b>מקדש מייג׳י</b><em>מקדש · 11 דק׳ הליכה</em></span>
+                    <span className="ui-h">16:10</span>
+                  </div>
+                </div>
+              </div>
+            </li>
+
+            <li className="fw-stage">
+              <div className="fw-txt">
+                <span className="fw-num" aria-hidden="true">2</span>
+                <h3>הכל על הטיול, במקום אחד</h3>
+                <p>
+                  כרטיסי הטיסה, אישור המלון וה־JR Pass נשמרים על הטיול עצמו ועל
+                  העצירה שאליה הם שייכים — לא בתיקיית הורדות. לצידם יושב התקציב:
+                  כמה תכננתם לכל קטגוריה, כמה באמת שילמתם, ומה נשאר.
+                </p>
+              </div>
+              <div className="fw-vis fw-vis-pair">
+                <div className="ui">
+                  <div className="ui-bar ui-bar-t"><span>קבצי הטיול</span><b className="ui-badge">7</b></div>
+                  <div className="ui-row">
+                    <span className="ui-file">PDF</span>
+                    <span className="ui-t"><b>כרטיסי טיסה</b><em>כללי</em></span>
+                  </div>
+                  <div className="ui-row">
+                    <span className="ui-file">PDF</span>
+                    <span className="ui-t"><b>אישור מלון קיוטו</b><em>יום 18</em></span>
+                  </div>
+                  <div className="ui-row">
+                    <span className="ui-file ui-file-img">IMG</span>
+                    <span className="ui-t"><b>JR Pass</b><em>כללי</em></span>
+                  </div>
+                </div>
+                <div className="ui">
+                  <div className="ui-bar ui-bar-t"><span>ניצול התקציב</span><b className="ui-mini">62%</b></div>
+                  <div className="ui-meter"><span style={{ inlineSize: "62%" }} /></div>
+                  <div className="ui-row">
+                    <span className="ui-t"><b>טיסות</b><em>מתוכנן ₪6,400</em></span>
+                    <span className="ui-amt is-full">בפועל ₪6,400</span>
+                  </div>
+                  <div className="ui-row">
+                    <span className="ui-t"><b>לינה</b><em>מתוכנן ₪4,200</em></span>
+                    <span className="ui-amt">בפועל ₪3,850</span>
+                  </div>
+                  <div className="ui-row">
+                    <span className="ui-t"><b>אוכל</b><em>מתוכנן ₪2,100</em></span>
+                    <span className="ui-amt">בפועל ₪1,240</span>
+                  </div>
+                </div>
+              </div>
+            </li>
+
+            <li className="fw-stage">
+              <div className="fw-txt">
+                <span className="fw-num" aria-hidden="true">3</span>
+                <h3>ואז יוצאים לדרך</h3>
+                <p>
+                  התכנון נגמר בבית, המסלול ממשיך איתכם. בשטח פותחים את היום הנוכחי,
+                  מסמנים מה כבר ביקרתם, ופותחים ניווט לעצירה הבאה בלחיצה אחת.
+                  אותו מסלול בדיוק, בלי לחפש מחדש.
+                </p>
+                <ul className="fw-claims">
+                  <li>כפתור אחד פותח את המקום ב־Google Maps.</li>
+                  <li>זמני הליכה ותחבורה בין עצירות, מחושבים אוטומטית.</li>
+                  <li>הערות, תמונות וקבצים יושבים על העצירה עצמה.</li>
+                </ul>
+              </div>
+              <div className="fw-vis">
+                <div className="ui">
+                  <div className="ui-bar ui-bar-live"><span className="ui-dot" aria-hidden="true" />טיול פעיל · יום 18, קיוטו</div>
+                  <div className="ui-row is-done">
+                    <span className="ui-check" aria-hidden="true">✓</span>
+                    <span className="ui-t"><b>פושימי אינארי טאישה</b><em>ביקרנו · 07:40</em></span>
+                  </div>
+                  <div className="ui-row">
+                    <span className="ui-ring" aria-hidden="true" />
+                    <span className="ui-t"><b>שוק נישיקי</b><em>אוכל · 22 דק׳ ברכבת</em></span>
+                    <span className="ui-nav">ניווט</span>
+                  </div>
+                  <div className="ui-row">
+                    <span className="ui-ring" aria-hidden="true" />
+                    <span className="ui-t"><b>קיומיזו־דרה</b><em>מקדש · 9 דק׳ הליכה</em></span>
+                    <span className="ui-nav">ניווט</span>
+                  </div>
+                </div>
+              </div>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <RouteSeam variant={1} />
+
+
       {/* ── Fold 1 — Show the thing working. ───────────────────── */}
       <section className="f1" ref={demoRef}>
         <div className="lp-wrap">
@@ -271,43 +406,8 @@ const LandingView = () => {
         </div>
       </section>
 
-      <RouteSeam variant={1} />
-
-      {/* ── Fold 2 — Why it's different. In the field. ─────────── */}
-      <section className="f2">
-        <div className="lp-wrap">
-          <h2>התכנון נגמר בבית. המסלול ממשיך איתכם.</h2>
-          <p className="f2-lede">
-            לכל עצירה יש כפתור אחד ל־Google Maps, זמן הליכה או נסיעה לעצירה הבאה, והערות
-            שכתבתם לעצמכם לפני שיצאתם.
-          </p>
-          <div className="f2-grid">
-            <div className="f2-shot">
-              <div className="f2-shot-bar" aria-hidden="true"><i /><i /><i /></div>
-              {[
-                { n: 1, t: "האראג'וקו ואומוטסנדו", s: "רחוב · 9/10", h: "09:20" },
-                { n: 2, t: "AFURI האראג'וקו", s: "ראמן · 14 דק׳ הליכה", h: "12:00" },
-                { n: 3, t: "Anakuma Cafe", s: "בית קפה · 6 דק׳ הליכה", h: "14:30" },
-                { n: 4, t: "מקדש מייג'י", s: "מקדש · 11 דק׳ הליכה", h: "16:10" },
-              ].map((r) => (
-                <div className="f2-row" key={r.n}>
-                  <span className="f2-n">{r.n}</span>
-                  <span className="f2-t"><b>{r.t}</b><em>{r.s}</em></span>
-                  <span className="f2-h">{r.h}</span>
-                </div>
-              ))}
-              <p className="f2-cap">העורך של מסלול. טוקיו, יום 1.</p>
-            </div>
-            <ul className="f2-claims">
-              <li>כפתור אחד פותח את המקום ב־Google Maps.</li>
-              <li>זמני הליכה ותחבורה בין עצירות, מחושבים אוטומטית.</li>
-              <li>הערות, תמונות וקבצים יושבים על העצירה עצמה.</li>
-            </ul>
-          </div>
-        </div>
-      </section>
-
       <RouteSeam variant={2} />
+
 
       {/* ── Fold 3 — Proof. The vermillion drench. ─────────────── */}
       <section className="f3">
