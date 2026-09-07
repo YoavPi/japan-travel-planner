@@ -106,6 +106,19 @@ const AiTripModal = ({ open, onClose, dark = false }) => {
      same loader as the first generation (not just a tiny text line). */
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState("");
+  /* Set when a generation failed for a reason a RETRY can plausibly fix (model
+     hiccup, network, verification) — as opposed to quota/cooldown/login, which
+     retrying cannot help. Holds the args to replay, so the retry reproduces the
+     exact request (same focus / refine) rather than a fresh one. */
+  const [retryArgs, setRetryArgs] = useState(null);
+  /* Consecutive non-actionable failures. Drives a two-step ladder: the FIRST
+     failure invites a retry ("busy, try again"), the SECOND stops asking and
+     says the feature is unavailable for now. Reset by a success or resetAll. */
+  const [failCount, setFailCount] = useState(0);
+  /* One-shot outcome banner for the retry itself, so a user who pressed
+     "נסו שוב" is told whether it worked — success is otherwise only implied by
+     the screen changing. "ok" | "fail" | null. */
+  const [retryOutcome, setRetryOutcome] = useState(null);
   const [result, setResult] = useState(null);
   const [refineCount, setRefineCount] = useState(0);
   const [refineOpen, setRefineOpen] = useState(false);
@@ -154,7 +167,7 @@ const AiTripModal = ({ open, onClose, dark = false }) => {
      `destTypes` describe the still-selected destination, so leave them intact
      (a close+reopen after a country pick must still route through the focus
      step). `pickDest` sets all three fresh on every new pick. */
-  const resetAll = () => { setPhase("form"); setResult(null); setError(""); setRefineCount(0); setRefineOpen(false); setRefineText(""); setProgress(0); setFocus(null); };
+  const resetAll = () => { setPhase("form"); setResult(null); setError(""); setRetryArgs(null); setFailCount(0); setRetryOutcome(null); setRefineCount(0); setRefineOpen(false); setRefineText(""); setProgress(0); setFocus(null); };
 
   const toggleInterest = (k) => setInterests((p) => (p.includes(k) ? p.filter((x) => x !== k) : [...p, k]));
   const toggleTransport = (k) => setTransport((p) => (p.includes(k) ? p.filter((x) => x !== k) : [...p, k]));
@@ -201,7 +214,10 @@ const AiTripModal = ({ open, onClose, dark = false }) => {
 
   const runGenerate = async ({ refine, focus: focusArg } = {}) => {
     const effectiveFocus = focusArg !== undefined ? focusArg : focus;
-    setBusy(true); setGenerating(true); setError(""); startProgress();
+    // Was this attempt launched from the error banner's retry button? Decides
+    // whether the user gets an explicit success/failure verdict afterwards.
+    const isRetry = failCount > 0;
+    setBusy(true); setGenerating(true); setError(""); setRetryArgs(null); setRetryOutcome(null); startProgress();
     try {
       const res = await generateItinerary({
         destination: destination.trim(), dayCount, pace,
@@ -222,20 +238,37 @@ const AiTripModal = ({ open, onClose, dark = false }) => {
       setProgress(100);
       setResult(res); setPhase("review"); setRefineOpen(false); setRefineText("");
       if (refine) setRefineCount((c) => c + 1);
+      setFailCount(0);
+      if (isRetry) setRetryOutcome("ok"); // the retry worked — say so explicitly
     } catch (e) {
       // A rate-limit / cooldown error carries fresh quota numbers — reflect them.
       if (e && e.quota && Number.isFinite(e.quota.remaining)) {
         setQuota({ limit: e.quota.limit, used: e.quota.used, remaining: e.quota.remaining, resetsAt: e.quota.resetsAt });
       }
       // Only the INTENTIONAL, user-actionable messages (quota / cooldown / login)
-      // are shown verbatim. Any real failure (server/model/verification) shows a
-      // calm generic message — never a raw technical error — and is logged for us.
+      // are shown verbatim — those are written FOR the user and tell them what
+      // to do. Everything else (server / model / network / verification) is a
+      // system error: the raw text NEVER reaches the screen, only our console
+      // and the server-side ai_errors log.
+      //
+      // Two-step ladder, so we neither cry outage on a one-off nor keep asking
+      // someone to retry into a wall:
+      //   1st failure → "busy right now, you can try again"  + retry button
+      //   2nd failure → "unavailable right now, try later"   + no retry button
       const actionable = ["weekly-limit", "cooldown", "auth-required"].includes(e && e.code);
       if (actionable) {
         setError(e.message);
       } else {
         if (typeof console !== "undefined") console.warn("[ai-generate] failure:", (e && (e.message || e.code)) || e);
-        setError("יש כרגע עומס על שירות ה-AI — אנחנו על זה. בינתיים אפשר להמשיך להוסיף ולערוך מקומות ידנית, או לנסות שוב עוד מעט 🙏");
+        const fails = failCount + 1;
+        setFailCount(fails);
+        if (fails >= 2) {
+          setError("בניית מסלולים ב-AI לא זמינה כרגע. נסו שוב מאוחר יותר — בינתיים אפשר להמשיך להוסיף ולערוך מקומות ידנית.");
+          if (isRetry) setRetryOutcome("fail"); // verdict on the retry they asked for
+        } else {
+          setError("יש עומס כרגע — אפשר לנסות שוב.");
+          setRetryArgs({ refine, focus: effectiveFocus });
+        }
       }
     } finally { stopProgress(); setBusy(false); setGenerating(false); }
   };
@@ -256,7 +289,10 @@ const AiTripModal = ({ open, onClose, dark = false }) => {
       onClose && onClose(); setTimeout(resetAll, 200);
       navigate(`/map/edit/${trip.id}`);
     } catch (e) {
-      setError(e?.message || "יצירת המסלול נכשלה. נסו שוב.");
+      // Same rule as generation: a raw tripService/Supabase message is a system
+      // error and never reaches the screen — it goes to our console only.
+      if (typeof console !== "undefined") console.warn("[ai-accept] failure:", (e && (e.message || e.code)) || e);
+      setError("שמירת המסלול לא הצליחה. נסו שוב.");
     } finally { setBusy(false); }
   };
 
@@ -268,6 +304,35 @@ const AiTripModal = ({ open, onClose, dark = false }) => {
   });
   const label = { display: "block", fontSize: 12.5, fontWeight: 800, color: T.ink3, margin: "18px 0 8px" };
   const inputStyle = (filled) => ({ width: "100%", boxSizing: "border-box", height: 48, padding: "0 14px", borderRadius: 14, border: `1.5px solid ${filled ? ACCENT : T.line}`, background: T.page, color: T.ink, fontSize: 15.5, fontFamily: "inherit", direction: "rtl", textAlign: "right", transition: "border-color 0.15s" });
+
+  /* Outcome of an explicit "נסו שוב" — so pressing retry always ends in a
+     stated verdict rather than the user inferring it. The failure verdict lives
+     inside ErrorBox (the message there already says it); this renders the
+     SUCCESS case, which otherwise has no words at all. */
+  const RetryOk = ({ marginTop }) => retryOutcome !== "ok" ? null : (
+    <div role="status" style={{ marginTop, padding: "10px 14px", borderRadius: 12, background: "rgba(31,122,80,0.10)", color: "#1F7A50", fontSize: 13, fontWeight: 700, lineHeight: 1.5 }}>
+      ✓ הפעם זה עבד — הנה המסלול.
+    </div>
+  );
+
+  /* The error banner. On the FIRST failure it carries the retry action itself —
+     the user should never have to re-fill the form to find out a second attempt
+     would have worked. On the second failure the retry is withdrawn: the message
+     says to come back later, so offering the button again would contradict it. */
+  const ErrorBox = ({ marginTop }) => !error ? null : (
+    <div role="alert" style={{ marginTop, padding: "11px 14px", borderRadius: 12, background: "rgba(184,58,43,0.10)", color: "#C0392B", fontSize: 13, fontWeight: 700, lineHeight: 1.5 }}>
+      {/* Verdict on a retry the user explicitly asked for — named as such, so
+          the second attempt closes with an answer instead of a mood. */}
+      {retryOutcome === "fail" && <div style={{ marginBlockEnd: 4 }}>גם הניסיון הנוסף לא הצליח.</div>}
+      {error}
+      {retryArgs && (
+        <button onClick={() => runGenerate(retryArgs)} disabled={busy}
+          style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, marginBlockStart: 10, minHeight: 44, paddingInline: 18, borderRadius: 999, border: "1.5px solid currentColor", background: "transparent", color: "inherit", fontSize: 13.5, fontWeight: 800, fontFamily: "inherit", cursor: busy ? "default" : "pointer" }}>
+          <span aria-hidden>↻</span> נסו שוב
+        </button>
+      )}
+    </div>
+  );
 
   const Stepper = ({ value, set, min = 0, max = 20, aria }) => (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -432,7 +497,7 @@ const AiTripModal = ({ open, onClose, dark = false }) => {
               placeholder="למשל: יום אחד רגוע, הרבה אוכל מקומי, מתאים לילדים…" rows={2} disabled={busy}
               style={{ width: "100%", boxSizing: "border-box", padding: "11px 13px", borderRadius: 14, border: `1.5px solid ${instructions ? ACCENT : T.line}`, background: T.page, color: T.ink, fontSize: 14.5, fontFamily: "inherit", direction: "rtl", textAlign: "right", resize: "vertical", lineHeight: 1.5 }} />
 
-            {error && <div style={{ marginTop: 16, padding: "11px 14px", borderRadius: 12, background: "rgba(184,58,43,0.10)", color: "#C0392B", fontSize: 13, fontWeight: 700, lineHeight: 1.5 }}>{error}</div>}
+            <ErrorBox marginTop={16} />
 
             <button onClick={() => {
               if ((destScope === "country" || destScope === "region") && !focus) { setPhase("focus"); return; }
@@ -551,7 +616,8 @@ const AiTripModal = ({ open, onClose, dark = false }) => {
               </div>
             )}
 
-            {error && <div style={{ marginTop: 14, padding: "11px 14px", borderRadius: 12, background: "rgba(184,58,43,0.10)", color: "#C0392B", fontSize: 13, fontWeight: 700, lineHeight: 1.5 }}>{error}</div>}
+            <RetryOk marginTop={14} />
+            <ErrorBox marginTop={14} />
 
             {!refineOpen && (
               <>

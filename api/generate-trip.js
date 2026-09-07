@@ -20,6 +20,9 @@
                                   LLM_API_KEY (Anthropic) is used instead.
      • GEMINI_MODEL / LLM_MODEL — optional model overrides (defaults:
                                   "gemini-2.0-flash" / "claude-sonnet-5").
+     • GEMINI_THINKING_LEVEL    — optional Gemini 3.x thinking-budget override
+                                  (default "low"; thinking tokens bill as
+                                  output tokens, so keep this bounded).
      • GOOGLE_PLACES_SERVER_KEY — Google key with Places API enabled and NO
                                   HTTP-referrer restriction (required for the
                                   server-side Text Search). Falls back to
@@ -33,6 +36,9 @@ const config = { maxDuration: 60 };
    via LLM_API_KEY. Model overridable with GEMINI_MODEL / LLM_MODEL. */
 const GEMINI_KEY = process.env.GEMINI_API_KEY || "";
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.6-flash";
+/* Gemini 3.x thinking budget. Bounded ("low") keeps latency and cost down and
+   avoids MAX_TOKENS being hit mid-thinking; override via env if ever needed. */
+const GEMINI_THINKING_LEVEL = process.env.GEMINI_THINKING_LEVEL || "low";
 const ANTHROPIC_KEY = process.env.LLM_API_KEY || "";
 const ANTHROPIC_MODEL = process.env.LLM_MODEL || "claude-sonnet-5";
 const HAS_LLM = !!(GEMINI_KEY || ANTHROPIC_KEY);
@@ -54,6 +60,7 @@ const COOLDOWN_MS = Number(process.env.AI_COOLDOWN_MS || 120000); // 2 min betwe
 const CACHE_TTL_MS = Number(process.env.PLACE_CACHE_TTL_MS || 1000 * 60 * 60 * 24 * 183); // ~6 months
 const crypto = require("crypto");
 const { usageFromGemini, generationRow } = require("./_lib/aiUsage");
+const { unwrapDays } = require("./_lib/tripShape");
 
 /* Hard cap: 3–4 real places per day keeps the LLM output small (no truncation)
    AND minimises paid Google Places lookups. relaxed→3, otherwise→4. */
@@ -193,7 +200,11 @@ const recordGeneration = async (userId, token, meta = {}) => {
 
 /* Log a generation FAILURE for our own daily review — the user only ever sees a
    calm generic message, but we keep the real reason. Goes to the Vercel function
-   logs (always) AND, best-effort, an `ai_errors` table (durable). */
+   logs (always) AND, best-effort, an `ai_errors` table (durable).
+   `info.detail`, when present, is the structured diagnostic object attached to
+   the thrown Error by callLLM (finishReason/blockReason/candidateCount/
+   textLength/usage/snippet) — model output and API status fields ONLY, never
+   the user's own free-text (instructions/restrictions). */
 const logError = async (info, token) => {
   try { console.error("[ai-generate] failure", JSON.stringify(info)); } catch { /* noop */ }
   if (!SUPA_URL || !SUPA_ANON) return;
@@ -203,7 +214,12 @@ const logError = async (info, token) => {
       body: {
         user_id: info.userId || null,
         message: String(info.message || "").slice(0, 500),
-        context: { destination: info.destination || null, dayCount: info.dayCount || null, stage: info.stage || null },
+        context: {
+          destination: info.destination || null,
+          dayCount: info.dayCount || null,
+          stage: info.stage || null,
+          ...(info.detail ? { detail: info.detail } : {}),
+        },
       },
       headers: { Prefer: "return=minimal" },
     });
@@ -291,31 +307,73 @@ const salvageJson = (raw) => {
 
 const { buildPrompt } = require("./_lib/prompt");
 
-const callGemini = async (system, user) => {
+/* `thinkingLevel` is a Gemini 3.x generationConfig field. If this deployment's
+   model/endpoint does not accept it, the API answers 400 "Unknown name …" — we
+   remember that and drop the field for the rest of the process, exactly like
+   placesNewDisabled below. Never let a config knob take generation down. */
+let thinkingLevelUnsupported = false;
+
+const geminiRequest = async (system, user, withThinking) => {
   const url =
     "https://generativelanguage.googleapis.com/v1beta/models/" +
     encodeURIComponent(GEMINI_MODEL) + ":generateContent?key=" + GEMINI_KEY;
-  const resp = await fetch(url, {
+  return fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       system_instruction: { parts: [{ text: system }] },
       contents: [{ role: "user", parts: [{ text: user }] }],
-      generationConfig: { temperature: 0.8, maxOutputTokens: 12288, responseMimeType: "application/json" },
+      generationConfig: {
+        temperature: 0.8,
+        maxOutputTokens: 16384,
+        responseMimeType: "application/json",
+        ...(withThinking ? { thinkingLevel: GEMINI_THINKING_LEVEL } : {}),
+      },
     }),
   });
+};
+
+const callGemini = async (system, user) => {
+  let resp = await geminiRequest(system, user, !thinkingLevelUnsupported);
+  if (!resp.ok && resp.status === 400 && !thinkingLevelUnsupported) {
+    const probe = await resp.text().catch(() => "");
+    if (/thinking/i.test(probe)) {
+      // The field is the problem, not the prompt — disable it and retry once.
+      thinkingLevelUnsupported = true;
+      console.warn("[ai-generate] thinkingLevel rejected by the API — continuing without it");
+      resp = await geminiRequest(system, user, false);
+    } else {
+      throw new Error(`Gemini request failed (400): ${probe.slice(0, 300)}`);
+    }
+  }
   if (!resp.ok) {
     const detail = await resp.text().catch(() => "");
     throw new Error(`Gemini request failed (${resp.status}): ${detail.slice(0, 300)}`);
   }
   const data = await resp.json();
-  const cand = data.candidates && data.candidates[0];
-  const parts = cand && cand.content && cand.content.parts;
-  const text = Array.isArray(parts) ? parts.map((p) => p.text || "").join("") : "";
-  /* Truncated output = JSON cut off mid-structure. Report it so callLLM can try
-     to salvage the completed days before giving up. */
+  const candidateCount = Array.isArray(data.candidates) ? data.candidates.length : 0;
+  const cand = candidateCount ? data.candidates[0] : null;
+  const rawParts = (cand && cand.content && cand.content.parts) || [];
+  // Thought parts (thinking summaries) are not text output — drop them before
+  // joining so a future summaries-enabled response can't corrupt extractJson.
+  const parts = Array.isArray(rawParts) ? rawParts.filter((p) => !(p && p.thought === true)) : [];
+  const text = parts.map((p) => p.text || "").join("");
+  const finishReason = (cand && cand.finishReason) || null;
+  const blockReason = (data.promptFeedback && data.promptFeedback.blockReason) || null;
+  /* Truncated output = JSON cut off mid-structure. Report it (plus the other
+     diagnostic fields) so callLLM can try to salvage the completed days, decide
+     whether to retry, and — if it gives up — attach a real reason to the error
+     instead of only a generic Hebrew sentence. */
   const usage = usageFromGemini(data);
-  return { text, truncated: !!cand && cand.finishReason === "MAX_TOKENS", usage };
+  return {
+    text,
+    truncated: finishReason === "MAX_TOKENS",
+    usage,
+    finishReason,
+    blockReason,
+    candidateCount,
+    textLength: text.length,
+  };
 };
 
 const callAnthropic = async (system, user) => {
@@ -333,31 +391,56 @@ const callAnthropic = async (system, user) => {
   return { text, truncated: data.stop_reason === "max_tokens" };
 };
 
+/* finishReason values that indicate a near-zero-output response (blocked or
+   otherwise unusable) rather than a long, expensively-generated one. Cheap to
+   retry — unlike a long truncated (MAX_TOKENS) reply, which is left alone. */
+const BLOCKED_FINISH_REASONS = new Set(["SAFETY", "RECITATION", "OTHER"]);
+
 const callLLM = async (payload) => {
   const { system, user } = buildPrompt(payload);
   // Up to 2 attempts: the model occasionally returns an empty/blocked or
-  // truncated candidate. Each attempt: normal parse → salvage the completed
-  // days → retry. A salvaged plan may have fewer days than asked, which still
-  // beats a hard error.
+  // truncated candidate. Each attempt: normal parse → unwrap known wrong
+  // shapes → salvage the completed days → retry. A salvaged plan may have
+  // fewer days than asked, which still beats a hard error.
   let lastTruncated = false;
   let usage = { prompt: null, output: null, total: null };
+  let lastDetail = null;
   for (let attempt = 0; attempt < 2; attempt++) {
     const call = GEMINI_KEY ? await callGemini(system, user) : await callAnthropic(system, user);
     lastTruncated = call.truncated;
     if (call.usage) usage = call.usage;
-    let parsed = extractJson(call.text);
-    if (!parsed || !Array.isArray(parsed.days) || parsed.days.length === 0) parsed = salvageJson(call.text);
+    // Diagnostic snapshot of THIS attempt — carried on the thrown Error if
+    // every attempt fails, so the failure is debuggable after the fact.
+    // Model output / API status fields only — never the user's own free-text.
+    lastDetail = {
+      finishReason: call.finishReason ?? null,
+      blockReason: call.blockReason ?? null,
+      candidateCount: call.candidateCount ?? null,
+      textLength: call.textLength ?? (call.text || "").length,
+      usage,
+      snippet: (call.text || "").slice(0, 200),
+    };
+    let parsed = unwrapDays(extractJson(call.text));
+    if (!parsed || !Array.isArray(parsed.days) || parsed.days.length === 0) {
+      parsed = unwrapDays(salvageJson(call.text));
+    }
     if (parsed && Array.isArray(parsed.days) && parsed.days.length > 0) {
       parsed.usage = usage;
       return parsed; // { description?, days: [{ dayNumber, city, title?, spots }], usage }
     }
-    // Only retry a cheap, essentially-EMPTY/blocked response (fast). A long
-    // truncated reply that salvaged nothing is expensive to re-run and would
-    // risk the 60s function limit — fail friendly instead of retrying it.
-    if ((call.text || "").length > 400) break;
+    // Retry a cheap, essentially-EMPTY/blocked response — either no candidate
+    // at all, or a candidate cut short by safety/recitation/other filtering.
+    // A long truncated reply that salvaged nothing is expensive to re-run and
+    // would risk the 60s function limit — fail friendly instead of retrying it.
+    const looksBlocked = call.candidateCount === 0 || BLOCKED_FINISH_REASONS.has(call.finishReason);
+    if (!looksBlocked && (call.text || "").length > 400) break;
   }
-  if (lastTruncated) throw new Error("המסלול שביקשתם ארוך מדי לעיבוד בבת אחת. נסו פחות ימים או קצב רגוע יותר.");
-  throw new Error("לא הצלחנו לבנות מסלול הפעם. נסו שוב או שנו מעט את היעד/ההעדפות.");
+  const message = lastTruncated
+    ? "המסלול שביקשתם ארוך מדי לעיבוד בבת אחת. נסו פחות ימים או קצב רגוע יותר."
+    : "לא הצלחנו לבנות מסלול הפעם. נסו שוב או שנו מעט את היעד/ההעדפות.";
+  const err = new Error(message);
+  err.detail = lastDetail;
+  throw err;
 };
 
 /* ── the Places verification step ────────────────────────────────────── */
@@ -580,7 +663,11 @@ async function handler(req, res) {
       },
     });
   } catch (err) {
-    await logError({ userId, destination, dayCount, stage: "generate", message: String(err && err.message || err) }, token);
+    await logError({
+      userId, destination, dayCount, stage: "generate",
+      message: String(err && err.message || err),
+      detail: (err && err.detail) || null,
+    }, token);
     return res.status(502).json({ error: "generation-failed", message: String(err && err.message || err) });
   }
 }
