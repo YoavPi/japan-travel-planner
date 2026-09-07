@@ -32,6 +32,23 @@
   --m-sans: 'Noto Sans Hebrew', 'Inter', system-ui, sans-serif;
   --m-wrap: 1180px;
 
+  /* ── Type scale. One value per ROLE, used everywhere that role
+     appears, so sizes/weights differ by role but never drift within
+     one. `font:` shorthand = weight size/line-height family; set
+     letter-spacing separately on the headings that need it.
+     App-UI mock blocks (.ui-*, .demo-*) are intentionally NOT on this
+     scale — they depict the product's own dense interface. */
+  --t-h1:    800 clamp(38px, 9.5vw, 76px)/1.06 var(--m-serif);
+  --t-h2:    700 clamp(28px, 5.5vw, 48px)/1.14 var(--m-serif);
+  --t-h3:    700 clamp(20px, 2.6vw, 27px)/1.24 var(--m-serif);
+  --t-lede:  400 clamp(16.5px, 4.2vw, 20px)/1.62 var(--m-sans);
+  --t-body:  400 16.5px/1.65 var(--m-sans);
+  --t-claim: 700 16px/1.5 var(--m-sans);
+  --t-link:  700 15px/1.4 var(--m-sans);
+  --t-meta:  600 13px/1.5 var(--m-sans);
+  --t-label: 600 12.5px/1.4 var(--m-sans);
+  --t-chip:  700 14px/1 var(--m-sans);
+
   background: var(--m-paper-2);
   color: var(--m-ink);
   font-family: var(--m-sans);
@@ -67,21 +84,15 @@
    inside one headline (that is the editorial lane this rejects). */
 .lp h1 {
   margin: 0;
-  font-family: var(--m-serif);
-  font-weight: 800;
-  font-size: clamp(38px, 9.5vw, 76px);
+  font: var(--t-h1);
   letter-spacing: -0.015em;
-  line-height: 1.06;
   text-wrap: balance;
   max-inline-size: 14ch;
 }
 .lp h2 {
   margin: 0;
-  font-family: var(--m-serif);
-  font-weight: 700;
-  font-size: clamp(28px, 5.5vw, 48px);
+  font: var(--t-h2);
   letter-spacing: -0.01em;
-  line-height: 1.12;
   text-wrap: balance;
 }
 
@@ -166,11 +177,11 @@
   flex-shrink: 0; min-height: 44px; padding-inline: 17px;
   border: 1px solid var(--m-line); border-radius: 999px;
   background: var(--m-paper); color: var(--m-ink-2);
-  font: 700 14.5px var(--m-sans); cursor: pointer; white-space: nowrap;
+  font: var(--t-chip); cursor: pointer; white-space: nowrap;
 }
 .f0-chips button:hover { border-color: var(--m-accent); color: var(--m-ink); }
-.f0-lede { margin: 18px 0 0; font-size: clamp(16.5px, 4.2vw, 20px); line-height: 1.62; color: var(--m-ink-2); max-width: 44ch; }
-.f0-micro { margin: 10px 0 0; font-size: 13px; font-weight: 600; color: var(--m-ink-3); }
+.f0-lede { margin: 18px 0 0; font: var(--t-lede); color: var(--m-ink-2); max-width: 44ch; }
+.f0-micro { margin: 10px 0 0; font: var(--t-meta); color: var(--m-ink-3); }
 
 @media (min-width: 1024px) {
   .f0 { display: grid; grid-template-columns: 46fr 54fr; align-items: stretch; min-height: 78svh; }
@@ -231,19 +242,19 @@
 .ds-opt.is-active { background: var(--m-paper); }
 .ds-flag { font-size: 17px; flex-shrink: 0; }
 .ds-label { font-weight: 700; }
-.ds-sub { margin-inline-start: auto; font-size: 12.5px; color: var(--m-ink-3); font-weight: 600; }
-.ds-empty { padding: 10px; font-size: 13.5px; line-height: 1.55; color: var(--m-ink-3); }
+.ds-sub { margin-inline-start: auto; font: var(--t-label); color: var(--m-ink-3); }
+.ds-empty { padding: 10px; font: var(--t-meta); color: var(--m-ink-3); }
 
 /* ══ FOLD 1 — warm black ══ */
 .f1 { background: var(--m-black); color: #F5F1E8; padding-block: clamp(56px, 7vw, 92px); }
 .f1 h2 { color: var(--m-cream); }
-.f1-lede { margin: 14px 0 0; font-size: clamp(16.5px, 4.2vw, 20px); line-height: 1.62; color: #C7BFB0; max-width: 52ch; }
+.f1-lede { margin: 14px 0 0; font: var(--t-lede); color: #C7BFB0; max-width: 52ch; }
 .demo-rail { display: flex; gap: 8px; overflow-x: auto; padding-block: 26px 6px; scrollbar-width: none; }
 .demo-rail::-webkit-scrollbar { display: none; }
 .demo-chip {
   flex-shrink: 0; min-height: 44px; padding-inline: 15px; border-radius: 11px;
   border: 1px solid rgba(245, 241, 232, 0.18); background: rgba(245, 241, 232, 0.06);
-  color: #C7BFB0; font: 700 13.5px var(--m-sans); cursor: pointer; white-space: nowrap;
+  color: #C7BFB0; font: var(--t-chip); cursor: pointer; white-space: nowrap;
 }
 .demo-chip.is-on { background: var(--m-cream); color: var(--m-black); border-color: var(--m-cream); }
 .demo-body { display: grid; gap: 16px; margin-block-start: 18px; }
@@ -273,7 +284,7 @@
 .demo-rate { font: 800 13px 'Inter', sans-serif; color: #F0846F; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .demo-out {
   display: inline-flex; align-items: center; gap: 8px; min-height: 44px;
-  color: var(--m-cream); font-weight: 700; font-size: 15px; text-decoration: none;
+  color: var(--m-cream); font: var(--t-link); text-decoration: none;
 }
 .demo-out:hover { text-decoration: underline; }
 
@@ -285,14 +296,13 @@
 .f3-top { display: grid; gap: 34px; }
 @media (min-width: 1024px) { .f3-top { grid-template-columns: 52fr 48fr; align-items: center; } }
 .f3-origin {
-  margin: 0; font-family: var(--m-serif); font-weight: 700;
-  font-size: clamp(24px, 4.4vw, 40px); line-height: 1.24; letter-spacing: -0.01em;
+  margin: 0; font: var(--t-h2); letter-spacing: -0.01em;
   color: var(--m-cream); max-width: 22ch;
 }
-.f3-sig { margin: 16px 0 0; font-size: 15px; font-weight: 700; color: var(--m-cream); }
+.f3-sig { margin: 16px 0 0; font: var(--t-link); color: var(--m-cream); }
 .f3-link {
   display: inline-flex; align-items: center; gap: 7px; min-height: 44px;
-  margin-block-start: 10px; color: var(--m-cream); font-weight: 700; font-size: 15px;
+  margin-block-start: 10px; color: var(--m-cream); font: var(--t-link);
   text-decoration: underline; text-underline-offset: 4px;
 }
 .f3-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 22px 18px; }
@@ -302,15 +312,15 @@
   color: var(--m-cream); font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em; line-height: 1;
 }
-.f3-stat span { display: block; font-size: 13.5px; font-weight: 700; color: var(--m-cream); margin-block-start: 6px; }
+.f3-stat span { display: block; font: var(--t-meta); color: var(--m-cream); margin-block-start: 6px; }
 
 /* ══ FOLD 4 — paper-2, asymmetric, hairlines not cards ══ */
 .f4 { background: var(--m-paper-2); padding-block: clamp(56px, 7vw, 92px); }
 .f4-rows { margin-block-start: 34px; display: grid; }
 .f4-row { border-block-start: 1px solid var(--m-line); padding-block: 24px; }
 .f4-row:last-of-type { border-block-end: 1px solid var(--m-line); }
-.f4-c { display: block; font-size: clamp(18px, 2.4vw, 22px); font-weight: 700; color: var(--m-ink); letter-spacing: -0.005em; line-height: 1.35; }
-.f4-a { display: block; margin-block-start: 8px; font-size: 16px; color: var(--m-ink-2); line-height: 1.6; }
+.f4-c { display: block; font: var(--t-h3); letter-spacing: -0.01em; color: var(--m-ink); }
+.f4-a { display: block; margin-block-start: 8px; font: var(--t-body); color: var(--m-ink-2); }
 .f4-row.is-turn { background: rgba(247, 242, 230, 0.8); }
 @media (min-width: 1024px) {
   .f4-rows { grid-template-columns: repeat(12, 1fr); }
@@ -319,7 +329,7 @@
   .f4-r3 { grid-column: 1 / span 10; }
   .f4-r4 { grid-column: 3 / span 10; padding-inline: 22px; }
 }
-.f4-close { margin: 28px 0 0; font-size: 17px; font-weight: 800; color: var(--m-vermillion); }
+.f4-close { margin: 28px 0 0; font: var(--t-claim); color: var(--m-vermillion); }
 
 /* ══ FOLD 5 — warm black, bookends fold 1 ══ */
 .f5 { background: var(--m-black); color: #F5F1E8; padding-block: clamp(64px, 8vw, 110px); text-align: center; }
@@ -328,7 +338,7 @@
 .f5-chips { justify-content: center; flex-wrap: wrap; overflow: visible; }
 .f5-chips button { background: rgba(245, 241, 232, 0.07); border-color: rgba(245, 241, 232, 0.2); color: #C7BFB0; }
 .f5-chips button:hover { color: var(--m-cream); }
-.f5-micro { margin: 20px 0 0; font-size: 13px; font-weight: 600; color: #A79E8C; }
+.f5-micro { margin: 20px 0 0; font: var(--t-meta); color: #A79E8C; }
 
 @media (prefers-reduced-motion: reduce) {
   .lp *, .lp *::before, .lp *::after { animation: none !important; transition: none !important; }
@@ -348,7 +358,7 @@
 .fw { background: var(--m-paper); padding-block: clamp(56px, 7vw, 96px); }
 .fw-lede {
   margin: 16px 0 0; max-width: 54ch;
-  font-size: clamp(16.5px, 4.2vw, 20px); line-height: 1.62; color: var(--m-ink-2);
+  font: var(--t-lede); color: var(--m-ink-2);
 }
 .fw-stages { list-style: none; margin: 0; padding: 0; display: grid; gap: clamp(38px, 5vw, 64px); margin-block-start: clamp(36px, 4vw, 56px); }
 .fw-stage { display: grid; gap: 22px; align-items: center; }
@@ -366,15 +376,14 @@
   margin-block-end: 14px;
 }
 .fw-txt h3 {
-  margin: 0; font-family: var(--m-serif); font-weight: 700;
-  font-size: clamp(21px, 3vw, 30px); letter-spacing: -0.01em; line-height: 1.2;
+  margin: 0; font: var(--t-h3); letter-spacing: -0.01em;
   color: var(--m-ink);
 }
-.fw-txt p { margin: 12px 0 0; font-size: 16.5px; line-height: 1.65; color: var(--m-ink-2); max-width: 46ch; }
+.fw-txt p { margin: 12px 0 0; font: var(--t-body); color: var(--m-ink-2); max-width: 46ch; }
 .fw-claims { margin: 18px 0 0; padding: 0; list-style: none; display: grid; gap: 11px; }
 .fw-claims li {
   position: relative; padding-inline-start: 22px;
-  font-size: 15.5px; font-weight: 700; color: var(--m-ink); line-height: 1.45;
+  font: var(--t-claim); color: var(--m-ink);
 }
 .fw-claims li::before {
   content: ""; position: absolute; inset-inline-start: 0; inset-block-start: 6px;

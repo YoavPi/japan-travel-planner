@@ -30,15 +30,17 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const SRC = join(ROOT, "public/photos/home/hero_couple_fuji.png");
+/* Two hero sources. `hero-editor` is a landscape product screenshot
+   (the /map/edit UI) and gets a wider ladder; `hero_couple_fuji` is the
+   portrait founders photo, kept for Fold 3's origin note. */
+const SOURCES = [
+  { src: "public/photos/home/hero-editor.png",       prefix: "hero-editor", widths: [480, 720, 1100, 1600] },
+  { src: "public/photos/home/hero_couple_fuji.png",  prefix: "hero",        widths: [480, 720, 1026] },
+];
 const OUT = join(ROOT, "public/photos/home/derived");
-const WIDTHS = [480, 720, 1026];
 const QUALITY = "70";
 
-if (!existsSync(SRC)) {
-  console.error(`✗ source not found: ${SRC}`);
-  process.exit(1);
-}
+
 
 const dim = (file, key) =>
   Number(
@@ -46,31 +48,21 @@ const dim = (file, key) =>
       .trim().split(/\s+/).pop()
   );
 
-const srcW = dim(SRC, "pixelWidth");
-const srcH = dim(SRC, "pixelHeight");
-const srcBytes = statSync(SRC).size;
-console.log(`source  ${srcW}×${srcH}  ${(srcBytes / 1048576).toFixed(2)} MB`);
-
 mkdirSync(OUT, { recursive: true });
-/* Rebuild from scratch so a narrowed WIDTHS list never leaves orphans
-   behind that srcset still references. */
-for (const f of readdirSync(OUT)) if (f.startsWith("hero-")) unlinkSync(join(OUT, f));
 
 let total = 0;
-for (const w of WIDTHS) {
-  if (w > srcW) { console.log(`skip    ${w}w — wider than the source, would upscale`); continue; }
-  const out = join(OUT, `hero-${w}.jpg`);
-  execFileSync("sips", [
-    "--resampleWidth", String(w),
-    "-s", "format", "jpeg",
-    "-s", "formatOptions", QUALITY,
-    SRC, "--out", out,
-  ], { stdio: "ignore" });
-  const b = statSync(out).size;
-  total += b;
-  console.log(`built   hero-${w}.jpg  ${dim(out, "pixelWidth")}×${dim(out, "pixelHeight")}  ${(b / 1024).toFixed(0)} KB`);
+for (const { src, prefix, widths } of SOURCES) {
+  const abs = join(ROOT, src);
+  if (!existsSync(abs)) { console.log(`skip    ${src} — not present`); continue; }
+  const srcW = dim(abs, "pixelWidth"), srcH = dim(abs, "pixelHeight");
+  console.log(`\nsource  ${src}  ${srcW}×${srcH}  ${(statSync(abs).size / 1048576).toFixed(2)} MB`);
+  for (const f of readdirSync(OUT)) if (f.startsWith(prefix + "-")) unlinkSync(join(OUT, f));
+  for (const w of widths) {
+    if (w > srcW) { console.log(`  skip  ${w}w — would upscale`); continue; }
+    const out = join(OUT, `${prefix}-${w}.jpg`);
+    execFileSync("sips", ["--resampleWidth", String(w), "-s", "format", "jpeg", "-s", "formatOptions", QUALITY, abs, "--out", out], { stdio: "ignore" });
+    const b = statSync(out).size; total += b;
+    console.log(`  built ${prefix}-${w}.jpg  ${dim(out, "pixelWidth")}×${dim(out, "pixelHeight")}  ${(b / 1024).toFixed(0)} KB`);
+  }
 }
-
-console.log(`\ntotal   ${(total / 1024).toFixed(0)} KB across ${WIDTHS.filter((w) => w <= srcW).length} derivatives`);
-console.log(`saving  ${((1 - total / srcBytes) * 100).toFixed(0)}% vs shipping the raw PNG once`);
-console.log(`\nnote    no AVIF/WebP — no encoder on this machine. See the header comment.`);
+console.log(`\ntotal   ${(total / 1024).toFixed(0)} KB. No AVIF/WebP — no encoder on this machine (see header).`);
