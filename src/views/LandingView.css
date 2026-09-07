@@ -1,0 +1,357 @@
+/* ══════════════════════════════════════════════════════════════
+   LandingView.css — the marketing surface's palette and folds.
+
+   ONE definition of the marketing tokens (spec §8.1). This replaces
+   the three hard-coded `T = {...}` objects that used to live in
+   LandingView.jsx, LandingDesktop.jsx and drift apart from each
+   other. DESIGN.md: "Stop building bespoke palettes per view."
+
+   THEME: committed light, by owner decision (D4). This surface does
+   not theme. Every colour is therefore painted explicitly so the
+   page holds on any host ground; there is no prefers-color-scheme
+   block and that is deliberate, not an omission.
+
+   NOTE for whoever reconciles the docs: spec §8.4 states the
+   opposite (that the landing themes). D4 is the later, direct owner
+   decision and wins; §8.4 and Q5 need updating.
+   ══════════════════════════════════════════════════════════════ */
+.lp {
+  --m-paper: #F7F2E6;
+  --m-paper-2: #FDFCF7;
+  --m-ink: #1C2333;
+  --m-ink-2: #3D4A5C;
+  --m-ink-3: #5E5850;          /* 6.29:1 on paper, 5.45:1 on paper-2 */
+  --m-black: #14110E;
+  --m-vermillion: #C0392B;     /* accent text, small type, links */
+  --m-vermillion-fill: #B83A2B;/* filled buttons carrying white text */
+  --m-accent: #E0533F;         /* NON-TEXT only: routes, pins, ≥24px display */
+  --m-line: rgba(28, 35, 51, 0.10);
+  --m-cream: #FDFCF7;
+
+  --m-serif: 'Noto Serif Hebrew', Georgia, serif;
+  --m-sans: 'Noto Sans Hebrew', 'Inter', system-ui, sans-serif;
+  --m-wrap: 1180px;
+
+  background: var(--m-paper-2);
+  color: var(--m-ink);
+  font-family: var(--m-sans);
+  line-height: 1.65;
+}
+.lp *,
+.lp *::before,
+.lp *::after { box-sizing: border-box; }
+
+.lp-wrap {
+  max-width: var(--m-wrap);
+  margin-inline: auto;
+  padding-inline: clamp(20px, 4.5vw, 44px);
+}
+
+/* Focus ring: must be visible on paper, on the photo scrim, and on
+   warm black. :focus-visible only. */
+.lp :focus-visible {
+  outline: 2px solid var(--m-vermillion);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.lp .f1 :focus-visible,
+.lp .f5 :focus-visible,
+.lp .f0-photo :focus-visible { outline-color: var(--m-accent); }
+
+/* Type scale §1.6. Serif is used for MASS AND WARMTH only — upright,
+   heavy, tightly stacked. No italic, no drop caps, no mixed weight
+   inside one headline (that is the editorial lane this rejects). */
+.lp h1 {
+  margin: 0;
+  font-family: var(--m-serif);
+  font-weight: 800;
+  font-size: clamp(38px, 9.5vw, 76px);
+  letter-spacing: -0.015em;
+  line-height: 1.06;
+  text-wrap: balance;
+  max-inline-size: 14ch;
+}
+.lp h2 {
+  margin: 0;
+  font-family: var(--m-serif);
+  font-weight: 700;
+  font-size: clamp(28px, 5.5vw, 48px);
+  letter-spacing: -0.01em;
+  line-height: 1.12;
+  text-wrap: balance;
+}
+
+/* ── Route seam ── */
+.tp-seam-path {
+  stroke-dasharray: 160;
+  stroke-dashoffset: 160;
+  animation: lpSeamDraw 1.05s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@keyframes lpSeamDraw { to { stroke-dashoffset: 0; } }
+
+/* ── Resume banner (active trip). Above the nav; never shapes the hero. ── */
+.lp-resume { background: var(--m-black); color: var(--m-cream); }
+.lp-resume .lp-wrap {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 14px; flex-wrap: wrap; padding-block: 10px;
+}
+.lp-resume-txt { font-size: 14px; font-weight: 600; }
+.lp-resume-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  min-height: 36px; padding-inline: 15px;
+  border: 1px solid rgba(253, 252, 247, 0.35); border-radius: 999px;
+  background: transparent; color: var(--m-cream);
+  font: 700 13.5px var(--m-sans); cursor: pointer;
+}
+.lp-resume-btn:hover { background: rgba(253, 252, 247, 0.12); }
+
+/* ── Nav: in flow, no backdrop-filter ── */
+.lp-nav { position: absolute; inset-inline: 0; z-index: 20; }
+.lp-nav .lp-wrap {
+  height: 56px; display: flex; align-items: center; justify-content: space-between;
+}
+.lp-brand {
+  display: inline-flex; align-items: center; gap: 9px;
+  font-weight: 800; font-size: 18px; letter-spacing: -0.02em;
+  color: var(--m-cream); text-shadow: 0 1px 8px rgba(20, 17, 14, 0.5);
+}
+.lp-brand-mark {
+  width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0;
+  background: var(--m-vermillion); color: #fff;
+  display: grid; place-items: center;
+}
+.lp-login {
+  min-height: 44px; padding-inline: 18px; border-radius: 999px;
+  border: 1px solid rgba(253, 252, 247, 0.4);
+  background: rgba(20, 17, 14, 0.3); color: var(--m-cream);
+  font: 700 14px var(--m-sans); cursor: pointer;
+}
+.lp-login:hover { background: rgba(20, 17, 14, 0.52); }
+
+/* ══ FOLD 0 ══ */
+.f0 { position: relative; background: var(--m-paper-2); }
+.f0-photo { position: relative; width: 100%; height: 46svh; min-height: 340px; overflow: hidden; background: var(--m-black); }
+.f0-photo picture, .f0-photo img { width: 100%; height: 100%; display: block; }
+.f0-photo img { object-fit: cover; object-position: 70% 34%; }
+/* §8.5, corrected. The spec's 0.86/0.62/0.10 assumed the brightest
+   pixel under the H1 was sky (#8FC4EE) and computed 7.5:1. Measured
+   against the real composite it is the white jacket and Fuji's snow at
+   L≈0.999, and the H1 sits at ~0.31 of the photo height — inside the
+   ramp, not on the floor. That yielded 2.64:1. Solved for the minimum
+   alpha (0.713) and tightened; measured 3.7:1. */
+.f0-photo::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(to top,
+    rgba(20, 17, 14, 0.90) 0%,
+    rgba(20, 17, 14, 0.72) 45%,
+    rgba(20, 17, 14, 0.12) 80%,
+    rgba(20, 17, 14, 0) 100%);
+}
+.f0-h1-over {
+  position: absolute; inset-block-end: 62px; inset-inline: 0; z-index: 2;
+  color: var(--m-cream); padding-inline: clamp(20px, 4.5vw, 44px);
+  text-shadow: 0 2px 18px rgba(20, 17, 14, 0.5);
+}
+.f0-h1-side { display: none; }
+.f0-panel { padding-inline: clamp(20px, 4.5vw, 44px); padding-block-end: 44px; }
+/* The field straddles the photo's lower edge — the fold's one move. */
+.f0-field { position: relative; z-index: 3; margin-block-start: -30px; }
+.f0-chips { display: flex; gap: 8px; overflow-x: auto; padding-block: 14px 4px; scrollbar-width: none; }
+.f0-chips::-webkit-scrollbar { display: none; }
+.f0-chips button {
+  flex-shrink: 0; min-height: 44px; padding-inline: 17px;
+  border: 1px solid var(--m-line); border-radius: 999px;
+  background: var(--m-paper); color: var(--m-ink-2);
+  font: 700 14.5px var(--m-sans); cursor: pointer; white-space: nowrap;
+}
+.f0-chips button:hover { border-color: var(--m-accent); color: var(--m-ink); }
+.f0-lede { margin: 18px 0 0; font-size: clamp(16.5px, 4.2vw, 20px); line-height: 1.62; color: var(--m-ink-2); max-width: 44ch; }
+.f0-micro { margin: 10px 0 0; font-size: 13px; font-weight: 600; color: var(--m-ink-3); }
+
+@media (min-width: 1024px) {
+  .f0 { display: grid; grid-template-columns: 46fr 54fr; align-items: stretch; min-height: 78svh; }
+  .f0-photo { height: auto; min-height: 78svh; }
+  .f0-photo::after {
+    background:
+      linear-gradient(to top, rgba(20, 17, 14, 0.45), rgba(20, 17, 14, 0.22) 55%, rgba(20, 17, 14, 0.3)),
+      linear-gradient(to left, rgba(253, 252, 247, 0) 72%, var(--m-paper-2) 100%);
+  }
+  .f0-h1-over { display: none; }
+  .f0-h1-side { display: block; color: var(--m-ink); text-shadow: none; margin-block-end: 26px; }
+  .f0-panel {
+    display: flex; flex-direction: column; justify-content: center;
+    max-width: 660px; padding: clamp(40px, 5vw, 72px) clamp(24px, 4vw, 56px);
+  }
+  .f0-field { margin-block-start: 0; }
+  .lp-login { color: var(--m-ink); border-color: var(--m-line); background: var(--m-paper); }
+  .lp-login:hover { background: #EFE8D6; }
+}
+
+/* ── The destination field (shared by folds 0 and 5) ── */
+.ds-field {
+  display: flex; align-items: center; gap: 8px;
+  min-height: 56px; padding: 6px;
+  background: #fff; border: 1px solid var(--m-line); border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(28, 35, 51, 0.18);
+}
+@media (min-width: 1024px) { .ds-field { min-height: 60px; } }
+.ds-icon { display: inline-flex; margin-inline-start: 10px; color: var(--m-ink-3); flex-shrink: 0; }
+.ds-input {
+  flex: 1; min-width: 0; border: none; outline: none; background: transparent;
+  font: 600 16.5px var(--m-sans); color: var(--m-ink); padding-block: 10px;
+}
+.ds-input::placeholder { color: var(--m-ink-3); font-weight: 600; opacity: 1; }
+.ds-go {
+  flex-shrink: 0; min-height: 44px; min-width: 44px; padding-inline: 20px;
+  border: none; border-radius: 11px;
+  background: var(--m-vermillion-fill); color: #fff;
+  font: 800 15px var(--m-sans); cursor: pointer; white-space: nowrap;
+}
+.ds-go:hover { background: #9E2C1B; }
+.ds-sr {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.ds-list {
+  position: absolute; inset-inline: 0; inset-block-start: calc(100% + 8px);
+  z-index: 60; margin: 0; padding: 6px; list-style: none;
+  background: #fff; border: 1px solid var(--m-line); border-radius: 14px;
+  box-shadow: 0 18px 44px rgba(28, 35, 51, 0.22);
+  max-height: 320px; overflow-y: auto;
+}
+.ds-opt {
+  display: flex; align-items: center; gap: 10px;
+  min-height: 44px; padding-inline: 10px; border-radius: 10px;
+  cursor: pointer; font-size: 15px; color: var(--m-ink);
+}
+.ds-opt.is-active { background: var(--m-paper); }
+.ds-flag { font-size: 17px; flex-shrink: 0; }
+.ds-label { font-weight: 700; }
+.ds-sub { margin-inline-start: auto; font-size: 12.5px; color: var(--m-ink-3); font-weight: 600; }
+.ds-empty { padding: 10px; font-size: 13.5px; line-height: 1.55; color: var(--m-ink-3); }
+
+/* ══ FOLD 1 — warm black ══ */
+.f1 { background: var(--m-black); color: #F5F1E8; padding-block: clamp(56px, 7vw, 92px); }
+.f1 h2 { color: var(--m-cream); }
+.f1-lede { margin: 14px 0 0; font-size: clamp(16.5px, 4.2vw, 20px); line-height: 1.62; color: #C7BFB0; max-width: 52ch; }
+.demo-rail { display: flex; gap: 8px; overflow-x: auto; padding-block: 26px 6px; scrollbar-width: none; }
+.demo-rail::-webkit-scrollbar { display: none; }
+.demo-chip {
+  flex-shrink: 0; min-height: 44px; padding-inline: 15px; border-radius: 11px;
+  border: 1px solid rgba(245, 241, 232, 0.18); background: rgba(245, 241, 232, 0.06);
+  color: #C7BFB0; font: 700 13.5px var(--m-sans); cursor: pointer; white-space: nowrap;
+}
+.demo-chip.is-on { background: var(--m-cream); color: var(--m-black); border-color: var(--m-cream); }
+.demo-body { display: grid; gap: 16px; margin-block-start: 18px; }
+@media (min-width: 1024px) { .demo-body { grid-template-columns: 58fr 42fr; align-items: start; } }
+.demo-map { position: relative; aspect-ratio: 4 / 5; border-radius: 20px; overflow: hidden; background: #1F1B17; }
+@media (min-width: 1024px) { .demo-map { aspect-ratio: 16 / 13; } }
+.demo-map svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.demo-map-bg { fill: #211C17; }
+.demo-grid line { stroke: #2C261F; stroke-width: 0.4; }
+.demo-route { stroke: var(--m-accent); stroke-width: 2.5; fill: none; stroke-dasharray: 7 6; stroke-linecap: round; stroke-linejoin: round; }
+.demo-pin {
+  position: absolute; width: 27px; height: 27px; border-radius: 50%;
+  background: var(--m-accent); border: 2.5px solid var(--m-cream);
+  display: grid; place-items: center; color: #fff;
+  font: 800 12px 'Inter', sans-serif; transform: translate(-50%, -50%);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
+}
+.demo-cards { display: grid; gap: 10px; align-content: start; }
+.demo-card {
+  display: grid; grid-template-columns: 64px 1fr auto; gap: 12px; align-items: center;
+  background: rgba(245, 241, 232, 0.055); border: 1px solid rgba(245, 241, 232, 0.11);
+  border-radius: 14px; padding: 9px;
+}
+.demo-card img, .demo-card-ph { width: 64px; height: 64px; border-radius: 10px; object-fit: cover; background: #2C261F; }
+.demo-card-txt b { display: block; font-size: 15px; font-weight: 700; color: var(--m-cream); line-height: 1.3; }
+.demo-card-txt span { display: block; font-size: 12.5px; color: #A79E8C; margin-block-start: 3px; }
+.demo-rate { font: 800 13px 'Inter', sans-serif; color: #F0846F; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.demo-out {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 44px;
+  color: var(--m-cream); font-weight: 700; font-size: 15px; text-decoration: none;
+}
+.demo-out:hover { text-decoration: underline; }
+
+/* ══ FOLD 2 — paper ══ */
+.f2 { background: var(--m-paper); padding-block: clamp(56px, 7vw, 92px); }
+.f2-lede { margin: 14px 0 0; font-size: clamp(16.5px, 4.2vw, 20px); line-height: 1.62; color: var(--m-ink-2); max-width: 50ch; }
+.f2-grid { display: grid; gap: 30px; margin-block-start: 30px; align-items: center; }
+@media (min-width: 1024px) { .f2-grid { grid-template-columns: 44fr 56fr; } }
+.f2-shot { background: #fff; border: 1px solid var(--m-line); border-radius: 20px; overflow: hidden; box-shadow: 0 26px 60px rgba(28, 35, 51, 0.16); }
+.f2-shot-bar { display: flex; align-items: center; gap: 7px; padding: 11px 14px; background: #F6F6F4; border-block-end: 1px solid var(--m-line); }
+.f2-shot-bar i { width: 8px; height: 8px; border-radius: 50%; background: #CFC5B2; }
+.f2-row { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-block-end: 1px solid rgba(20, 20, 20, 0.05); }
+.f2-n { width: 26px; height: 26px; flex-shrink: 0; border-radius: 8px; background: #1E1E24; color: #fff; display: grid; place-items: center; font: 800 12px 'Inter', sans-serif; }
+.f2-t b { font-size: 14px; font-weight: 700; color: #0D0F11; }
+.f2-t em { font-style: normal; display: block; font-size: 11.5px; color: #6B7178; margin-block-start: 2px; }
+.f2-h { margin-inline-start: auto; font: 700 11.5px 'Inter', sans-serif; color: #6B7178; }
+.f2-cap { margin: 0; padding: 12px 14px; font-size: 13px; font-weight: 600; color: var(--m-ink-3); text-align: center; }
+.f2-claims { margin: 0; padding: 0; list-style: none; display: grid; gap: 16px; }
+.f2-claims li {
+  position: relative; padding-inline-start: 24px;
+  font-size: 16.5px; font-weight: 700; color: var(--m-ink); line-height: 1.45;
+}
+.f2-claims li::before {
+  content: ""; position: absolute; inset-inline-start: 0; inset-block-start: 7px;
+  width: 11px; height: 11px; border-radius: 50%;
+  border: 2.5px solid var(--m-accent);
+}
+
+/* ══ FOLD 3 — the vermillion drench ══ */
+/* Hierarchy here comes from WEIGHT AND SIZE ONLY, never opacity:
+   a tinted cream (#F7D9CF) on #C0392B measures 4.09:1 and fails.
+   One cream, #FDFCF7 (5.29:1), for all text on this ground. */
+.f3 { background: var(--m-vermillion); color: var(--m-cream); padding-block: clamp(56px, 7vw, 92px); }
+.f3-top { display: grid; gap: 34px; }
+@media (min-width: 1024px) { .f3-top { grid-template-columns: 52fr 48fr; align-items: center; } }
+.f3-origin {
+  margin: 0; font-family: var(--m-serif); font-weight: 700;
+  font-size: clamp(24px, 4.4vw, 40px); line-height: 1.24; letter-spacing: -0.01em;
+  color: var(--m-cream); max-width: 22ch;
+}
+.f3-sig { margin: 16px 0 0; font-size: 15px; font-weight: 700; color: var(--m-cream); }
+.f3-link {
+  display: inline-flex; align-items: center; gap: 7px; min-height: 44px;
+  margin-block-start: 10px; color: var(--m-cream); font-weight: 700; font-size: 15px;
+  text-decoration: underline; text-underline-offset: 4px;
+}
+.f3-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 22px 18px; }
+@media (min-width: 640px) { .f3-stats { grid-template-columns: repeat(4, 1fr); } }
+.f3-stat b {
+  display: block; font: 800 clamp(32px, 5vw, 52px) var(--m-sans);
+  color: var(--m-cream); font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em; line-height: 1;
+}
+.f3-stat span { display: block; font-size: 13.5px; font-weight: 700; color: var(--m-cream); margin-block-start: 6px; }
+
+/* ══ FOLD 4 — paper-2, asymmetric, hairlines not cards ══ */
+.f4 { background: var(--m-paper-2); padding-block: clamp(56px, 7vw, 92px); }
+.f4-rows { margin-block-start: 34px; display: grid; }
+.f4-row { border-block-start: 1px solid var(--m-line); padding-block: 24px; }
+.f4-row:last-of-type { border-block-end: 1px solid var(--m-line); }
+.f4-c { display: block; font-size: clamp(18px, 2.4vw, 22px); font-weight: 700; color: var(--m-ink); letter-spacing: -0.005em; line-height: 1.35; }
+.f4-a { display: block; margin-block-start: 8px; font-size: 16px; color: var(--m-ink-2); line-height: 1.6; }
+.f4-row.is-turn { background: rgba(247, 242, 230, 0.8); }
+@media (min-width: 1024px) {
+  .f4-rows { grid-template-columns: repeat(12, 1fr); }
+  .f4-r1 { grid-column: 1 / span 8; }
+  .f4-r2 { grid-column: 4 / span 9; }
+  .f4-r3 { grid-column: 1 / span 10; }
+  .f4-r4 { grid-column: 3 / span 10; padding-inline: 22px; }
+}
+.f4-close { margin: 28px 0 0; font-size: 17px; font-weight: 800; color: var(--m-vermillion); }
+
+/* ══ FOLD 5 — warm black, bookends fold 1 ══ */
+.f5 { background: var(--m-black); color: #F5F1E8; padding-block: clamp(64px, 8vw, 110px); text-align: center; }
+.f5 h2 { color: var(--m-cream); margin-inline: auto; max-width: 16ch; }
+.f5-field { max-width: 560px; margin: 30px auto 0; text-align: start; }
+.f5-chips { justify-content: center; flex-wrap: wrap; overflow: visible; }
+.f5-chips button { background: rgba(245, 241, 232, 0.07); border-color: rgba(245, 241, 232, 0.2); color: #C7BFB0; }
+.f5-chips button:hover { color: var(--m-cream); }
+.f5-micro { margin: 20px 0 0; font-size: 13px; font-weight: 600; color: #A79E8C; }
+
+@media (prefers-reduced-motion: reduce) {
+  .lp *, .lp *::before, .lp *::after { animation: none !important; transition: none !important; }
+  .tp-seam-path { stroke-dashoffset: 0; }
+}

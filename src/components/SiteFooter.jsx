@@ -2,6 +2,7 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import BrandMark from "./BrandMark";
 import { useAuth } from "../context/AuthContext";
+import { startTrip as startTripLink } from "../utils/startTripLink";
 
 /* ══════════════════════════════════════════════════════════════
    SiteFooter — shared marketing/legal footer.
@@ -38,14 +39,11 @@ const SiteFooter = () => {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
 
-  /* Choose a destination → the new-map wizard with it pre-filled. Guests are
-     sent through login first, and land back on the pre-filled wizard (AuthView
-     honors state.from, preserving the query the ProtectedRoute would drop). */
-  const startTrip = (d) => {
-    const target = `/create?dest=${d.dest}&city=${encodeURIComponent(d.city)}`;
-    if (isAuthenticated) navigate(target);
-    else navigate("/auth", { state: { from: target } });
-  };
+  /* Choose a destination → the new-map wizard with it pre-filled.
+     The auth-preserving deep-link lives in utils/startTripLink.js and is
+     shared with the landing hero, its chips and the closing field. One
+     implementation only — see that file. */
+  const startTrip = (d) => startTripLink(d, { isAuthenticated, navigate });
 
   const Col = ({ title, links }) => (
     <div style={{ minWidth: 140 }}>
@@ -104,7 +102,10 @@ const SiteFooter = () => {
             <span aria-hidden style={{ width: 24, height: 24, borderRadius: 8, background: T.ink, color: T.bg, display: "inline-flex", alignItems: "center", justifyContent: "center" }}><BrandMark size={14} /></span>
             מסלול
           </span>
-          <span style={{ fontSize: 13, color: T.ink4 }}>© {new Date().getFullYear()} מסלול · תכנון טיולים חכם · נבנה בישראל 🇮🇱</span>
+          {/* ink3, not ink4: #A4AAB1 on white is 2.34:1 and fails WCAG AA for
+              body text. ink3 (#6B7178) measures 4.93:1. DESIGN.md defines
+              ink4 as "disabled, hairlines" — it is not a text colour. */}
+          <span style={{ fontSize: 13, color: T.ink3 }}>© {new Date().getFullYear()} מסלול · תכנון טיולים חכם · נבנה בישראל 🇮🇱</span>
         </div>
       </div>
     </footer>
