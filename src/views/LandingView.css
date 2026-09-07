@@ -128,7 +128,7 @@
 .lp-brand {
   display: inline-flex; align-items: center; gap: 9px;
   font-weight: 800; font-size: 18px; letter-spacing: -0.02em;
-  color: var(--m-cream); text-shadow: 0 1px 8px rgba(20, 17, 14, 0.5);
+  color: var(--m-ink);
 }
 .lp-brand-mark {
   width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0;
@@ -137,40 +137,31 @@
 }
 .lp-login {
   min-height: 44px; padding-inline: 18px; border-radius: 999px;
-  border: 1px solid rgba(253, 252, 247, 0.4);
-  background: rgba(20, 17, 14, 0.3); color: var(--m-cream);
+  border: 1px solid var(--m-line);
+  background: var(--m-paper); color: var(--m-ink);
   font: 700 14px var(--m-sans); cursor: pointer;
 }
-.lp-login:hover { background: rgba(20, 17, 14, 0.52); }
+.lp-login:hover { background: #EFE8D6; }
 
 /* ══ FOLD 0 ══ */
-.f0 { position: relative; background: var(--m-paper-2); }
-.f0-photo { position: relative; width: 100%; height: 46svh; min-height: 340px; overflow: hidden; background: var(--m-black); }
+/* The hero image is a landscape /map/edit screenshot. A landscape UI
+   cover-cropped into a portrait bleed loses the map/timeline split that
+   is the whole point, so on mobile it sits in a frame with type below
+   it on paper; on desktop it takes the inline-start column and bleeds
+   to the edge, fading into paper. */
+.f0 { position: relative; background: var(--m-paper-2); padding-block-start: 56px; }
+.f0-photo {
+  position: relative; margin: 4px clamp(16px, 4vw, 24px) 0;
+  border-radius: 16px; overflow: hidden;
+  border: 1px solid var(--m-line);
+  box-shadow: 0 18px 44px rgba(63, 54, 38, 0.16);
+  aspect-ratio: 16 / 10; background: var(--m-black);
+}
 .f0-photo picture, .f0-photo img { width: 100%; height: 100%; display: block; }
-.f0-photo img { object-fit: cover; object-position: 70% 34%; }
-/* §8.5, corrected. The spec's 0.86/0.62/0.10 assumed the brightest
-   pixel under the H1 was sky (#8FC4EE) and computed 7.5:1. Measured
-   against the real composite it is the white jacket and Fuji's snow at
-   L≈0.999, and the H1 sits at ~0.31 of the photo height — inside the
-   ramp, not on the floor. That yielded 2.64:1. Solved for the minimum
-   alpha (0.713) and tightened; measured 3.7:1. */
-.f0-photo::after {
-  content: ""; position: absolute; inset: 0; pointer-events: none;
-  background: linear-gradient(to top,
-    rgba(20, 17, 14, 0.90) 0%,
-    rgba(20, 17, 14, 0.72) 45%,
-    rgba(20, 17, 14, 0.12) 80%,
-    rgba(20, 17, 14, 0) 100%);
-}
-.f0-h1-over {
-  position: absolute; inset-block-end: 62px; inset-inline: 0; z-index: 2;
-  color: var(--m-cream); padding-inline: clamp(20px, 4.5vw, 44px);
-  text-shadow: 0 2px 18px rgba(20, 17, 14, 0.5);
-}
-.f0-h1-side { display: none; }
-.f0-panel { padding-inline: clamp(20px, 4.5vw, 44px); padding-block-end: 44px; }
-/* The field straddles the photo's lower edge — the fold's one move. */
-.f0-field { position: relative; z-index: 3; margin-block-start: -30px; }
+.f0-photo img { object-fit: cover; object-position: 58% 12%; }
+.f0-h1 { color: var(--m-ink); margin-block-end: 22px; }
+.f0-panel { padding: 22px clamp(20px, 4.5vw, 44px) 40px; }
+.f0-field { position: relative; z-index: 3; }
 .f0-chips { display: flex; gap: 8px; overflow-x: auto; padding-block: 14px 4px; scrollbar-width: none; }
 .f0-chips::-webkit-scrollbar { display: none; }
 .f0-chips button {
@@ -184,20 +175,25 @@
 .f0-micro { margin: 10px 0 0; font: var(--t-meta); color: var(--m-ink-3); }
 
 @media (min-width: 1024px) {
-  .f0 { display: grid; grid-template-columns: 46fr 54fr; align-items: stretch; min-height: 78svh; }
-  .f0-photo { height: auto; min-height: 78svh; }
-  .f0-photo::after {
-    background:
-      linear-gradient(to top, rgba(20, 17, 14, 0.45), rgba(20, 17, 14, 0.22) 55%, rgba(20, 17, 14, 0.3)),
-      linear-gradient(to left, rgba(253, 252, 247, 0) 72%, var(--m-paper-2) 100%);
+  .f0 { display: grid; grid-template-columns: 46fr 54fr; align-items: stretch; min-height: 78svh; padding-block-start: 0; }
+  .f0-photo {
+    margin: 0; border: none; border-radius: 0; box-shadow: none;
+    aspect-ratio: auto; height: auto; min-block-size: 78svh;
   }
-  .f0-h1-over { display: none; }
-  .f0-h1-side { display: block; color: var(--m-ink); text-shadow: none; margin-block-end: 26px; }
+  .f0-photo img { object-position: 58% 50%; }
+  /* Desktop only: darken the top strip so the cream brand mark holds
+     over the pale map, and fade the inline-end edge into paper. */
+  .f0-photo::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background:
+      linear-gradient(to bottom, rgba(20, 17, 14, 0.34), rgba(20, 17, 14, 0) 20%),
+      linear-gradient(to left, rgba(253, 252, 247, 0) 74%, var(--m-paper-2) 100%);
+  }
+  .f0-h1 { margin-block-end: 26px; }
   .f0-panel {
     display: flex; flex-direction: column; justify-content: center;
     max-width: 660px; padding: clamp(40px, 5vw, 72px) clamp(24px, 4vw, 56px);
   }
-  .f0-field { margin-block-start: 0; }
   .lp-login { color: var(--m-ink); border-color: var(--m-line); background: var(--m-paper); }
   .lp-login:hover { background: #EFE8D6; }
 }

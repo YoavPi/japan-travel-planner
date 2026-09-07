@@ -34,7 +34,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
    (the /map/edit UI) and gets a wider ladder; `hero_couple_fuji` is the
    portrait founders photo, kept for Fold 3's origin note. */
 const SOURCES = [
-  { src: "public/photos/home/hero-editor.png",       prefix: "hero-editor", widths: [480, 720, 1100, 1600] },
+  { src: "public/photos/home/hero-editor.jpg",       prefix: "hero-editor", widths: [480, 720, 1100, 1600] },
   { src: "public/photos/home/hero_couple_fuji.png",  prefix: "hero",        widths: [480, 720, 1026] },
 ];
 const OUT = join(ROOT, "public/photos/home/derived");
@@ -56,7 +56,8 @@ for (const { src, prefix, widths } of SOURCES) {
   if (!existsSync(abs)) { console.log(`skip    ${src} — not present`); continue; }
   const srcW = dim(abs, "pixelWidth"), srcH = dim(abs, "pixelHeight");
   console.log(`\nsource  ${src}  ${srcW}×${srcH}  ${(statSync(abs).size / 1048576).toFixed(2)} MB`);
-  for (const f of readdirSync(OUT)) if (f.startsWith(prefix + "-")) unlinkSync(join(OUT, f));
+  const orphan = new RegExp(`^${prefix}-\\d+\\.jpg$`);
+  for (const f of readdirSync(OUT)) if (orphan.test(f)) unlinkSync(join(OUT, f));
   for (const w of widths) {
     if (w > srcW) { console.log(`  skip  ${w}w — would upscale`); continue; }
     const out = join(OUT, `${prefix}-${w}.jpg`);

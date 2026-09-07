@@ -229,19 +229,18 @@ const LandingView = () => {
               one <source> line (see scripts/build-landing-assets.mjs). */}
           <picture>
             <img
-              src="/photos/home/derived/hero-720.jpg"
-              srcSet="/photos/home/derived/hero-480.jpg 480w, /photos/home/derived/hero-720.jpg 720w, /photos/home/derived/hero-1026.jpg 1026w"
+              src="/photos/home/derived/hero-editor-720.jpg"
+              srcSet="/photos/home/derived/hero-editor-480.jpg 480w, /photos/home/derived/hero-editor-720.jpg 720w, /photos/home/derived/hero-editor-1100.jpg 1100w, /photos/home/derived/hero-editor-1600.jpg 1600w"
               sizes="(min-width: 1024px) 46vw, 100vw"
-              alt="יואב ומיכלי מול הר פוג'י, במסלול שממנו נולד מסלול."
-              width="1026" height="1848"
+              alt="עורך המסלול של מסלול — מפה עם המסלול, ציר זמן של היום, וכרטיס מקום פתוח."
+              width="2900" height="1734"
               fetchpriority="high" decoding="async"
             />
           </picture>
-          <h1 className="f0-h1-over">כל הטיול שלכם.<br />על מפה אחת.</h1>
         </div>
 
         <div className="f0-panel">
-          <h1 className="f0-h1-side">כל הטיול שלכם.<br />על מפה אחת.</h1>
+          <h1 className="f0-h1">כל הטיול שלכם.<br />על מפה אחת.</h1>
           <div className="f0-field">
             <DestinationSearch onPick={go} />
             <div className="f0-chips" role="group" aria-label="יעדים פופולריים">
