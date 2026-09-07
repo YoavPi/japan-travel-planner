@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useParams, useNavigate } from "react-router-dom";
 import tripService from "../services/tripService";
 import EditorBottomSheet from "../components/EditorBottomSheet";
+import EditorBottomBar from "../components/EditorBottomBar";
 import EditorMap from "../components/EditorMap";
 import ReferenceMapsPanel from "../components/ReferenceMapsPanel";
 import OverlayAddChoice from "../components/OverlayAddChoice";
@@ -1325,7 +1326,6 @@ const EditorView = () => {
   const [datesEndDraft, setDatesEndDraft] = useState(""); // end yyyy-mm-dd being edited
   /* Sprint 44 #2 — bottom-right FAB speed-dial (skeleton / summary /
      continuous / dates), replacing the removed header buttons. */
-  const [fabOpen, setFabOpen] = useState(false);
   /* Sprint 44 #3 — the persistently-selected stop (from timeline or map).
      Kept until the user closes the card or taps empty map. */
   const [activeStop, setActiveStop] = useState(null);
@@ -1364,9 +1364,6 @@ const EditorView = () => {
      "בטל" can restore the pre-edit order without saving. (Handlers defined
      after `commitDays` below.) */
   const focusSnapshotRef = useRef(null);
-  /* Sprint 52 #1 — the instant a focus-lock mode engages, collapse the Options
-     FAB so its expansion buttons can never stack under the focus banner. */
-  useEffect(() => { if (focusActive) setFabOpen(false); }, [focusActive]);
   /* Sprint 21 #3 — index of the active-day stop whose note is being edited
      in the quick NoteSheet (-1 = closed). */
   const [noteEditIdx, setNoteEditIdx]     = useState(-1);
@@ -3434,135 +3431,35 @@ const EditorView = () => {
         )}
       </header>
 
-      {/* Sprint 39 #3 — Places-Inbox FAB now RIDES the bottom sheet: it floats
-          just above the sheet's top border on the map canvas (never over the
-          timeline rows). It slides down when the sheet collapses to ~84px, and
-          hides entirely when the sheet is expanded to full (where it would
-          otherwise occlude stop rows). z-index:100 keeps it above the sheet.
-          Sprint 47 #1 — also hidden while a stop card / preview is open.
-          Sprint 48 #2 — while the inbox panel is OPEN the floating trigger is
-          unmounted entirely; the panel is dismissed via the header ✕ instead.
-          Sprint 54 #4 — also unmounts while a focus-lock modal is engaged. */}
-      {trip && !isPinning && !inboxMode && !focusActive && !overlayOpen && !mapFabsHidden && !refMapsOpen && sheetSnap === "peek" && (
-        <button
-          onClick={() => { setMode("inbox"); sheetRef.current?.snapTo?.("peek"); }}
-          title="בנק הנקודות"
-          aria-label="בנק הנקודות"
-          aria-pressed={inboxMode}
-          className="tp-press"
-          style={{
-            /* Sprint 44 #2 — moved to the bottom-LEFT so the new speed-dial
-               FAB owns the bottom-right corner.
-               Sprint 54 #4 — z ABOVE the sheet (260) so the FAB + its expansion
-               menu never clip behind the sheet / day-pill timeline. */
-            position: "fixed", zIndex: 260,
-            insetInlineStart: 16,
-            /* Rest 16px above the sheet's top border for the current snap. */
-            bottom: "calc(env(safe-area-inset-bottom, 0px) + 128px)",
-            display: "inline-flex", alignItems: "center", justifyContent: "center",
-            /* Premium rounded-full capsule. When the bank holds saved points it
-               switches to an accent-tinted fill (+ ring) so the user sees, right
-               after saving, that something now lives in the bank. */
-            width: 52, height: 52, borderRadius: "50%",
-            border: bankCount > 0 ? "1.5px solid #E0533F" : "none",
-            background: bankCount > 0 ? "#E0533F14" : "#fff",
-            color: bankCount > 0 ? "#E0533F" : "#1E1E24",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.10)", cursor: "pointer", fontFamily: "inherit",
-            transition: "bottom 320ms cubic-bezier(0.22,1,0.36,1), background 0.2s ease, color 0.2s ease",
+      {/* Fixed bottom bar — replaces the folder FAB + the wrench speed-dial
+          + the centred reorder/continuous pair. Labelled, and it does NOT
+          hide on a sheet-snap change: the sheet is given a matching
+          bottomInset so its peek sliver rests just above the bar. */}
+      {trip && !isPinning && !inboxMode && !overlayOpen && (
+        <EditorBottomBar
+          bankCount={bankCount}
+          onBank={() => { setMode("inbox"); sheetRef.current?.snapTo?.("peek"); }}
+          showViewToggle={days.length > 1}
+          continuousMode={continuousMode}
+          onSetContinuous={(next) => {
+            if (next) { setDayEditMode(false); setContinuousMode(true); sheetRef.current?.snapTo?.("full"); }
+            else setContinuousMode(false);
           }}
-        >
-          <Icon name="folder" size={22} strokeWidth={1.75} color={bankCount > 0 ? "#E0533F" : "#1E1E24"} />
-          {/* Sprint 57 #1 — count badge pinned to the capsule's upper-right. */}
-          {bankCount > 0 && (
-            <span style={{ position: "absolute", top: -3, insetInlineStart: -3, minWidth: 20, height: 20, padding: "0 5px", borderRadius: 999, background: "#D94025", color: "#fff", fontSize: 11, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center", border: "2px solid #fff" }}>
-              {bankCount}
-            </span>
-          )}
-        </button>
+          editable={editable}
+          daysCount={days.length}
+          dayEditMode={dayEditMode}
+          onReorderDays={() => setDayEditMode((v) => {
+            const n = !v;
+            if (n) { setContinuousMode(false); focusSnapshotRef.current = (trip?.data?.tripData || []).map((d) => ({ ...d, attractions: [...(d.attractions || [])] })); }
+            return n;
+          })}
+          onSummary={() => setSummaryOpen(true)}
+          onDates={openDatesModal}
+          onEditSkeleton={() => navigate(`/create?edit=${trip.id}`)}
+          hasDates={!!tripStartDate}
+        />
       )}
 
-      {/* Sprint 46 #1 — FAB SPEED DIAL floats over the MAP, never over the
-          timeline text: at peek it rests at bottom:104px (just above the day
-          pills row); at half it lifts above the half-sheet; at FULL it is
-          hidden entirely (the schedule reading plane owns the screen). */}
-      {trip && !isPinning && !inboxMode && !focusActive && !overlayOpen && !mapFabsHidden && !refMapsOpen && sheetSnap === "peek" && (
-        <div style={{
-          /* Sprint 54 #4 — above the sheet so the speed-dial and its expansion
-             buttons render cleanly instead of clipping behind the day pills. */
-          position: "fixed", zIndex: 260, insetInlineEnd: 16,
-          bottom: "calc(env(safe-area-inset-bottom, 0px) + 128px)",
-          display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 12, fontFamily: T.font,
-          transition: "bottom 320ms cubic-bezier(0.22,1,0.36,1)",
-        }}>
-          {fabOpen && !focusActive && [
-            { icon: "map", label: "תכנון מסלול", onClick: () => sheetRef.current?.snapTo?.(sheetCollapsed ? "full" : "peek") },
-            /* Sprint 47 #5 — skeleton editor absorbed into the FAB menu (the
-               clipped bottom-of-viewport button was removed). */
-            ...(editable ? [{ icon: "wrench", label: "עריכת שלד הטיול", onClick: () => navigate(`/create?edit=${trip.id}`) }] : []),
-            ...(days.length > 0 ? [{ icon: "barChart", label: "סכם לי את הטיול", onClick: () => setSummaryOpen(true) }] : []),
-            ...(days.length > 1 ? [{ icon: "listOrdered", label: continuousMode ? "תצוגת ימים" : "מסלול רציף", onClick: () => setContinuousMode((v) => { const n = !v; if (n) sheetRef.current?.snapTo?.("full"); return n; }) }] : []),
-            { icon: "calendar", label: tripStartDate ? "שינוי תאריכים" : "הגדרת תאריכים", onClick: openDatesModal },
-          ].map((a, i) => (
-            /* Sprint 57 #1 — premium borderless capsule pill with a soft shadow
-               and a lighter monochrome charcoal vector. */
-            <button key={i} className="tp-pop tp-press"
-              onClick={() => { a.onClick(); setFabOpen(false); }}
-              style={{ display: "inline-flex", alignItems: "center", gap: 9, height: 44, padding: "0 16px 0 14px", borderRadius: 999, border: "none", background: "#fff", color: "#1E1E24", boxShadow: "0 2px 8px rgba(0,0,0,0.10)", cursor: "pointer", fontFamily: "inherit", fontSize: 13.5, fontWeight: 800, whiteSpace: "nowrap" }}>
-              <Icon name={a.icon} size={17} strokeWidth={1.75} color="#1E1E24" />{a.label}
-            </button>
-          ))}
-          <button
-            /* Sprint 52 #1 — the Options FAB and a focus-lock mode must never
-               occupy the viewport together: while a focus mode is engaged, any
-               tap on the FAB forcibly collapses it (never expands). */
-            onClick={() => { if (focusActive) { setFabOpen(false); return; } setFabOpen((v) => !v); }}
-            title={fabOpen ? "סגירת התפריט" : "פעולות"}
-            aria-label="תפריט פעולות"
-            aria-expanded={fabOpen && !focusActive}
-            className="tp-press"
-            /* Sprint 57 #1 — premium rounded-full charcoal Options FAB with an
-               elegant soft shadow and a lighter white vector. */
-            style={{ width: 56, height: 56, borderRadius: "50%", border: "none", background: "#1E1E24", color: "#fff", boxShadow: "0 3px 10px rgba(0,0,0,0.16)", cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", alignSelf: "flex-end", transition: "transform 0.2s ease" }}>
-            <Icon name={fabOpen ? "x" : "wrench"} size={23} strokeWidth={1.9} color="#fff" />
-          </button>
-        </div>
-      )}
-      {/* Scrim to close the speed dial on outside tap. */}
-      {fabOpen && (
-        <div onClick={() => setFabOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 259 }} />
-      )}
-
-      {/* Sprint 46 #2 — icon-only map FABs for Day Reorder (⇅) + Continuous
-          Route (🔢), floating centred above the peek sheet. Active state tints
-          the button green for instant visual verification. 44px touch area. */}
-      {trip && editable && !inboxMode && !isPinning && !focusActive && !overlayOpen && !mapFabsHidden && !refMapsOpen && sheetSnap === "peek" && days.length > 1 && (
-        <div style={{
-          /* Sprint 54 #4 — above the sheet; unmounts during focus-lock modes. */
-          position: "fixed", zIndex: 260, left: "50%", transform: "translateX(-50%)",
-          bottom: "calc(env(safe-area-inset-bottom, 0px) + 128px)",
-          display: "flex", gap: 12, fontFamily: T.font,
-          transition: "bottom 320ms cubic-bezier(0.22,1,0.36,1)",
-        }}>
-          <button
-            onClick={() => setDayEditMode((v) => { const n = !v; if (n) { setContinuousMode(false); focusSnapshotRef.current = (trip?.data?.tripData || []).map((d) => ({ ...d, attractions: [...(d.attractions || [])] })); } return n; })}
-            title={dayEditMode ? "סיום סידור הימים" : "סידור מחדש של הימים"}
-            aria-label="סידור ימים" aria-pressed={dayEditMode}
-            className={`tp-press${dayEditMode ? " tp-focus-glow" : ""}`}
-            /* Sprint 57 #1 — premium rounded-full; active fills solid charcoal,
-               idle is a clean white circle with an elegant soft shadow. */
-            style={{ width: 52, height: 52, borderRadius: "50%", border: "none", background: dayEditMode ? "#1E1E24" : "#fff", color: dayEditMode ? "#fff" : "#1E1E24", boxShadow: "0 2px 8px rgba(0,0,0,0.10)", cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-            <Icon name={dayEditMode ? "check" : "arrowUpDown"} size={21} strokeWidth={1.85} color={dayEditMode ? "#fff" : "#1E1E24"} />
-          </button>
-          <button
-            onClick={() => setContinuousMode((v) => { const next = !v; if (next) sheetRef.current?.snapTo?.("full"); return next; })}
-            title={continuousMode ? "חזרה לתצוגת ימים" : "תצוגת מסלול רציף"}
-            aria-label="מסלול רציף" aria-pressed={continuousMode}
-            className={`tp-press${continuousMode ? " tp-focus-glow" : ""}`}
-            style={{ width: 52, height: 52, borderRadius: "50%", border: "none", background: continuousMode ? "#1E1E24" : "#fff", color: continuousMode ? "#fff" : "#1E1E24", boxShadow: "0 2px 8px rgba(0,0,0,0.10)", cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-            <Icon name={continuousMode ? "calendar" : "listOrdered"} size={21} strokeWidth={1.85} color={continuousMode ? "#fff" : "#1E1E24"} />
-          </button>
-        </div>
-      )}
 
       {error && (
         <div style={{ position: "absolute", top: 70, insetInlineStart: 16, insetInlineEnd: 16, zIndex: 40, color: "#A03325", background: "#fff", borderRadius: 12, padding: 14, fontSize: 14 }}>
@@ -3575,6 +3472,8 @@ const EditorView = () => {
         <EditorBottomSheet
           ref={sheetRef}
           defaultSnap="half"
+          /* leave room for the fixed EditorBottomBar (56px + safe-area) when it's shown */
+          bottomInset={trip && !isPinning && !inboxMode && !overlayOpen ? 66 : 0}
           onDraggingChange={setSheetDragging}
           /* Sprint 60 #1 — MUTUALLY EXCLUSIVE bottom viewport states: the Daily
              Schedule Sheet and the map-first inbox carousel can never occupy

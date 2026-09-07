@@ -29,12 +29,12 @@ const COLLAPSED_PX = 108;
    the search bar + header pill reachable. Sprint 21 #1 — maximize. */
 const FULL_TOP_INSET = 112;
 
-const offsetFor = (snap, vh) =>
+const offsetFor = (snap, vh, inset = 0) =>
   snap === "full" ? FULL_TOP_INSET
-    : snap === "peek" ? vh - COLLAPSED_PX
-      : vh - vh * SNAP_FRACTION[snap]; // half (initial orientation only)
+    : snap === "peek" ? vh - COLLAPSED_PX - inset
+      : vh - vh * SNAP_FRACTION[snap] - inset; // half (initial orientation only)
 
-const EditorBottomSheet = forwardRef(({ header, children, defaultSnap = "half", onSnapChange, onDraggingChange }, ref) => {
+const EditorBottomSheet = forwardRef(({ header, children, defaultSnap = "half", onSnapChange, onDraggingChange, bottomInset = 0 }, ref) => {
   const [snap, setSnapState] = useState(defaultSnap);
   const [translateY, setTranslateY] = useState(null);
   const [dragging, setDragging] = useState(false);
@@ -65,12 +65,12 @@ const EditorBottomSheet = forwardRef(({ header, children, defaultSnap = "half", 
   useEffect(() => {
     const apply = () => {
       vhRef.current = window.innerHeight;
-      setTranslateY(offsetFor(snap, vhRef.current));
+      setTranslateY(offsetFor(snap, vhRef.current, bottomInset));
     };
     apply();
     window.addEventListener("resize", apply);
     return () => window.removeEventListener("resize", apply);
-  }, [snap]);
+  }, [snap, bottomInset]);
 
   useImperativeHandle(ref, () => ({
     snapTo: (name) => SNAP_FRACTION[name] && setSnap(name),
@@ -92,7 +92,7 @@ const EditorBottomSheet = forwardRef(({ header, children, defaultSnap = "half", 
     if (!drag.current.active) return;
     const dy = e.clientY - drag.current.startY;
     const vh = vhRef.current;
-    const clamped = Math.max(offsetFor("full", vh), Math.min(offsetFor("peek", vh), drag.current.startT + dy));
+    const clamped = Math.max(offsetFor("full", vh, bottomInset), Math.min(offsetFor("peek", vh, bottomInset), drag.current.startT + dy));
     setTranslateY(clamped);
     drag.current.hist.push({ y: e.clientY, t: Date.now() });
     const cutoff = Date.now() - 100;
@@ -117,7 +117,7 @@ const EditorBottomSheet = forwardRef(({ header, children, defaultSnap = "half", 
     if (v > FLING) target = "peek";       // fling down → collapse
     else if (v < -FLING) target = "full"; // fling up → expand
     else {
-      target = Math.abs(translateY - offsetFor("peek", vh)) < Math.abs(translateY - offsetFor("full", vh)) ? "peek" : "full";
+      target = Math.abs(translateY - offsetFor("peek", vh, bottomInset)) < Math.abs(translateY - offsetFor("full", vh, bottomInset)) ? "peek" : "full";
     }
     setSnap(target);
   };
@@ -141,7 +141,7 @@ const EditorBottomSheet = forwardRef(({ header, children, defaultSnap = "half", 
           background: "#fff",
           borderTopLeftRadius: 22, borderTopRightRadius: 22,
           boxShadow: "0 -8px 40px rgba(0,0,0,0.16)",
-          transform: `translateY(${translateY ?? offsetFor("half", vhRef.current)}px)`,
+          transform: `translateY(${translateY ?? offsetFor("half", vhRef.current, bottomInset)}px)`,
           transition: dragging ? "none" : "transform 320ms cubic-bezier(0.22,1,0.36,1)",
           display: "flex", flexDirection: "column",
           pointerEvents: "auto",
