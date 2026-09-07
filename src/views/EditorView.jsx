@@ -3437,7 +3437,9 @@ const EditorView = () => {
           + the centred reorder/continuous pair. Labelled, and it does NOT
           hide on a sheet-snap change: the sheet is given a matching
           bottomInset so its peek sliver rests just above the bar. */}
-      {trip && !isPinning && !inboxMode && !overlayOpen && (
+      {/* also hidden when a place/stop card or search results own the bottom
+          (mapFabsHidden) — PlaceInfoCard's "שמור בבנק" sits where the bar covers it. */}
+      {trip && !isPinning && !inboxMode && !overlayOpen && !mapFabsHidden && (
         <EditorBottomBar
           bankCount={bankCount}
           onBank={() => { setMode("inbox"); sheetRef.current?.snapTo?.("peek"); }}
@@ -3475,7 +3477,7 @@ const EditorView = () => {
           ref={sheetRef}
           defaultSnap="half"
           /* leave room for the fixed EditorBottomBar (56px + safe-area) when it's shown */
-          bottomInset={trip && !isPinning && !inboxMode && !overlayOpen ? 66 : 0}
+          bottomInset={trip && !isPinning && !inboxMode && !overlayOpen && !mapFabsHidden ? 66 : 0}
           onDraggingChange={setSheetDragging}
           /* Sprint 60 #1 — MUTUALLY EXCLUSIVE bottom viewport states: the Daily
              Schedule Sheet and the map-first inbox carousel can never occupy
