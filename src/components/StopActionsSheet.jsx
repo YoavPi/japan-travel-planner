@@ -46,8 +46,9 @@ const Row = ({ icon, label, danger, onClick, last }) => (
    each section; sections are separated by a thicker divider. */
 const SectionHeading = ({ children }) => (
   <div style={{
-    padding: "12px 16px 4px", fontSize: 11, fontWeight: 800,
-    textTransform: "uppercase", letterSpacing: "0.06em", color: T.ink4,
+    /* was T.ink4 #A4AAB1 = 2.34:1 on white, fails WCAG AA. */
+    padding: "12px 16px 4px", fontSize: 11.5, fontWeight: 800,
+    textTransform: "uppercase", letterSpacing: "0.06em", color: T.ink3,
   }}>{children}</div>
 );
 
@@ -57,6 +58,9 @@ const SectionRule = () => (
 
 const StopActionsSheet = ({ stop, days = [], otherTrips = [], onMove, onCopy, onCrossCopy, onSetNote, onSetLodging, onSetColor, onSetMultiDayHotel, onMoveNextDay, onSplitDay, onCopyName, onDuplicate, onAttach, attachBusy, attachmentCount = 0, onRemoveAttachment, onFindNearby, onSetCost, stopCostLabel, onDelete, onClose }) => {
   const [mode, setMode] = useState(null); // null | 'move' | 'copy' | 'crosscopy' | 'hoteldays' | 'note'
+  /* 'copy' is now a single hub: pick a day, duplicate into THIS day, or
+     switch to the cross-trip picker. The old three separate rows
+     ("העתקה ליום אחר" / "שכפל מיקום" / "העתקה לטיול אחר") collapsed here. */
   /* Cross-trip copy selection state. */
   const [targetTripId, setTargetTripId] = useState("");
   const [targetDay, setTargetDay] = useState(1);
@@ -72,7 +76,7 @@ const StopActionsSheet = ({ stop, days = [], otherTrips = [], onMove, onCopy, on
 
   const title =
     mode === "move" ? "העברה ליום" :
-    mode === "copy" ? "העתקה ליום" :
+    mode === "copy" ? "העתקה" :
     mode === "crosscopy" ? "העתקה לטיול אחר" :
     mode === "hoteldays" ? "מלון לכמה ימים" :
     mode === "note" ? "הערה לתחנה" :
@@ -115,6 +119,9 @@ const StopActionsSheet = ({ stop, days = [], otherTrips = [], onMove, onCopy, on
 
         {mode === "move" || mode === "copy" ? (
           <div style={{ padding: "0 16px" }}>
+            <div style={{ fontSize: 12.5, color: T.ink3, margin: "0 2px 8px", fontWeight: 600 }}>
+              {mode === "move" ? "בחרו יום להעברה" : "בחרו יום להעתקה"}
+            </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(52px,1fr))", gap: 8, maxHeight: 240, overflowY: "auto" }}>
               {days.map((d) => (
                 <button key={d.day}
@@ -125,6 +132,22 @@ const StopActionsSheet = ({ stop, days = [], otherTrips = [], onMove, onCopy, on
                 </button>
               ))}
             </div>
+            {mode === "copy" && (onDuplicate || onCrossCopy) && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
+                {onDuplicate && (
+                  <button onClick={() => { onDuplicate(); onClose?.(); }}
+                    style={{ width: "100%", height: 46, borderRadius: 12, border: `1px solid ${T.line}`, background: "#F6F6F4", cursor: "pointer", fontFamily: "inherit", fontSize: 14.5, fontWeight: 700, color: T.ink }}>
+                    שכפול ביום הנוכחי
+                  </button>
+                )}
+                {onCrossCopy && otherTrips.length > 0 && (
+                  <button onClick={() => setMode("crosscopy")}
+                    style={{ width: "100%", height: 46, borderRadius: 12, border: `1px solid ${T.line}`, background: "#fff", cursor: "pointer", fontFamily: "inherit", fontSize: 14.5, fontWeight: 700, color: T.ink2, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                    העתקה לטיול אחר ←
+                  </button>
+                )}
+              </div>
+            )}
             <button onClick={() => setMode(null)} style={backBtnStyle}>חזרה</button>
           </div>
         ) : mode === "crosscopy" ? (
@@ -212,20 +235,26 @@ const StopActionsSheet = ({ stop, days = [], otherTrips = [], onMove, onCopy, on
           </div>
         ) : (
           <div>
-            {/* Section 1 — Schedule management */}
-            <SectionHeading>ניהול לוח זמנים</SectionHeading>
+            {/* Section 1 — the place itself */}
+            <SectionHeading>המקום</SectionHeading>
+            <Row icon="📝" label={stop?.note ? "עריכת הערה" : "הוספת הערה"} onClick={() => { setNoteDraft(stop?.note || ""); setMode("note"); }} />
             {onFindNearby && <Row icon="🔍" label="מצא מקומות באזור" onClick={() => { onFindNearby(); onClose?.(); }} />}
-            <Row icon="↪" label="העברה ליום אחר" onClick={() => setMode("move")} />
-            <Row icon="⧉" label="העתקה ליום אחר" onClick={() => setMode("copy")} />
-            {/* Sprint 61 #3 — instant duplicate of THIS place into the same day. */}
-            {onDuplicate && <Row icon="📋" label="שכפל מיקום" onClick={() => { onDuplicate(); onClose?.(); }} />}
-            <Row icon="➡️" label="העבר ליום הבא" onClick={onMoveNextDay} />
-            <Row icon="✂️" label="פצל יום החל מנקודה זו" onClick={onSplitDay} last />
+            {onCopyName && <Row icon="🔗" label="העתקת שם המקום" onClick={() => { onCopyName(); onClose?.(); }} last />}
 
             <SectionRule />
 
-            {/* Section 2 — Content & accommodations */}
-            <SectionHeading>תוכן ולינה</SectionHeading>
+            {/* Section 2 — where it sits in the schedule. One "move", one
+                "copy" hub — the old five rows (move-day, copy-day, duplicate,
+                move-next-day, cross-trip) reduce to three. */}
+            <SectionHeading>מיקום בלוח הזמנים</SectionHeading>
+            <Row icon="↪" label="העברה ליום…" onClick={() => setMode("move")} />
+            <Row icon="⧉" label="העתקה…" onClick={() => setMode("copy")} />
+            <Row icon="✂️" label="פיצול היום מכאן" onClick={onSplitDay} last />
+
+            <SectionRule />
+
+            {/* Section 3 — lodging + card content */}
+            <SectionHeading>לינה ותוכן</SectionHeading>
             {/* Sprint 51 #2 — inline pastel palette: stamp a persistent card
                 theme onto this stop (or clear it). */}
             <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 16px 10px" }}>
@@ -246,23 +275,19 @@ const StopActionsSheet = ({ stop, days = [], otherTrips = [], onMove, onCopy, on
                   style={{ width: 26, height: 26, borderRadius: "50%", background: "#fff", cursor: "pointer", border: `2px solid ${T.line}`, color: T.ink4, fontSize: 13, lineHeight: 1, fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>⌀</button>
               </div>
             </div>
-            <Row icon="🏨" label="זה מלון לכמה ימים" onClick={() => setMode("hoteldays")} />
-            <Row icon={isLodging ? "🏨" : "🛏"} label="הגדר/בטל כנקודת לינה" onClick={onSetLodging} />
+            <Row icon="🏨" label="לינה למספר ימים" onClick={() => setMode("hoteldays")} />
+            <Row icon={isLodging ? "🏨" : "🛏"} label={isLodging ? "ביטול נקודת לינה" : "הגדרה כנקודת לינה"} onClick={onSetLodging} />
             {onSetCost && (
               <Row icon="💰" label={stopCostLabel ? `עריכת עלות · ${stopCostLabel}` : "הוסף עלות"} onClick={onSetCost} />
             )}
-            <Row icon="📝" label={stop?.note ? "עריכת הערה" : "הוספת הערה"} onClick={() => { setNoteDraft(stop?.note || ""); setMode("note"); }} />
             {/* Sprint 61 #7 — attach a confirmation file / PDF / image. */}
             {onAttach && <Row icon="📎" label={attachBusy ? "מצרף קובץ…" : "צרף קובץ/מסמך"} onClick={attachBusy ? undefined : () => { onAttach(); }} />}
             {/* Sprint 65 #2 — remove an attached file from this stop. */}
-            {onRemoveAttachment && attachmentCount > 0 && <Row icon="🗑" label="הסר קובץ מצורף" onClick={() => { onRemoveAttachment(); }} />}
-            {/* Sprint 55 #2 — quick-copy name migrated off the card into ⋯. */}
-            {onCopyName && <Row icon="🔗" label="העתקת שם המקום" onClick={() => { onCopyName(); onClose?.(); }} />}
-            <Row icon="🗂" label="העתקה לטיול אחר" onClick={() => setMode("crosscopy")} last />
+            {onRemoveAttachment && attachmentCount > 0 && <Row icon="✕" label="הסרת הקובץ המצורף" onClick={() => { onRemoveAttachment(); }} last />}
 
             <SectionRule />
 
-            {/* Section 3 — Destructive */}
+            {/* Destructive — set apart by the rule above + red */}
             <Row icon="🗑" label="מחיקה מהמסלול" danger onClick={onDelete} last />
           </div>
         )}
