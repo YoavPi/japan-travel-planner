@@ -33,6 +33,28 @@ const T = {
   font: "'Noto Sans Hebrew','Inter','Noto Sans JP',system-ui,sans-serif",
 };
 
+/* Recent picks — a short list the field offers before you type. Keyed by
+   placeId so tapping one re-runs the exact same details lookup as a fresh
+   result. Live-key only (no placeId without it). */
+const RECENTS_KEY = "tp_recent_searches";
+const RECENTS_MAX = 6;
+const readRecents = () => {
+  try {
+    const raw = localStorage.getItem(RECENTS_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list.filter((r) => r && r.placeId) : [];
+  } catch { return []; }
+};
+const pushRecent = (r) => {
+  if (!r || !r.placeId) return readRecents();
+  try {
+    const next = [{ placeId: r.placeId, primary: r.primary || r.name || "", secondary: r.secondary || "" },
+      ...readRecents().filter((x) => x.placeId !== r.placeId)].slice(0, RECENTS_MAX);
+    localStorage.setItem(RECENTS_KEY, JSON.stringify(next));
+    return next;
+  } catch { return readRecents(); }
+};
+
 const EditorSearchBar = ({ onAddStop, onPreview, activeDay, getBias, onFocusInput, onResults, floatResults = false, placeholder }) => {
   const placesOn = isSearchEnabled();
   /* Live key → Text Search (results carry coordinates, so they can be plotted
@@ -48,6 +70,8 @@ const EditorSearchBar = ({ onAddStop, onPreview, activeDay, getBias, onFocusInpu
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
   const [rlError, setRlError] = useState(""); // rate-limit notification
+  const [recents, setRecents] = useState([]);
+  useEffect(() => { setRecents(readRecents()); }, []);
   const debRef = useRef(null);
   const wrapRef = useRef(null);
   /* Sprint 47 #3 — hold the latest bias getter in a ref so the debounced
@@ -105,6 +129,7 @@ const EditorSearchBar = ({ onAddStop, onPreview, activeDay, getBias, onFocusInpu
      • Legacy fallback (no onPreview): classify + commit directly. */
   const addFromPlace = async (p) => {
     setOpen(false); setQuery(""); setPreds([]); emitResults([]);
+    setRecents(pushRecent(p));
     const d = await getDetails(p.placeId);
     if (!d) return;
     if (onPreview) { onPreview(d); return; }
@@ -159,6 +184,28 @@ const EditorSearchBar = ({ onAddStop, onPreview, activeDay, getBias, onFocusInpu
           <button onClick={() => { setQuery(""); setPreds([]); emitResults([]); }} style={{ width: 24, height: 24, borderRadius: "50%", border: "none", background: T.surface, cursor: "pointer", fontSize: 12, fontFamily: "inherit", color: T.ink2 }}>✕</button>
         )}
       </div>
+
+      {open && query.trim().length < 2 && placesOn && recents.length > 0 && (
+        <div style={{
+          ...(floatResults
+            ? { position: "absolute", top: "calc(100% + 6px)", insetInlineStart: 0, insetInlineEnd: 0, zIndex: 400 }
+            : { marginTop: 6 }),
+          background: "#fff", border: `1px solid ${T.line}`, borderRadius: 16, boxShadow: "0 16px 40px rgba(0,0,0,0.16)", overflow: "hidden",
+        }}>
+          <div style={{ padding: "10px 14px 4px", fontSize: 11.5, fontWeight: 800, color: T.ink3, letterSpacing: "0.02em" }}>חיפושים אחרונים</div>
+          {recents.map((r) => (
+            <button key={r.placeId} onClick={() => addFromPlace(r)}
+              style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "right", padding: "11px 14px", border: "none", borderBottom: `1px solid ${T.line}`, background: "transparent", cursor: "pointer", fontFamily: "inherit" }}>
+              <span aria-hidden style={{ flexShrink: 0, width: 22, height: 22, borderRadius: "50%", background: T.surface, color: T.ink3, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}>↻</span>
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: "block", fontSize: 14, fontWeight: 700, color: T.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.primary}</span>
+                {r.secondary && <span style={{ display: "block", fontSize: 12, color: T.ink3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.secondary}</span>}
+              </span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: T.accent, whiteSpace: "nowrap" }}>＋ יום {activeDay}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {open && query.trim().length >= 2 && (
         <div style={{
