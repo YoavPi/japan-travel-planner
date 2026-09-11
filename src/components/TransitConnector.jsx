@@ -1,45 +1,48 @@
 import React, { useState } from "react";
 import { computeTransit } from "../utils/transit";
+import { readableInkOn } from "../utils/contrast";
+import Icon from "./Icon";
 
-/* Extracted verbatim from EditorView.jsx's TransitRail (Sprint 30) as a
-   behaviour-preserving no-op — see docs/superpowers/plans/2026-09-11-
-   mobile-stop-card-implementation-plan.md Task A5. Redesigned per spec
-   §4.7-§4.8 in Task B4; this file intentionally still looks like the old
-   inline version except every T.xxx became P.xxx. */
+/* Redesigned per spec §4.7-§4.8 (Task B4) as an "axis connector": 44px hit /
+   28px visible pill, no border, Icon glyphs replacing emoji, visible Hebrew
+   mode labels in the popover (not title-only), and the override marker on
+   the icon's colour instead of a border. Hover-inversion (unreachable on
+   touch) has been deleted — the pill has exactly two visual states:
+   default and menuOpen. */
 const RAIL_MENU = [
-  { mode: "walk", emoji: "🚶", label: "הליכה" },
-  { mode: "car", emoji: "🚗", label: "רכב / מונית" },
-  { mode: "transit", emoji: "🚆", label: "רכבת" },
-  { mode: "bus", emoji: "🚌", label: "אוטובוס" },
+  { mode: "walk", label: "הליכה" },
+  { mode: "car", label: "רכב / מונית" },
+  { mode: "transit", label: "רכבת" },
+  { mode: "bus", label: "אוטובוס" },
 ];
 
+/* Mode → Icon.jsx glyph name. `transit` (the internal mode key, historically
+   meaning "train/public transit") maps to the `train` glyph. */
+const modeIconFor = (mode) => ({ walk: "walk", car: "car", transit: "train", bus: "bus" }[mode] || "train");
+
 export default function TransitConnector({ a, b, override = null, onSetMode, units, editable = true, P }) {
-  const [hover, setHover] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const seg = computeTransit(a?.coordinates, b?.coordinates, override, units);
   if (!seg) return null;
-  const active = hover && editable && !menuOpen;
+  const iconColor = seg.overridden ? P.accent : P.ink3;
   const inner = (
     <>
-      <span aria-hidden>{seg.emoji}</span>
-      <b style={{ color: active ? "#fff" : P.ink2, fontWeight: 700 }}>{seg.minutesLabel}</b>
-      <span style={{ color: active ? "rgba(255,255,255,0.7)" : P.ink4 }}>·</span>
-      <span>{seg.he}</span>
-      <span style={{ color: active ? "rgba(255,255,255,0.7)" : P.ink4 }}>·</span>
-      <span>{seg.distLabel}</span>
-      {editable && (
-        <span aria-hidden style={{ display: "inline-flex", marginInlineStart: 2, fontSize: 9, opacity: hover ? 1 : 0.55 }}>▾</span>
-      )}
+      <Icon name={modeIconFor(seg.mode)} size={13} color={iconColor} />
+      <b style={{ color: P.ink2, fontWeight: 700, fontSize: 12 }}>{seg.minutesLabel}</b>
+      <span style={{ color: P.ink4 }}>·</span>
+      <span style={{ color: P.ink3, fontWeight: 600, fontSize: 12 }}>{seg.distLabel}</span>
+      {editable && <Icon name="chevronDown" size={11} color={P.ink3} style={{ marginInlineStart: 2 }} />}
     </>
   );
-  const baseStyle = {
+  /* Visible 28px pill drawn on an inner span; the outer <button> carries the
+     44px hit box via padding-block so the target grows without the pill
+     looking oversized. */
+  const pillStyle = {
     display: "inline-flex", alignItems: "center", gap: 6,
-    padding: "4px 10px", borderRadius: 999,
-    border: `1px solid ${active ? P.ink : (override ? P.accent : P.line)}`,
-    background: active ? P.ink : P.panel,
-    color: active ? "#fff" : P.ink3,
-    fontSize: 11, fontFamily: "inherit",
-    transition: "background 0.18s ease, color 0.18s ease, border-color 0.18s ease",
+    padding: "0 10px", height: 28, borderRadius: 999,
+    background: menuOpen ? P.surface2 : P.surface,
+    color: P.ink3, fontSize: 11, fontFamily: "inherit",
+    transition: "background 0.18s ease",
   };
   return (
     <div style={{ display: "flex", justifyContent: "center", padding: "2px 0", position: "relative" }}>
@@ -47,14 +50,16 @@ export default function TransitConnector({ a, b, override = null, onSetMode, uni
         <>
           <button
             onClick={() => setMenuOpen((v) => !v)}
-            onMouseEnter={() => setHover(true)}
-            onMouseLeave={() => setHover(false)}
             aria-haspopup="menu" aria-expanded={menuOpen}
-            aria-label="שינוי אופן המעבר"
+            aria-label={`${seg.minutesLabel} ${seg.he}, ${seg.distLabel} — שינוי אופן המעבר`}
             title="שינוי אופן המעבר"
-            style={{ ...baseStyle, cursor: "pointer" }}
+            style={{
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
+              border: "none", background: "transparent", cursor: "pointer",
+              paddingBlock: 8, fontFamily: "inherit",
+            }}
           >
-            {inner}
+            <span style={pillStyle}>{inner}</span>
           </button>
           {menuOpen && (
             <>
@@ -62,22 +67,23 @@ export default function TransitConnector({ a, b, override = null, onSetMode, uni
               <div role="menu" className="tp-pop" dir="rtl" style={{
                 position: "absolute", top: "100%", marginTop: 4, zIndex: 21,
                 display: "flex", gap: 4, padding: 4, background: P.panel,
-                borderRadius: 999, border: `1px solid ${P.line}`,
+                borderRadius: 16, border: `1px solid ${P.line}`,
                 boxShadow: "0 10px 30px rgba(0,0,0,0.16)",
               }}>
                 {RAIL_MENU.map((m) => {
                   const on = seg.mode === m.mode;
+                  const fg = on ? readableInkOn(P.ink) : P.ink2;
                   return (
                     <button key={m.mode} role="menuitemradio" aria-checked={on}
-                      title={m.label}
                       onClick={() => { onSetMode && onSetMode(m.mode); setMenuOpen(false); }}
                       style={{
-                        width: 34, height: 34, borderRadius: "50%", cursor: "pointer",
-                        border: `1px solid ${on ? P.ink : P.line}`, background: on ? P.ink : P.panel,
-                        fontSize: 16, lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center",
-                        fontFamily: "inherit", transition: "background 0.15s, border-color 0.15s",
+                        width: 48, height: 56, borderRadius: 12, cursor: "pointer",
+                        border: "none", background: on ? P.ink : P.surface, color: fg,
+                        display: "inline-flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4,
+                        fontFamily: "inherit", transition: "background 0.15s, color 0.15s",
                       }}>
-                      <span aria-hidden style={{ filter: on ? "none" : "grayscale(0.15)" }}>{m.emoji}</span>
+                      <Icon name={modeIconFor(m.mode)} size={20} color={fg} />
+                      <span style={{ fontSize: 10, fontWeight: 700 }}>{m.label}</span>
                     </button>
                   );
                 })}
@@ -86,7 +92,7 @@ export default function TransitConnector({ a, b, override = null, onSetMode, uni
           )}
         </>
       ) : (
-        <span style={baseStyle}>{inner}</span>
+        <span style={pillStyle}>{inner}</span>
       )}
     </div>
   );

@@ -543,12 +543,15 @@ const DayStopList = ({
      transit / note insert engine while blending into the path line. */
   const renderInsertBtn = (insertIdx) => (
     <div key={`ins-${insertIdx}`} style={{ position: "relative", height: 22, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1 }}>
-      <span aria-hidden style={{ position: "absolute", insetInlineStart: "50%", top: 0, bottom: 0, width: 2, background: "#E4E4E8", transform: "translateX(-50%)" }} />
+      <span aria-hidden style={{ position: "absolute", insetInlineStart: "50%", top: 0, bottom: 0, width: 2, background: T.line, transform: "translateX(-50%)" }} />
+      {/* Sprint B4 — real 44×44 hit target via padding+negative margin; the
+          visible glyph stays 18px, camouflaged/transparent treatment kept
+          (spec §4.8 — target-size fix, not a redesign). */}
       <button
         onClick={() => onInsertAt && onInsertAt(insertIdx)}
         title="הוספת הערת ביניים או מעבר" aria-label="הוספה כאן"
         className="tp-press"
-        style={{ position: "relative", width: 30, height: 22, border: "none", background: "transparent", color: T.ink3, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 18, lineHeight: 1 }}>+</button>
+        style={{ position: "relative", width: 22, height: 22, border: "none", background: "transparent", color: T.ink3, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 18, lineHeight: 1, padding: 11, margin: -11 }}>+</button>
     </div>
   );
 

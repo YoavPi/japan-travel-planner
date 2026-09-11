@@ -30,3 +30,24 @@ describe("TransitConnector — extraction invariants", () => {
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 });
+
+describe("TransitConnector — redesign", () => {
+  it("mode menu shows visible Hebrew labels, not only title attributes", () => {
+    render(<TransitConnector a={a} b={b} units="km" editable onSetMode={jest.fn()} P={LIGHT} />);
+    fireEvent.click(screen.getByRole("button", { name: /שינוי אופן המעבר/ }));
+    expect(screen.getByText("הליכה")).toBeVisible();
+    expect(screen.getByText("רכב / מונית")).toBeVisible();
+  });
+
+  it("read-only renders a span with no chevron and no button role", () => {
+    render(<TransitConnector a={a} b={b} units="km" editable={false} P={LIGHT} />);
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByText("▾")).not.toBeInTheDocument();
+  });
+
+  it("an overridden mode does not render an accent border container (icon-only marker)", () => {
+    const { container } = render(<TransitConnector a={a} b={b} override="car" units="km" editable P={LIGHT} />);
+    const pill = container.querySelector('[aria-haspopup="menu"]');
+    expect(pill.style.border).not.toMatch(/E0533F/); // P.accent — border must not carry it anymore
+  });
+});
