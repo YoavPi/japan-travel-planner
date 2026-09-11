@@ -139,5 +139,8 @@ test("costForStop returns the linked expense or null", async () => {
 
   act(() => result.current.saveStopCost(1, 0, { label: "א", amountMinor: 1000, currency: "ILS", category: "other", note: "" }));
 
-  expect(result.current.costForStop("s1")).toMatchObject({ label: "א", amountMinor: 1000 });
+  expect(result.current.costForStop("s1")).toMatchObject({
+    primary: { label: "א", amountMinor: 1000 },
+    effectiveMinor: 1000,
+  });
 });

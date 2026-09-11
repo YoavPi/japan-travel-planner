@@ -26,7 +26,7 @@ import { listInboxPlaces, addInboxPlaces, removeInboxPlace, updateInboxPlace } f
 import { uploadAttachment, removeStoredFile } from "../services/attachmentService";
 import TripFilesSheet from "../components/TripFilesSheet";
 import { newFileId, remapFileDays } from "../utils/tripFiles";
-import { remapExpenseDays, ensureBudget, addExpense, updateExpense, removeExpense, expensesForStop, detachStopExpenses, formatMoney, toIlsMinor, BASE_CATEGORIES, budgetImpact } from "../utils/budget";
+import { remapExpenseDays, ensureBudget, addExpense, updateExpense, removeExpense, expensesForStop, detachStopExpenses, formatMoney, toIlsMinor, BASE_CATEGORIES, budgetImpact, stopCostSummary } from "../utils/budget";
 import ExpenseSheet from "../components/ExpenseSheet";
 import useActiveTrip from "../utils/useActiveTrip";
 import Icon from "../components/Icon";
@@ -2166,7 +2166,8 @@ const EditorView = () => {
 
   const costForStop = useCallback((stopId) => {
     const items = trip?.data?.budget?.items || [];
-    return expensesForStop(items, stopId)[0] || null;
+    const config = trip?.data?.budget?.config || {};
+    return stopCostSummary(items, stopId, config);
   }, [trip]);
 
   /* Sprint 65 — TRIP FILES GALLERY. Derived views over trip.data for the
@@ -3932,7 +3933,7 @@ const EditorView = () => {
           stop). */}
       {costFor && costFor.day === activeDay && activeDayData?.attractions?.[costFor.idx] && (() => {
         const stop = activeDayData.attractions[costFor.idx];
-        const existing = stop.instanceId ? costForStop(stop.instanceId) : null;
+        const existing = stop.instanceId ? costForStop(stop.instanceId)?.primary ?? null : null;
         return (
           <ExpenseSheet
             open
@@ -4723,7 +4724,7 @@ const EditorView = () => {
           stopCostLabel={(() => {
             const stop = activeDayData?.attractions?.[actionsIdx];
             const c = stop?.instanceId ? costForStop(stop.instanceId) : null;
-            return c ? formatMoney(c.amountMinor, c.currency || "ILS") : null;
+            return c ? formatMoney(c.effectiveMinor, c.currency || "ILS") : null;
           })()}
           onClose={() => setActionsIdx(-1)}
         />

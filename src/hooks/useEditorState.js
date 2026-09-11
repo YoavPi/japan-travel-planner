@@ -5,7 +5,7 @@ import { listInboxPlaces, addInboxPlaces, removeInboxPlace, updateInboxPlace, fe
 import { addGeneralFile, updateGeneralFile, removeGeneralFile, renameStopAttachment, remapFileDays } from "../utils/tripFiles";
 import {
   remapExpenseDays, ensureBudget, addExpense, updateExpense, removeExpense,
-  expensesForStop, detachStopExpenses,
+  expensesForStop, detachStopExpenses, stopCostSummary,
 } from "../utils/budget";
 
 /* ══════════════════════════════════════════════════════════════
@@ -177,7 +177,8 @@ export default function useEditorState(tripId) {
 
   const costForStop = useCallback((stopId) => {
     const items = trip?.data?.budget?.items || [];
-    return expensesForStop(items, stopId)[0] || null;
+    const config = trip?.data?.budget?.config || {};
+    return stopCostSummary(items, stopId, config);
   }, [trip]);
 
   const setStopNote = useCallback((dayNum, idx, note) => {

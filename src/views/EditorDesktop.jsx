@@ -1455,7 +1455,7 @@ export default function EditorDesktop() {
                 {days.length > 1 && <CtxItem emoji="📅" label="העברה ליום…" onClick={() => setCtxDaysOpen(true)} trailing="‹" />}
                 <div style={{ height: 1, background: T.line, margin: "4px 0" }} />
                 <CtxItem emoji="💰" label={costForStop(ctxMenu.a.instanceId)
-                    ? `עריכת עלות · ${formatMoney(costForStop(ctxMenu.a.instanceId).amountMinor, costForStop(ctxMenu.a.instanceId).currency || "ILS")}`
+                    ? `עריכת עלות · ${formatMoney(costForStop(ctxMenu.a.instanceId).effectiveMinor, costForStop(ctxMenu.a.instanceId).currency || "ILS")}`
                     : "הוסף עלות"}
                   onClick={() => { setCostFor({ dayNum: activeDay, idx: ctxMenu.idx }); setCtxMenu(null); }} />
                 <CtxItem emoji="🗑️" label="מחיקה" danger onClick={() => { const idx = ctxMenu.idx; const stopId = ctxMenu.a.instanceId; setCtxMenu(null); withBudgetGate("deleteStop", stopId, () => deleteStopAt(activeDay, idx)); }} />
@@ -1688,7 +1688,7 @@ export default function EditorDesktop() {
         const day = days.find((d) => d.day === costFor.dayNum);
         const stop = day?.attractions?.[costFor.idx];
         if (!stop) { setCostFor(null); return null; }
-        const existing = stop.instanceId ? costForStop(stop.instanceId) : null;
+        const existing = stop.instanceId ? costForStop(stop.instanceId)?.primary ?? null : null;
         return (
           <ExpenseSheet
             open
