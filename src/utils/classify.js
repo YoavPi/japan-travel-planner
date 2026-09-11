@@ -78,6 +78,27 @@ export const ratingToBadge = (googleRating) => {
   return `${ten}/10`;
 };
 
+/* Render-time rating normalisation for the stop card (spec §2.5, §8.5).
+   Three writers disagree on scale/type — this makes the CARD consistent
+   without rewriting stored data:
+     • a string already ending "/10"  → pass through as-is
+     • a bare number ≤ 5              → Google 0-5 scale, reuse ratingToBadge
+     • a bare number > 5              → already /10, format directly
+   Returns null for anything unparseable; StopCard renders nothing then. */
+export const normalizeRating = (raw) => {
+  if (raw == null) return null;
+  if (typeof raw === "string") {
+    const s = raw.trim();
+    if (/\/10$/.test(s)) return s;
+    const n = parseFloat(s);
+    if (!Number.isFinite(n)) return null;
+    return n <= 5 ? ratingToBadge(n) : `${Math.round(n * 10) / 10}/10`;
+  }
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return null;
+  return n <= 5 ? ratingToBadge(n) : `${Math.round(n * 10) / 10}/10`;
+};
+
 /* ── Strict per-day dedup (spec §5) ──
    A location entity can exist once per day. We key by a normalized
    name (case/space-insensitive). When duplicates collide we keep

@@ -1,4 +1,4 @@
-import { withFreshInstanceId } from "./classify";
+import { withFreshInstanceId, normalizeRating } from "./classify";
 
 /* Pins the invariant behind trip-budget-design §1.5: stopRef is the stop's
    instanceId, so two stops must never share one — a duplicate that carried
@@ -55,5 +55,25 @@ describe("withFreshInstanceId", () => {
     const clone = withFreshInstanceId(src, genId);
     expect(clone.instanceId).toBeTruthy();
     expect(clone.name).toBe(src.name);
+  });
+});
+
+describe("normalizeRating", () => {
+  it("passes through an already-scaled string", () => {
+    expect(normalizeRating("9/10")).toBe("9/10");
+    expect(normalizeRating("9.2/10")).toBe("9.2/10");
+  });
+  it("scales a raw Google 0-5 number", () => {
+    expect(normalizeRating(4.6)).toBe("9.2/10");
+    expect(normalizeRating(4.7)).toBe("9.4/10");
+  });
+  it("treats a bare number above 5 as already /10", () => {
+    expect(normalizeRating(9.4)).toBe("9.4/10");
+  });
+  it("returns null for unparseable input", () => {
+    expect(normalizeRating(undefined)).toBeNull();
+    expect(normalizeRating(null)).toBeNull();
+    expect(normalizeRating("")).toBeNull();
+    expect(normalizeRating("garbage")).toBeNull();
   });
 });
