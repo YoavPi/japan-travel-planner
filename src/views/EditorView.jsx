@@ -3560,7 +3560,7 @@ const EditorView = () => {
                             paddingInline: "16px",
                             marginTop: "8px",
                             backgroundColor: LIGHT.ink,
-                            color: "#fff",
+                            color: readableInkOn(LIGHT.ink),
                             border: "none",
                             borderRadius: "10px",
                             fontSize: "14px",
