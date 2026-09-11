@@ -43,3 +43,34 @@ describe("EditorView source scan — B6 rating-writer fix (T-CARD-08)", () => {
     expect(src).toMatch(/rating:\s*p\.rating \|\| undefined/);
   });
 });
+
+/* Task C2 — spec §5.6 loading skeleton: three StopCard-geometry shells,
+   plain fade (never the tpSkeleton shimmer), aria-busy + aria-live, and
+   respecting prefers-reduced-motion via the existing sitewide `.tp-fade`
+   rule (no second detection mechanism introduced). Source-scan since this
+   file has no render harness (see the class above). */
+describe("EditorView source scan — C2 loading skeleton (spec §5.6)", () => {
+  const src = fs.readFileSync(require.resolve("./EditorView.jsx"), "utf8");
+
+  it("renders exactly three skeleton card shells", () => {
+    expect(src).toMatch(/\{\[0,\s*1,\s*2\]\.map\(\(i\)\s*=>\s*\(/);
+  });
+
+  it("uses the plain tp-fade entrance, never the tpSkeleton shimmer keyframe, on the skeleton card", () => {
+    const skeletonBlock = src.slice(src.indexOf("Task C2"), src.indexOf("<style>{`"));
+    expect(skeletonBlock).toMatch(/className="tp-fade"/);
+    expect(skeletonBlock).not.toMatch(/animation:\s*["'`]tpSkeleton/);
+  });
+
+  it("marks the skeleton list aria-busy and announces the Hebrew loading string via aria-live", () => {
+    expect(src).toMatch(/aria-busy="true"/);
+    expect(src).toMatch(/aria-live="polite"[\s\S]{0,200}טוען מסלול…/);
+  });
+
+  it("skeleton cards match StopCard's real geometry (76px height, 14px radius, LIGHT surface/line tokens)", () => {
+    const skeletonBlock = src.slice(src.indexOf("Task C2"), src.indexOf("<style>{`"));
+    expect(skeletonBlock).toMatch(/height:\s*76,\s*borderRadius:\s*14/);
+    expect(skeletonBlock).toMatch(/background:\s*LIGHT\.surface,\s*border:\s*`1px solid \$\{LIGHT\.line\}`/);
+    expect(skeletonBlock).toMatch(/width:\s*32,\s*height:\s*32,\s*borderRadius:\s*8,\s*background:\s*LIGHT\.surface2/);
+  });
+});

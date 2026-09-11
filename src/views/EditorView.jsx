@@ -4423,9 +4423,37 @@ const EditorView = () => {
         />
       )}
 
+      {/* Task C2 — spec §5.6: three skeleton card shells at StopCard's real
+          geometry, plain fade (tp-fade/tpFade, NOT the tpSkeleton shimmer —
+          "no shimmer, adding decorative motion to a loading state violates
+          the register"). tp-fade already drops its animation under
+          prefers-reduced-motion via the sitewide rule in index.css:159-162,
+          so no extra JS media-query detection is needed here. */}
       {!trip && !error && (
         <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: "50vh", background: "#fff", borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 22 }}>
-          <div style={{ height: 52, borderRadius: 16, background: "linear-gradient(90deg,#f0f0ee,#f7f7f5,#f0f0ee)", backgroundSize: "200% 100%", animation: "tpSkeleton 1.2s ease infinite" }} />
+          <div role="status" aria-live="polite" style={{ fontSize: 12.5, fontWeight: 600, color: LIGHT.ink3, marginBottom: 10 }}>
+            טוען מסלול…
+          </div>
+          <div aria-busy="true" role="list">
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                role="listitem"
+                className="tp-fade"
+                style={{
+                  height: 76, borderRadius: 14, background: LIGHT.surface, border: `1px solid ${LIGHT.line}`,
+                  display: "flex", alignItems: "center", gap: 12, padding: "0 14px",
+                  marginBottom: i < 2 ? 10 : 0,
+                }}
+              >
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: LIGHT.surface2, flexShrink: 0 }} />
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ width: "60%", height: 14, borderRadius: 6, background: LIGHT.surface2 }} />
+                  <div style={{ width: "40%", height: 10, borderRadius: 6, background: LIGHT.surface2 }} />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
       <style>{`
