@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useDarkMode } from "../utils/theme";   // theme.js exports both `useDarkMode` (named) and default
 import { buildFileGroups, fileKind, fileEmoji, humanSize } from "../utils/tripFiles";
 import { isAllowedFile } from "../services/attachmentService";
@@ -12,7 +12,7 @@ const ACCEPT = "application/pdf,image/*,.pdf,.png,.jpg,.jpeg,.heic,.docx,.xlsx,.
    `editable`; open-only otherwise. */
 export default function TripFilesSheet({
   open, onClose, tripData, files, dayCount, editable, busy, dark: darkProp,
-  onUpload, onRename, onMove, onDelete,
+  onUpload, onRename, onMove, onDelete, focusStop,
 }) {
   /* The two editors (EditorView / EditorDesktop) are light-only and pass
      `dark={false}`; the trip-overview surfaces omit it and stay theme-aware. */
@@ -25,8 +25,34 @@ export default function TripFilesSheet({
   const [renaming, setRenaming] = useState(null);   // FileRow
   const [menuFor, setMenuFor] = useState(null);     // FileRow
   const [viewing, setViewing] = useState(null);     // FileRow
+  const [highlightKey, setHighlightKey] = useState(null);
+  const rowRefs = useRef(new Map()); // row key -> DOM node, for focusStop scroll
 
   const groups = useMemo(() => buildFileGroups(tripData, files), [tripData, files]);
+
+  /* focusStop (spec §4.6) — scroll-and-highlight only, no new grouping.
+     Matches the first row whose dayNum/stopIdx agree (any `fi`), using
+     the rows' existing key shape `${dayNum}:${stopIdx}:${fi}`. Depends
+     on the primitive day/stopIdx values, not the `focusStop` object
+     itself — a caller that (reasonably) passes a fresh object literal
+     each render, e.g. `focusStop={{ day, stopIdx }}`, must not re-fire
+     this scroll/highlight on every unrelated re-render. */
+  const focusDay = focusStop?.day;
+  const focusStopIdx = focusStop?.stopIdx;
+  useEffect(() => {
+    if (!open || focusDay == null || focusStopIdx == null) return undefined;
+    let matchKey = null;
+    for (const g of groups) {
+      const hit = g.items.find((row) => row.kind === "stop" && row.dayNum === focusDay && row.stopIdx === focusStopIdx);
+      if (hit) { matchKey = `${hit.dayNum}:${hit.stopIdx}:${hit.fi}`; break; }
+    }
+    if (!matchKey) return undefined;
+    setHighlightKey(matchKey);
+    const el = rowRefs.current.get(matchKey);
+    if (el && el.scrollIntoView) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    const t = setTimeout(() => setHighlightKey(null), 1500);
+    return () => clearTimeout(t);
+  }, [open, focusDay, focusStopIdx, groups]);
 
   if (!open) return null;
 
@@ -114,8 +140,17 @@ export default function TripFilesSheet({
                 {g.items.map((row) => {
                   const kind = fileKind(row.type, row.name);
                   const key = row.kind === "general" ? row.id : `${row.dayNum}:${row.stopIdx}:${row.fi}`;
+                  const isHighlighted = highlightKey === key;
                   return (
-                    <div key={key} style={{ position: "relative", display: "flex", alignItems: "center", gap: 10, background: P.row, borderRadius: 12, padding: "10px 12px", marginBottom: 8, minHeight: 56 }}>
+                    <div key={key}
+                      ref={(el) => { if (el) rowRefs.current.set(key, el); else rowRefs.current.delete(key); }}
+                      style={{
+                        position: "relative", display: "flex", alignItems: "center", gap: 10,
+                        background: isHighlighted ? P.accent + "26" : P.row, borderRadius: 12,
+                        padding: "10px 12px", marginBottom: 8, minHeight: 56,
+                        transition: "background 300ms ease",
+                        outline: isHighlighted ? `1.5px solid ${P.accent}` : "none",
+                      }}>
                       <span aria-hidden style={{ fontSize: 20 }}>{fileEmoji(kind)}</span>
                       {renaming && renaming._k === key ? (
                         /* Sibling of the row — NOT nested in the open-viewer

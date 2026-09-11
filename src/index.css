@@ -277,6 +277,18 @@ button:not(:disabled):active,
   overflow: hidden;
 }
 
+/* StopCard Row C note preview (spec §4.4) — 1-line clamp by default,
+   2 lines at >=480px where there's room for the extra line. */
+.tp-note-clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+@media (min-width: 480px) {
+  .tp-note-clamp { -webkit-line-clamp: 2; }
+}
+
 /* Thin inner frame effect */
 .inner-frame {
   box-shadow: inset 0 0 0 1px rgba(217, 64, 37, 0.2);

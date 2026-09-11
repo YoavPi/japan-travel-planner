@@ -35,13 +35,6 @@ describe("StopCard — extraction invariants", () => {
     expect(onOpenActions).toHaveBeenCalledWith(3);
   });
 
-  it("calls onEditNote(idx) when the note trigger is tapped", () => {
-    const onEditNote = jest.fn();
-    render(<StopCard {...baseProps} idx={2} onEditNote={onEditNote} />);
-    fireEvent.click(screen.getByRole("button", { name: /הוספת הערה|עריכת הערה/ }));
-    expect(onEditNote).toHaveBeenCalledWith(2);
-  });
-
   it("every interactive child stops propagation so the card body click doesn't also fire", () => {
     const onNavigate = jest.fn();
     render(<StopCard {...baseProps} onNavigate={onNavigate} />);
@@ -137,5 +130,43 @@ describe("StopCard — Row B metadata", () => {
   it("sparse: no rating/cost/files/note/category renders Row B as absent", () => {
     render(<StopCard {...baseProps} stop={{ instanceId: "i1", nameHe: "שוק" }} costSummary={null} showCost />);
     expect(screen.queryByText("·")).not.toBeInTheDocument();
+  });
+});
+
+describe("StopCard — Row C note preview", () => {
+  it("renders the note preview when a note exists, no separate note button", () => {
+    render(<StopCard {...baseProps} stop={{ ...baseStop, note: "ביקשתי חדר גבוה" }} />);
+    expect(screen.getByText("ביקשתי חדר גבוה")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^הוספת הערה$/ })).not.toBeInTheDocument();
+  });
+
+  it("renders nothing for Row C when there is no note", () => {
+    render(<StopCard {...baseProps} stop={{ ...baseStop, note: undefined }} />);
+    expect(screen.queryByText(/הוספת הערה/)).not.toBeInTheDocument();
+  });
+
+  it("tapping the note preview calls onEditNote(idx)", () => {
+    const onEditNote = jest.fn();
+    render(<StopCard {...baseProps} idx={5} onEditNote={onEditNote} stop={{ ...baseStop, note: "צ'ק-אין מ-15:00" }} />);
+    fireEvent.click(screen.getByText("צ'ק-אין מ-15:00"));
+    expect(onEditNote).toHaveBeenCalledWith(5);
+  });
+
+  it("one attachment opens AttachmentViewer via onOpenAttachment", () => {
+    const onOpenAttachment = jest.fn();
+    const stop = { ...baseStop, attachments: [{ name: "receipt.pdf" }] };
+    render(<StopCard {...baseProps} idx={1} stop={stop} onOpenAttachment={onOpenAttachment} />);
+    // Scoped past a plain /1/: the badge's own a11y label ("תחנה 1, …")
+    // also contains "1" and would otherwise make this an ambiguous query.
+    fireEvent.click(screen.getByRole("button", { name: /1 קבצים/ }));
+    expect(onOpenAttachment).toHaveBeenCalledWith(stop.attachments[0], 1, 0);
+  });
+
+  it("multiple attachments call onOpenFiles(idx) instead", () => {
+    const onOpenFiles = jest.fn();
+    const stop = { ...baseStop, attachments: [{ name: "a.pdf" }, { name: "b.pdf" }] };
+    render(<StopCard {...baseProps} idx={1} stop={stop} onOpenFiles={onOpenFiles} />);
+    fireEvent.click(screen.getByRole("button", { name: /2/ }));
+    expect(onOpenFiles).toHaveBeenCalledWith(1);
   });
 });

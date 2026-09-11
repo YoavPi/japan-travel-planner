@@ -20,16 +20,16 @@ import { formatMoney } from "../utils/budget";
 
    Row B (metadata line — category/rating/cost/files, spec §4.3/§4.5) is
    redesigned in this task (B2): plain text with `·` separators, no chip
-   fills, omitted entirely when sparse. Row C (note preview) and the
-   attachments row are NOT yet redesigned — that's Task B3 — so they keep
-   their pre-B1 styling (including the still-present note pencil trigger,
-   which spec §7.1 #2 schedules for deletion once Row C's note-preview
-   lands). It still shares Row B's row container so its on-screen position
-   doesn't shift, but its rendering is independent of Row B's own sparse
-   rule — the row container itself now renders whenever EITHER Row B has
-   content OR the note trigger is shown, while Row B's metadata line
-   (the `·`-separated text) is its own inner block that is omitted
-   entirely when sparse, per spec §4.3. */
+   fills, omitted entirely when sparse. Task B3 finishes the redesign:
+   the note-pencil trigger that used to live in Row B's shared row
+   container is deleted outright (spec §7.1 #2/§7.2), and Row C (note
+   preview, spec §4.4) replaces the old grey "note ticket" + attachment-
+   pills block with plain text + a leading icon (no card-inside-a-card,
+   spec §2.4/§7.1 #6). Row B's own row now renders only when it has
+   content (`hasRowB`) — its sparse-collapse height is reachable again
+   now that nothing else keeps that row alive. The files metadata item
+   (Row B) routes 1 file to `onOpenAttachment` and >1 to the new
+   `onOpenFiles(idx)` prop, per spec §4.6. */
 export default function StopCard({
   stop: a, idx, pos, lodging = false, tripActive = false, liveOps = false,
   editable = true, dragging = false, P, compact,
@@ -43,7 +43,6 @@ export default function StopCard({
   const canDrag = editable && pos != null;
   const note = a.note || a.comment || a.annotation || a.quote;
   const hotelSpan = a._hotelGroup ? a._hotelSpan : null;
-  const CHARCOAL = "#1E1E24";
   const stopName = a.nameHe || a.name;
   const subtitle = lodging ? `מלון${hotelSpan ? ` · ${hotelSpan.total} לילות` : ""}` : (a.category || "");
   const hasNav = a.coordinates && Number.isFinite(a.coordinates.lat) && Number.isFinite(a.coordinates.lng);
@@ -95,10 +94,19 @@ export default function StopCard({
     );
   }
   if (fileCount > 0) {
+    /* §4.6 — 1 file opens AttachmentViewer directly (existing
+       onOpenAttachment(f, idx, 0) path, zero new plumbing); >1 opens
+       TripFilesSheet via the new onOpenFiles(idx) path (Task B5 wires
+       that to focusStop={{ day, stopIdx: idx }}). */
+    const onFilesClick = (e) => {
+      e.stopPropagation();
+      if (fileCount === 1) { onOpenAttachment && onOpenAttachment(a.attachments[0], idx, 0); }
+      else { onOpenFiles && onOpenFiles(idx); }
+    };
     rowBItems.push(
       <button
         key="files" type="button"
-        onClick={(e) => { e.stopPropagation(); onOpenFiles && onOpenFiles(idx); }}
+        onClick={onFilesClick}
         aria-label={`${fileCount} קבצים מצורפים`}
         style={{
           display: "inline-flex", alignItems: "center", gap: 3,
@@ -196,7 +204,7 @@ export default function StopCard({
       ref={rowRef}
       data-stop-idx={idx}
       style={{
-        display: "flex", flexDirection: "column", gap: note ? 6 : 0,
+        display: "flex", flexDirection: "column",
         userSelect: "none", WebkitUserSelect: "none", msUserSelect: "none", WebkitTouchCallout: "none",
         position: "relative", zIndex: dragging ? 2 : "auto",
         background: P.panel,
@@ -287,35 +295,57 @@ export default function StopCard({
         )}
       </div>
 
-      {(hasRowB || (editable && onEditNote)) && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, opacity: done ? 0.55 : 1 }}>
-          {/* Row B — metadata line (spec §4.3): category · rating · cost ·
-              files, plain text with `·` separators, no chip fills. Omitted
-              entirely (this inner block, not the outer row — see file-top
-              comment) when nothing would render, per the sparse rule. */}
-          {hasRowB && (
-            <div dir="auto" style={{
-              display: "flex", flexWrap: "wrap", alignItems: "center",
-              flex: 1, minWidth: 0, gap: 8, rowGap: 4,
-              fontSize: 12.5, fontWeight: 600, color: P.ink3,
-            }}>
-              {rowBItems.map((item, i) => (
-                <Fragment key={item.key}>
-                  {i > 0 && <span aria-hidden="true" style={{ color: P.ink4 }}>·</span>}
-                  {item}
-                </Fragment>
-              ))}
-            </div>
-          )}
-          {editable && onEditNote && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onEditNote(idx); }}
-              title={a.note ? "עריכת הערה" : "הוספת הערה"} aria-label={a.note ? "עריכת הערה" : "הוספת הערה"}
-              style={{ flexShrink: 0, marginInlineStart: "auto", width: 30, height: 30, border: "none", background: a.note ? CHARCOAL : "#F0F0F3", color: a.note ? "#fff" : P.ink2, cursor: "pointer", fontFamily: "inherit", borderRadius: 8, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-              <Icon name="note" size={15} strokeWidth={1.9} color={a.note ? "#fff" : P.ink2} />
-            </button>
-          )}
+      {/* Row B — metadata line (spec §4.3): category · rating · cost ·
+          files, plain text with `·` separators, no chip fills. Omitted
+          entirely when nothing would render, per the sparse rule — the
+          note-pencil that used to keep this row alive when Row B itself
+          was empty is deleted (spec §7.1 #2 / §7.2), so the row's own
+          sparse-collapse height is now reachable. */}
+      {hasRowB && (
+        <div dir="auto" style={{
+          display: "flex", flexWrap: "wrap", alignItems: "center",
+          gap: 8, rowGap: 4, marginTop: 8,
+          fontSize: 12.5, fontWeight: 600, color: P.ink3,
+          opacity: done ? 0.55 : 1,
+        }}>
+          {rowBItems.map((item, i) => (
+            <Fragment key={item.key}>
+              {i > 0 && <span aria-hidden="true" style={{ color: P.ink4 }}>·</span>}
+              {item}
+            </Fragment>
+          ))}
         </div>
+      )}
+
+      {/* Row C — note preview (spec §4.4). Plain text with a leading
+          icon, no background fill, no card-inside-a-card (the old grey
+          ticket is deleted per §2.4/§7.1 #6). Renders only when a note
+          exists under any of the four legacy field names. */}
+      {note && (
+        editable && onEditNote ? (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onEditNote(idx); }}
+            aria-label="עריכת ההערה"
+            dir="auto"
+            style={{
+              display: "flex", alignItems: "flex-start", gap: 6,
+              marginTop: 8, width: "100%", textAlign: "start",
+              border: "none", background: "transparent",
+              padding: 0, paddingBlock: 12, marginBlock: -12,
+              cursor: "pointer", fontFamily: "inherit",
+              opacity: done ? 0.6 : 1,
+            }}
+          >
+            <Icon name="note" size={12} strokeWidth={1.9} color={P.ink3} style={{ flexShrink: 0, marginTop: 2 }} />
+            <span className="tp-note-clamp" style={{ fontSize: 12.5, fontWeight: 500, color: P.ink2, lineHeight: 1.45, wordBreak: "break-word", flex: 1, minWidth: 0 }}>{note}</span>
+          </button>
+        ) : (
+          <div dir="auto" style={{ display: "flex", alignItems: "flex-start", gap: 6, marginTop: 8, opacity: done ? 0.6 : 1 }}>
+            <Icon name="note" size={12} strokeWidth={1.9} color={P.ink3} style={{ flexShrink: 0, marginTop: 2 }} />
+            <span className="tp-note-clamp" style={{ fontSize: 12.5, fontWeight: 500, color: P.ink2, lineHeight: 1.45, wordBreak: "break-word", flex: 1, minWidth: 0 }}>{note}</span>
+          </div>
+        )
       )}
 
       {tripActive && !done && onMoveForward && (
@@ -325,31 +355,6 @@ export default function StopCard({
         </button>
       )}
 
-      {(note || (a.attachments && a.attachments.length)) && (
-        <div style={{ display: "flex", alignItems: "stretch", gap: 6, width: "100%" }}>
-          <div
-            role={editable && onEditNote ? "button" : undefined}
-            onClick={editable && onEditNote ? (e) => { e.stopPropagation(); onEditNote(idx); } : undefined}
-            dir="auto" title={editable ? "עריכת ההערה" : undefined}
-            style={{
-              display: "flex", alignItems: "flex-start", gap: 6,
-              flex: 1, minWidth: 0, boxSizing: "border-box", background: "#F0F0F3", borderRadius: 8,
-              padding: "8px 10px", fontSize: 12, fontWeight: 500, color: "#4A4A55",
-              lineHeight: 1.45, whiteSpace: "pre-wrap", wordBreak: "break-word", overflowWrap: "anywhere",
-              opacity: done ? 0.6 : 1, cursor: editable && onEditNote ? "pointer" : "default",
-            }}>
-            <span style={{ flexShrink: 0, marginTop: 1, color: P.ink3 }}><Icon name="note" size={13} strokeWidth={1.9} /></span>
-            <span style={{ flex: 1, minWidth: 0 }}>{note || "הוספת הערה…"}</span>
-          </div>
-          {a.attachments && a.attachments.map((f, fi) => (
-            <button key={fi} onClick={(e) => { e.stopPropagation(); onOpenAttachment && onOpenAttachment(f, idx, fi); }}
-              title={f.name || "מסמך מצורף"} aria-label={f.name || "מסמך מצורף"} className="tp-press"
-              style={{ flexShrink: 0, alignSelf: "stretch", minWidth: 36, padding: "0 8px", border: "none", background: CHARCOAL, color: "#fff", borderRadius: 8, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4, fontSize: 11, fontWeight: 800 }}>
-              <span aria-hidden style={{ fontSize: 13 }}>📎</span>
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

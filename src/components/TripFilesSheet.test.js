@@ -77,3 +77,17 @@ test("read-only: no upload button, no ⋯ menu", () => {
   expect(screen.queryByText(/הוסף קובץ/)).toBeNull();
   expect(screen.queryByLabelText("פעולות עבור insurance.pdf")).toBeNull();
 });
+
+test("scrolls to and highlights the row matching focusStop", () => {
+  const scrollIntoView = jest.fn();
+  window.HTMLElement.prototype.scrollIntoView = scrollIntoView;
+  render(<TripFilesSheet {...baseProps} focusStop={{ day: 2, stopIdx: 0 }} />);
+  expect(scrollIntoView).toHaveBeenCalled();
+});
+
+test("focusStop is optional — omitting it does not scroll or throw", () => {
+  const scrollIntoView = jest.fn();
+  window.HTMLElement.prototype.scrollIntoView = scrollIntoView;
+  render(<TripFilesSheet {...baseProps} />);
+  expect(scrollIntoView).not.toHaveBeenCalled();
+});
