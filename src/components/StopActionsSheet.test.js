@@ -76,3 +76,35 @@ test("remove-attachment no longer shares the trash glyph with delete", () => {
   expect(remove.textContent).not.toContain("🗑");
   expect(del.textContent).toContain("🗑");
 });
+
+/* ── B5: F1 merge — long-press repoints to this sheet; trip-mode
+   move-to-next-day row lands here as the schedule section's first row. ── */
+
+describe("StopActionsSheet — trip-mode move-to-next-day row (F1 merge)", () => {
+  test("shows the move-to-next-day row when tripActive is true", () => {
+    render(<StopActionsSheet {...baseProps} onMoveNextDay={jest.fn()} tripActive />);
+    expect(screen.getByText("העבר ליום הבא")).toBeInTheDocument();
+  });
+
+  test("hides the move-to-next-day row when tripActive is false", () => {
+    render(<StopActionsSheet {...baseProps} onMoveNextDay={jest.fn()} tripActive={false} />);
+    expect(screen.queryByText("העבר ליום הבא")).not.toBeInTheDocument();
+  });
+
+  test("clicking the row fires onMoveNextDay", () => {
+    const onMoveNextDay = jest.fn();
+    render(<StopActionsSheet {...baseProps} onMoveNextDay={onMoveNextDay} tripActive />);
+    fireEvent.click(screen.getByText("העבר ליום הבא"));
+    expect(onMoveNextDay).toHaveBeenCalled();
+  });
+
+  test("T-CARD-11 (sheet half): the note row still reaches onSetNote with the draft", () => {
+    const onSetNote = jest.fn();
+    render(<StopActionsSheet {...baseProps} stop={{ note: "ישן" }} onSetNote={onSetNote} />);
+    fireEvent.click(screen.getByText("עריכת הערה"));
+    const input = screen.getByDisplayValue("ישן");
+    fireEvent.change(input, { target: { value: "חדש" } });
+    fireEvent.click(screen.getByText(/שמירת הערה/));
+    expect(onSetNote).toHaveBeenCalledWith("חדש");
+  });
+});

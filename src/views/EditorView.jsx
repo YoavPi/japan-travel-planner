@@ -919,10 +919,10 @@ const EditorView = () => {
   }, []);
   /* Sprint 26 #1 — workspace exit confirmation modal. */
   const [confirmExit, setConfirmExit] = useState(false);
-  /* Sprint 37 #2 — gesture UI state: row context menu (long-press), its
-     open submenu, the swipe-delete undo pill, and a transient flash toast. */
-  const [ctxMenu, setCtxMenu] = useState(null);   // { idx, x, y }
-  const [ctxSub, setCtxSub] = useState(null);     // "day" | "theme" | null
+  /* Sprint 37 #2 — gesture UI state: the swipe-delete undo pill and a
+     transient flash toast. (The long-press row context menu itself was
+     deleted in B5/F1 — long-press now opens StopActionsSheet via
+     `actionsIdx`, the same state the ⋯ button already used.) */
   const [deleteUndo, setDeleteUndo] = useState(null); // { stop, day, idx }
   /* Sprint 38 #3 — swipe-to-inbox undo pill (10s), tracks the origin day+idx
      and the created inbox entry id so "החזר ליום זה" fully reverses it. */
@@ -1144,11 +1144,13 @@ const EditorView = () => {
      map-anchored FABs (raised to z260) unmount while one is open so they never
      float over an action sheet, the summary, or an insert prompt. */
   /* Sprint 58 #1/#2 — ANY central dialog/modal that must fully suppress the map
-     FABs (welcome, dates, summary, actions, insert prompt, note/transit sheets,
-     long-press menu). Combined with the peek-only sheet rule below.
+     FABs (welcome, dates, summary, actions, insert prompt, note/transit sheets).
+     Combined with the peek-only sheet rule below.
      The "מצא ליד" nearby-search sheet (z120) belongs here too — without it the
-     z260 map FABs float on top of the sheet's chips + search bar. */
-  const overlayOpen = actionsIdx >= 0 || summaryOpen || insertAt >= 0 || !!ctxMenu || datesModalOpen || noteEditIdx >= 0 || editTransitIdx >= 0 || onboardOpen || confirmExit || !!nearbyOrigin || !!budgetConfirm
+     z260 map FABs float on top of the sheet's chips + search bar.
+     B5/F1 — the bespoke long-press row menu was deleted; long-press now
+     opens StopActionsSheet via `actionsIdx`, already covered below. */
+  const overlayOpen = actionsIdx >= 0 || summaryOpen || insertAt >= 0 || datesModalOpen || noteEditIdx >= 0 || editTransitIdx >= 0 || onboardOpen || confirmExit || !!nearbyOrigin || !!budgetConfirm
     || filesSheetOpen || quickAddOpen || !!costFor || !!attachViewer || !!notePrompt || !!addChoice;
 
   /* Generic day-array mutator → updates local state + persists.
@@ -1613,49 +1615,13 @@ const EditorView = () => {
     });
   }, [persistTripData]);
 
-  /* Context menu → "Move to Day…". Moves the active-day stop at `idx`. */
-  const moveStopIndexToDay = useCallback((idx, toDay) => {
-    commitDays((days) => {
-      const from = days.find((d) => d.day === activeDay);
-      if (!from) return days;
-      const [moved] = from.attractions.splice(idx, 1);
-      const to = days.find((d) => d.day === toDay);
-      /* NOT deduped (matches desktop's moveStopToDay in useEditorState.js):
-         dedupeDayStops merges same-name stops and keeps the EXISTING node's
-         instanceId, silently discarding the moved one's — which would orphan
-         a linked expense (its stopRef would point at an instanceId that no
-         longer exists anywhere) and visually drop the stop with no warning. */
-      if (to && moved) to.attractions = [...to.attractions, moved];
-      return days;
-    });
-  }, [activeDay, commitDays]);
-
-  /* Context menu → "Set as Lodging Anchor" (toggle). Reclassifies IN PLACE
-     (Sprint 37 #1 — never bottom-pushed); toggling off restores the prior
-     category and clears any multi-day hotel grouping. */
-  const toggleLodgingAnchorAt = useCallback((idx) => {
-    commitDays((days) => days.map((d) => {
-      if (d.day !== activeDay) return d;
-      return { ...d, attractions: d.attractions.map((a, i) => {
-        if (i !== idx) return a;
-        const isLodg = !!a._hotelGroup || /מלון|לינה/.test(a.category || "");
-        if (isLodg) {
-          const { _hotelGroup, _hotelSpan, _prevCategory, ...rest } = a;
-          return { ...rest, category: _prevCategory || "אטרקציה" };
-        }
-        return { ...a, _prevCategory: a.category, category: "מלון" };
-      }) };
-    }));
-  }, [activeDay, commitDays]);
-
-  /* Context menu → "Change Theme". Stamps a per-stop accent color override. */
-  const setStopThemeAt = useCallback((idx, theme) => {
-    commitDays((days) => days.map((d) =>
-      d.day === activeDay
-        ? { ...d, attractions: d.attractions.map((a, i) => i === idx ? { ...a, _theme: theme || undefined } : a) }
-        : d
-    ));
-  }, [activeDay, commitDays]);
+  /* B5/F1 — moveStopIndexToDay / toggleLodgingAnchorAt / setStopThemeAt
+     existed solely for the deleted long-press context menu and were removed
+     with it. Equivalent, actionsIdx-scoped functions already power the same
+     actions from StopActionsSheet: moveStopToDay, setStopAsLodging, and
+     setStopColorForActions (the sheet's 4-pastel palette — the deleted
+     menu's disjoint 7-color THEMES set does not survive the merge, per
+     spec §3.3/§2.8). */
 
   /* Sprint 27 #3 — commit an edited transit segment back onto its slot
      in the active day (opened from the card or the map's "ערוך מעבר"). */
@@ -2225,16 +2191,9 @@ const EditorView = () => {
   }, [activeDay, trip, actionsIdx, commitDays]);
 
   /* Sprint 18.5 — persist a free-text memo note on the active stop.
-     Rendered under the stop title in DayStopList (a.note). */
-  const setStopNote = useCallback((text) => {
-    const note = (text || "").trim();
-    commitDays((days) => days.map((d) =>
-      d.day === activeDay
-        ? { ...d, attractions: d.attractions.map((a, i) => i === actionsIdx ? { ...a, note: note || undefined } : a) }
-        : d
-    ));
-    setActionsIdx(-1);
-  }, [activeDay, actionsIdx, commitDays]);
+     B5/F1: the silent single-instance write is no longer reachable —
+     StopActionsSheet's note row now calls `saveNoteAt` (cascade-aware,
+     below), so this function was deleted. */
 
   /* Sprint 18.1 — clone the active stop's location into a chosen day of
      another owned trip. Loads the target's full payload, appends a copy
@@ -3544,7 +3503,7 @@ const EditorView = () => {
                     flightsFirst={activeDayData?.day === (days[0]?.day ?? 1)}
                     onRequestDelete={deleteStopAt}
                     onRequestInbox={requestInboxAt}
-                    onOpenContextMenu={(idx, x, y) => { setCtxSub(null); setCtxMenu({ idx, x, y }); }}
+                    onOpenContextMenu={(idx) => setActionsIdx(idx)}
                     onInsertAt={(arrayIdx) => { setInsertText(""); setInsertAt(arrayIdx); }}
                     onDeleteInline={deleteStopAt}
                     onEditNote={(i) => setNoteEditIdx(i)}
@@ -3728,69 +3687,6 @@ const EditorView = () => {
           </div>
         </div>
       )}
-
-      {/* Sprint 37 #2 — long-press ROW CONTEXT MENU. A tap-scrim closes it;
-          the sheet-style card floats bottom-centred (mobile-first) rather
-          than at the raw pointer coords so it never clips off-screen. */}
-      {ctxMenu && activeDayData?.attractions?.[ctxMenu.idx] && (() => {
-        const idx = ctxMenu.idx;
-        const stop = activeDayData.attractions[idx];
-        const isLodg = !!stop._hotelGroup || /מלון|לינה/.test(stop.category || "");
-        const close = () => { setCtxMenu(null); setCtxSub(null); };
-        const THEMES = ["#8B7BC7", "#5FA36A", "#E0915A", "#C77BA6", "#6E8BC4", "#D67B7B", T.ink];
-        const Item = ({ icon, label, onClick, danger }) => (
-          <button onClick={onClick}
-            style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "13px 16px", border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit", fontSize: 14.5, fontWeight: 700, color: danger ? T.danger || "#D94025" : T.ink, textAlign: "start" }}>
-            <span aria-hidden style={{ fontSize: 18, width: 22, textAlign: "center" }}>{icon}</span>{label}
-          </button>
-        );
-        return (
-          <div style={{ position: "fixed", inset: 0, zIndex: 250, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-            <div onClick={close} className="tp-fade" style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)" }} />
-            <div className="tp-pop" dir="rtl" style={{ position: "relative", width: "100%", maxWidth: 420, background: "#fff", borderRadius: "20px 20px 0 0", padding: "8px 0 max(10px, env(safe-area-inset-bottom))", boxShadow: "0 -12px 40px rgba(0,0,0,0.25)", fontFamily: T.font }}>
-              <div style={{ padding: "10px 16px 8px", borderBottom: `1px solid ${T.line}`, display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 14, fontWeight: 800, color: T.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: 1 }}>{stop.nameHe || stop.name}</span>
-                <button onClick={close} aria-label="סגירה" style={{ border: "none", background: T.surface, width: 30, height: 30, borderRadius: "50%", cursor: "pointer", color: T.ink3, fontFamily: "inherit" }}>✕</button>
-              </div>
-              {ctxSub === "day" ? (
-                <div style={{ maxHeight: "44vh", overflowY: "auto", padding: "6px 0" }}>
-                  <div style={{ padding: "6px 16px", fontSize: 12, fontWeight: 800, color: T.ink3 }}>העברה ליום…</div>
-                  {days.filter((d) => d.day !== activeDay).map((d) => (
-                    <Item key={d.day} icon="📅" label={`יום ${d.day} · ${d.cityHe || d.city}`}
-                      onClick={() => { moveStopIndexToDay(idx, d.day); close(); }} />
-                  ))}
-                  {days.filter((d) => d.day !== activeDay).length === 0 && (
-                    <div style={{ padding: "12px 16px", fontSize: 13, color: T.ink3 }}>אין ימים אחרים במסלול</div>
-                  )}
-                </div>
-              ) : ctxSub === "theme" ? (
-                <div style={{ padding: "16px" }}>
-                  <div style={{ fontSize: 12, fontWeight: 800, color: T.ink3, marginBottom: 12 }}>בחרו צבע לנקודה</div>
-                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                    {THEMES.map((c) => (
-                      <button key={c} onClick={() => { setStopThemeAt(idx, c === T.ink ? null : c); close(); }}
-                        aria-label="צבע" style={{ width: 40, height: 40, borderRadius: "50%", background: c, border: (stop._theme || "") === c ? `3px solid ${T.ink}` : "2px solid #fff", boxShadow: "0 1px 4px rgba(0,0,0,0.2)", cursor: "pointer" }} />
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div style={{ padding: "4px 0" }}>
-                  <Item icon="📝" label={stop.note ? "עריכת הערה" : "הוספת הערה"} onClick={() => { close(); setNoteEditIdx(idx); }} />
-                  {/* Sprint 61 #3 — duplicate this place into the same day. */}
-                  <Item icon="📋" label="שכפל מיקום" onClick={() => { close(); duplicateStopAt(idx); }} />
-                  {/* Sprint 61 #7 — attach a confirmation file / PDF. */}
-                  <Item icon="📎" label="צרף קובץ/מסמך" onClick={() => { close(); requestAttach(idx); }} />
-                  <Item icon="🎨" label="שינוי צבע / נושא" onClick={() => setCtxSub("theme")} />
-                  <Item icon="📅" label="העברה ליום…" onClick={() => setCtxSub("day")} />
-                  <Item icon={isLodg ? "🏨" : "🛏️"} label={isLodg ? "ביטול עוגן לינה" : "הגדרה כעוגן לינה"} onClick={() => { toggleLodgingAnchorAt(idx); close(); }} />
-                  <div style={{ borderTop: `1px solid ${T.line}`, margin: "4px 0" }} />
-                  <Item icon="🗑️" label="מחיקת הנקודה" danger onClick={() => { close(); deleteStopAt(idx); }} />
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })()}
 
       {/* Sprint 37 #2 — swipe-delete UNDO pill (auto-dismiss after 5s). */}
       {deleteUndo && (
@@ -4428,12 +4324,13 @@ const EditorView = () => {
           onMove={moveStopToDay}
           onCopy={copyStopToDay}
           onCrossCopy={copyStopToOtherTrip}
-          onSetNote={setStopNote}
+          onSetNote={(text) => { saveNoteAt(actionsIdx, text); setActionsIdx(-1); }}
           onSetLodging={setStopAsLodging}
           onSetColor={setStopColorForActions}
           onSetMultiDayHotel={setStopAsMultiDayHotel}
           onMoveNextDay={moveStopToNextDay}
           onSplitDay={splitDayFromStop}
+          tripActive={tripMode}
           onCopyName={() => { const s = activeDayData.attractions[actionsIdx]; copyName(s?.nameHe || s?.name); }}
           onDuplicate={() => duplicateStopAt(actionsIdx)}
           onAttach={() => requestAttach(actionsIdx)}

@@ -56,7 +56,7 @@ const SectionRule = () => (
   <div aria-hidden style={{ height: 1, background: "rgba(20,20,20,0.08)", margin: "6px 0" }} />
 );
 
-const StopActionsSheet = ({ stop, days = [], otherTrips = [], onMove, onCopy, onCrossCopy, onSetNote, onSetLodging, onSetColor, onSetMultiDayHotel, onMoveNextDay, onSplitDay, onCopyName, onDuplicate, onAttach, attachBusy, attachmentCount = 0, onRemoveAttachment, onFindNearby, onSetCost, stopCostLabel, onDelete, onClose }) => {
+const StopActionsSheet = ({ stop, days = [], otherTrips = [], onMove, onCopy, onCrossCopy, onSetNote, onSetLodging, onSetColor, onSetMultiDayHotel, onMoveNextDay, onSplitDay, onCopyName, onDuplicate, onAttach, attachBusy, attachmentCount = 0, onRemoveAttachment, onFindNearby, onSetCost, stopCostLabel, onDelete, onClose, tripActive = false }) => {
   const [mode, setMode] = useState(null); // null | 'move' | 'copy' | 'crosscopy' | 'hoteldays' | 'note'
   /* 'copy' is now a single hub: pick a day, duplicate into THIS day, or
      switch to the cross-trip picker. The old three separate rows
@@ -247,6 +247,10 @@ const StopActionsSheet = ({ stop, days = [], otherTrips = [], onMove, onCopy, on
                 "copy" hub — the old five rows (move-day, copy-day, duplicate,
                 move-next-day, cross-trip) reduce to three. */}
             <SectionHeading>מיקום בלוח הזמנים</SectionHeading>
+            {/* B5/F1 — moved in from the deleted long-press menu; trip mode only. */}
+            {tripActive && onMoveNextDay && (
+              <Row icon="➡️" label="העבר ליום הבא" onClick={onMoveNextDay} />
+            )}
             <Row icon="↪" label="העברה ליום…" onClick={() => setMode("move")} />
             <Row icon="⧉" label="העתקה…" onClick={() => setMode("copy")} />
             <Row icon="✂️" label="פיצול היום מכאן" onClick={onSplitDay} last />
