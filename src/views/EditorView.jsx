@@ -3536,9 +3536,44 @@ const EditorView = () => {
                   />
                   </div>
                 ) : (
-                  <div style={{ textAlign: "center", color: T.ink3, padding: "32px 0", fontSize: 13.5 }}>
-                    {days.length === 0 ? "התחילו להוסיף תחנות למסלול" : "אין תחנות ביום זה עדיין"}
-                  </div>
+                  <>
+                    {days.length === 0 ? (
+                      <div style={{ textAlign: "center", color: T.ink3, padding: "32px 0", fontSize: 13.5 }}>
+                        התחילו להוסיף תחנות למסלול
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "40px 20px", textAlign: "center", gap: "16px" }}>
+                        <Icon name="pin" size={28} style={{ color: LIGHT.ink4 }} />
+                        <div style={{ fontSize: "15px", fontWeight: 800, color: LIGHT.ink2, lineHeight: 1.3 }}>
+                          היום הזה עוד ריק
+                        </div>
+                        <div style={{ fontSize: "13px", fontWeight: 500, color: LIGHT.ink3, lineHeight: 1.45, maxWidth: "40ch" }}>
+                          חפשו מקום בשורת החיפוש למעלה, או הוסיפו מהבנק
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openAddStop();
+                          }}
+                          style={{
+                            height: "44px",
+                            paddingInline: "16px",
+                            marginTop: "8px",
+                            backgroundColor: LIGHT.ink,
+                            color: "#fff",
+                            border: "none",
+                            borderRadius: "10px",
+                            fontSize: "14px",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            fontFamily: T.font,
+                          }}
+                        >
+                          הוספת תחנה
+                        </button>
+                      </div>
+                    )}
+                  </>
                 )}
 
                 {/* Sprint 32 — Position B: the two competing FABs (black "+"
