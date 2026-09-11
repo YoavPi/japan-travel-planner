@@ -123,7 +123,7 @@ export function guessCategory(stopCategory) {
 
 /* What an item is really going to cost: the actual amount once it is
    paid and known to have differed, otherwise the planned amount. */
-const itemEffectiveMinor = (it) =>
+export const itemEffectiveMinor = (it) =>
   (it.paid && Number.isFinite(it.actualMinor)) ? it.actualMinor : (Number(it.amountMinor) || 0);
 
 export function rollup(budget) {
@@ -354,6 +354,48 @@ export function remapExpenseDays(items, mapping, newDayCount) {
 export function expensesForStop(items, stopId) {
   if (!stopId) return [];
   return (items || []).filter((it) => it.stopRef === stopId);
+}
+
+/* The stop-card's single read of a stop's money (spec §4.5, §8.3).
+   `primary` is the first linked expense, unchanged shape — StopCard uses it
+   only to decide whether to show a cost item; EditorView/EditorDesktop pass
+   it straight into ExpenseSheet as the editable record, exactly like the
+   `costForStop(...)` it replaces. Everything else here is a SUM of
+   effectives, which `costForStop` never computed — this is the fix for the
+   "card total disagrees with the ⋯ sheet" drift budget.js:120-122 warns
+   about. */
+export function stopCostSummary(items, stopId, config) {
+  const linked = expensesForStop(items, stopId);
+  if (linked.length === 0) return null;
+
+  const currencies = new Set(linked.map((it) => it.currency || "ILS"));
+  const mixed = currencies.size > 1;
+  const nativeCurrency = mixed ? "ILS" : (linked[0].currency || "ILS");
+
+  let plannedMinor = 0;
+  let effectiveMinor = 0;
+  let anyPaid = false;
+  let anyOver = false;
+
+  for (const it of linked) {
+    const cur = it.currency || "ILS";
+    const planned = mixed ? toIlsMinor(Number(it.amountMinor) || 0, cur, config) : (Number(it.amountMinor) || 0);
+    const effective = mixed ? toIlsMinor(itemEffectiveMinor(it), cur, config) : itemEffectiveMinor(it);
+    plannedMinor += planned;
+    effectiveMinor += effective;
+    if (it.paid) anyPaid = true;
+    if (effective > planned) anyOver = true;
+  }
+
+  return {
+    count: linked.length,
+    primary: linked[0],
+    currency: nativeCurrency,
+    plannedMinor,
+    effectiveMinor,
+    paid: anyPaid,
+    over: anyOver,
+  };
 }
 
 /* Detach every item linked to `stopId`: stopRef → null, everything else

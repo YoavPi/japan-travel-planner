@@ -631,3 +631,55 @@ describe("budgetImpact — unknown action", () => {
     expect(budgetImpact("somethingElse", {})).toBeNull();
   });
 });
+
+import { stopCostSummary } from "./budget";
+
+describe("stopCostSummary", () => {
+  const config = { rate: 4, currency: "ILS" };
+
+  it("returns null when there is no stopId", () => {
+    expect(stopCostSummary([{ stopRef: "s1", amountMinor: 1000, currency: "ILS" }], null, config)).toBeNull();
+  });
+
+  it("returns null when nothing links to the stop", () => {
+    expect(stopCostSummary([{ stopRef: "s1", amountMinor: 1000, currency: "ILS" }], "s2", config)).toBeNull();
+  });
+
+  it("summarises a single unpaid item", () => {
+    const items = [{ id: "e1", stopRef: "s1", amountMinor: 12000, currency: "ILS", paid: false }];
+    const r = stopCostSummary(items, "s1", config);
+    expect(r).toEqual(expect.objectContaining({
+      count: 1, currency: "ILS", plannedMinor: 12000, effectiveMinor: 12000, paid: false, over: false,
+    }));
+    expect(r.primary.id).toBe("e1");
+  });
+
+  it("sums two same-currency items and flags over when actual exceeds planned", () => {
+    const items = [
+      { id: "e1", stopRef: "s1", amountMinor: 5000, currency: "ILS", paid: true, actualMinor: 6000 },
+      { id: "e2", stopRef: "s1", amountMinor: 3000, currency: "ILS", paid: false },
+    ];
+    const r = stopCostSummary(items, "s1", config);
+    expect(r.count).toBe(2);
+    expect(r.currency).toBe("ILS");
+    expect(r.plannedMinor).toBe(8000);
+    expect(r.effectiveMinor).toBe(9000); // 6000 effective + 3000 planned
+    expect(r.over).toBe(true);
+    expect(r.primary.id).toBe("e1");
+  });
+
+  it("converts to ILS when currencies are mixed", () => {
+    const items = [
+      { id: "e1", stopRef: "s1", amountMinor: 1000, currency: "USD", paid: false }, // 1000 * rate4 /100... see toIlsMinor
+      { id: "e2", stopRef: "s1", amountMinor: 2000, currency: "ILS", paid: false },
+    ];
+    const r = stopCostSummary(items, "s1", config);
+    expect(r.currency).toBe("ILS");
+    // toIlsMinor(1000, "USD", {rate:4}) = round((1000/100)*4*100) = 4000
+    expect(r.plannedMinor).toBe(4000 + 2000);
+  });
+
+  it("a stop with no instanceId (falsy stopId) never crashes and returns null", () => {
+    expect(stopCostSummary([{ stopRef: "s1", amountMinor: 1000, currency: "ILS" }], undefined, config)).toBeNull();
+  });
+});
