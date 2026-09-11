@@ -16,6 +16,7 @@ import NearbySearchSheet from "../components/NearbySearchSheet";
 import NearbyResultsPanel from "../components/NearbyResultsPanel";
 import FavoriteButton from "../components/FavoriteButton";
 import TransitConnector from "../components/TransitConnector";
+import StopCard from "../components/StopCard";
 import { listFavoriteIds } from "../services/favoritesService";
 import { track } from "../analytics/posthog";
 import { boundsForDestination, autocomplete, getDetails, isPlacesEnabled, nearbySearch } from "../services/googlePlaces";
