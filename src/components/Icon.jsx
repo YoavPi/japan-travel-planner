@@ -78,6 +78,9 @@ const PATHS = {
   note: <><path d="M4 4h11l5 5v11a0 0 0 0 1 0 0H4a0 0 0 0 1 0 0z" /><polyline points="15 4 15 9 20 9" /><line x1="8" y1="13" x2="16" y2="13" /><line x1="8" y1="17" x2="13" y2="17" /></>,
   lock: <><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></>,
   unlock: <><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 7.5-2" /></>,
+  paperclip: <><path d="M21.44 11.05l-9.19 9.19a5.5 5.5 0 0 1-7.78-7.78l9.19-9.19a3.5 3.5 0 0 1 4.95 4.95l-9.19 9.19a1.5 1.5 0 0 1-2.12-2.12l8.49-8.49" /></>,
+  navigation: <><polygon points="3 11 22 2 13 21 11 13 3 11" /></>,
+  walk: <><circle cx="13" cy="4" r="2" /><path d="M13 7l-3 4 1 5-3 5" /><path d="M10 11l4 2 3-2" /><path d="M8 22l3-6" /></>,
 };
 
 const Icon = ({ name, size = 18, color = "currentColor", strokeWidth = 1.75, style, className, ...rest }) => {

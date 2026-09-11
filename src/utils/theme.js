@@ -18,13 +18,13 @@ export const LIGHT = {
   page: "#EDEDEC", panel: "#fff", ink: "#0D0F11", ink2: "#2A3036",
   ink3: "#6B7178", ink4: "#A4AAB1",
   line: "rgba(20,20,20,0.08)", surface: "#F6F6F4", surface2: "#EFEFEC",
-  danger: "#C0392B", accent: "#E0533F",
+  danger: "#C0392B", accent: "#E0533F", success: "#1FA67A",
 };
 export const DARK = {
   page: "#0E1012", panel: "#16191D", ink: "#F5F6F7", ink2: "#C7CCD1",
   ink3: "#8B9198", ink4: "#6B7178",
   line: "rgba(255,255,255,0.09)", surface: "#1F242A", surface2: "#262B31",
-  danger: "#E0573F", accent: "#E0533F",
+  danger: "#E0573F", accent: "#E0533F", success: "#1FA67A",
 };
 
 export const paletteFor = (dark) => (dark ? DARK : LIGHT);
