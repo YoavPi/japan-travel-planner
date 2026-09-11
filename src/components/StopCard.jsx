@@ -94,6 +94,7 @@ export default function StopCard({
     try { e.target.setPointerCapture?.(e.pointerId); } catch { /* noop — jsdom has no setPointerCapture */ }
   };
   const onBadgePointerMove = (e) => {
+    e.stopPropagation();
     const g = badgeGesture.current;
     if (g.dragging) return;
     const dx = e.clientX - g.x0;
@@ -111,7 +112,7 @@ export default function StopCard({
       onToggleComplete && onToggleComplete(idx);
     }
   };
-  const onBadgePointerCancel = () => { badgeGesture.current = { x0: 0, y0: 0, dragging: false }; };
+  const onBadgePointerCancel = (e) => { e.stopPropagation(); badgeGesture.current = { x0: 0, y0: 0, dragging: false }; };
 
   return (
     <div
