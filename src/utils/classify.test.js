@@ -1,4 +1,4 @@
-import { withFreshInstanceId, normalizeRating } from "./classify";
+import { withFreshInstanceId, normalizeRating, ratingToBadge } from "./classify";
 
 /* Pins the invariant behind trip-budget-design §1.5: stopRef is the stop's
    instanceId, so two stops must never share one — a duplicate that carried
@@ -76,4 +76,16 @@ describe("normalizeRating", () => {
     expect(normalizeRating("")).toBeNull();
     expect(normalizeRating("garbage")).toBeNull();
   });
+});
+
+/* Task B6 — EditorView's addNearbyToDay now writes `rating: ratingToBadge(r.rating)`
+   instead of the raw Google 0-5 number, so the nearby-search "add" flow produces
+   the same "/10" badge string every other rating writer does. This duplicates
+   coverage already on ratingToBadge itself (above) deliberately, as a named
+   marker that the addNearbyToDay call site specifically is covered — see
+   EditorView.sourceScan.test.js for the source-pinned counterpart that also
+   confirms addOverlayPoints (a correct pre-existing "/10" writer) was NOT
+   touched. */
+it("T-CARD-08 (writer half): a raw Google rating passed through ratingToBadge becomes a /10 string", () => {
+  expect(ratingToBadge(4.6)).toBe("9.2/10");
 });

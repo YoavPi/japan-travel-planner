@@ -22,7 +22,7 @@ import { track } from "../analytics/posthog";
 import { boundsForDestination, autocomplete, getDetails, isPlacesEnabled, nearbySearch } from "../services/googlePlaces";
 import { LIGHT } from "../utils/theme";
 import { readableInkOn } from "../utils/contrast";
-import { dedupeDayStops, categoryEmoji, classifyLocation, withFreshInstanceId } from "../utils/classify";
+import { dedupeDayStops, categoryEmoji, classifyLocation, withFreshInstanceId, ratingToBadge } from "../utils/classify";
 import { readPrefs } from "../services/prefsService";
 import { listInboxPlaces, addInboxPlaces, removeInboxPlace, updateInboxPlace } from "../services/googleSavedPlaces";
 import { uploadAttachment, removeStoredFile } from "../services/attachmentService";
@@ -451,6 +451,12 @@ const DayStopList = ({
      pill to open the attached document. Sprint 65 #6 — quick-attach a file to
      a row (used by the flight/transit card's dedicated 📎 button). */
   onEditNote, onOpenAttachment, onQuickAttach,
+  /* B6 — per-stop cost badge (Increment A budget wiring) + read-only cost
+     visibility gate, and the stop card's files affordance. `costForStop`
+     is the memoised `(instanceId) => costSummary` lookup from EditorView;
+     `showCost` is precomputed there (editable OR trip.settings.budgetShared)
+     since this component has no `trip` in scope. */
+  costForStop, showCost = false, onOpenCost, onOpenFiles,
 }) => {
   const [items, setItems] = useState(stops);
   const [dragIdx, setDragIdx] = useState(-1); // position within the SCHEDULE section
@@ -771,6 +777,11 @@ const DayStopList = ({
                   onMoveForward={onMoveForward} onOpenAttachment={onOpenAttachment}
                   onDragStart={() => beginDrag(pos)}
                   rowRef={(el) => { if (pos != null) rowRefs.current[pos] = el; }}
+                  /* B6 — per-stop cost badge + files affordance. */
+                  costSummary={costForStop && a.instanceId ? costForStop(a.instanceId) : null}
+                  showCost={showCost}
+                  onOpenCost={onOpenCost}
+                  onOpenFiles={onOpenFiles}
                 />
               );
               const notes = noteRuns[pos] || [];
@@ -1140,6 +1151,10 @@ const EditorView = () => {
      spinner gate shared by every "add file" affordance inside the sheet. */
   const [filesSheetOpen, setFilesSheetOpen] = useState(false);
   const [filesBusy, setFilesBusy] = useState(false);
+  /* B6 — when the files sheet is opened from a specific stop's card (📎
+     files affordance), this scrolls/highlights that stop's row inside the
+     sheet (TripFilesSheet's `focusStop` prop). { day, stopIdx } | null. */
+  const [filesFocusStop, setFilesFocusStop] = useState(null);
   /* Sprint 54 #4 — any modal/sheet overlay that sits at the z250 layer. The
      map-anchored FABs (raised to z260) unmount while one is open so they never
      float over an action sheet, the summary, or an insert prompt. */
@@ -1344,7 +1359,10 @@ const EditorView = () => {
     const stop = {
       name: r.name, nameHe: r.name,
       category: he || "אטרקציה",
-      rating: r.rating || undefined,
+      /* B6 fix — nearby-search results are a raw Google 0-5 rating; the
+         stop card expects the app's normalised "X.X/10" badge string, same
+         as every other rating writer (addOverlayPoints already emits one). */
+      rating: ratingToBadge(r.rating),
       coordinates: { lat: r.lat, lng: r.lng },
       place_id: r.placeId || undefined,
       instanceId: genInstanceId(),
@@ -3024,7 +3042,7 @@ const EditorView = () => {
             file in the trip (general + per-stop). Badge = total file count. */}
         {trip && (
           <button
-            onClick={() => setFilesSheetOpen(true)}
+            onClick={() => { setFilesFocusStop(null); setFilesSheetOpen(true); }}
             title="קבצי הטיול" aria-label="קבצי הטיול" className="tp-press"
             style={{
               position: "relative", flexShrink: 0,
@@ -3509,6 +3527,12 @@ const EditorView = () => {
                     onEditNote={(i) => setNoteEditIdx(i)}
                     onOpenAttachment={openAttachment}
                     onQuickAttach={requestAttach}
+                    /* B6 — per-stop cost badge (read-only trips only see it when
+                       the owner shared the budget) + the stop card's files tap. */
+                    costForStop={costForStop}
+                    showCost={editable || !!trip?.settings?.budgetShared}
+                    onOpenCost={(i) => { setCostFor({ day: activeDay, idx: i }); }}
+                    onOpenFiles={(i) => { setFilesFocusStop({ day: activeDay, stopIdx: i }); setFilesSheetOpen(true); }}
                   />
                   </div>
                 ) : (
@@ -4214,6 +4238,9 @@ const EditorView = () => {
         onRename={handleFileRename}
         onMove={handleFileMove}
         onDelete={handleFileDelete}
+        /* B6 — scroll/highlight the stop the sheet was opened from, when
+           opened via a stop card's 📎 files affordance. */
+        focusStop={filesFocusStop}
       />
 
       {/* Sprint 61 #1 — DUPLICATE-NOTE CASCADE PROMPT. Shown when a saved note

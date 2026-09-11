@@ -21,3 +21,25 @@ describe("EditorView source scan — F1 context-menu deletion (T-CARD-10)", () =
     expect(src).toMatch(/onOpenContextMenu=\{\(idx\)\s*=>\s*setActionsIdx\(idx\)\}/);
   });
 });
+
+/* Task B6 — source-pinned regression for the rating-writer fix. Two writers
+   set a new stop's `rating` field in this file; only ONE of them (the nearby-
+   search "add" flow, addNearbyToDay) was wrong — it emitted a raw Google 0-5
+   number instead of the app's "/10" badge string. addOverlayPoints already
+   emitted a correct string and must be left alone (running it through
+   ratingToBadge would silently null out every overlay-imported rating, since
+   ratingToBadge rejects non-numeric strings). A plain string match on the
+   fixed line is a cheap, precise guard against the exact confusion the task
+   brief flagged as a risk — string-based since this file has no integration
+   test harness (see the class above). */
+describe("EditorView source scan — B6 rating-writer fix (T-CARD-08)", () => {
+  const src = fs.readFileSync(require.resolve("./EditorView.jsx"), "utf8");
+
+  it("addNearbyToDay normalises the raw Google rating via ratingToBadge", () => {
+    expect(src).toMatch(/rating:\s*ratingToBadge\(r\.rating\)/);
+  });
+
+  it("addOverlayPoints is left untouched — still writes its rating as-is", () => {
+    expect(src).toMatch(/rating:\s*p\.rating \|\| undefined/);
+  });
+});
