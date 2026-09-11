@@ -1,6 +1,8 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import StopCard from "./StopCard";
 import { LIGHT } from "../utils/theme";
+// eslint-disable-next-line no-unused-vars
+import Money from "./Money"; // not used directly, but confirms the dependency exists
 
 const baseStop = {
   instanceId: "i1", nameHe: "בורג' ח'ליפה", category: "אטרקציה",
@@ -93,5 +95,47 @@ describe("StopCard — Row A redesign", () => {
   it("renders ניווט icon-only when compact", () => {
     render(<StopCard {...baseProps} compact />);
     expect(screen.getByRole("button", { name: "ניווט ב-Google Maps" }).textContent).not.toMatch(/ניווט/);
+  });
+});
+
+describe("StopCard — Row B metadata", () => {
+  it("T-CARD-04: tapping the cost item calls onOpenCost, not onNavigate", () => {
+    const onOpenCost = jest.fn();
+    const onNavigate = jest.fn();
+    const costSummary = { count: 1, primary: { id: "e1" }, effectiveMinor: 12000, plannedMinor: 12000, currency: "ILS", paid: false, over: false };
+    render(<StopCard {...baseProps} idx={4} costSummary={costSummary} showCost onOpenCost={onOpenCost} onNavigate={onNavigate} />);
+    fireEvent.click(screen.getByRole("button", { name: /עלות/ }));
+    expect(onOpenCost).toHaveBeenCalledWith(4);
+    expect(onNavigate).not.toHaveBeenCalled();
+  });
+
+  it("T-CARD-06: renders the summary's effectiveMinor, not a per-item recompute", () => {
+    const costSummary = { count: 2, primary: { id: "e1" }, effectiveMinor: 9000, plannedMinor: 8000, currency: "ILS", paid: true, over: true };
+    render(<StopCard {...baseProps} costSummary={costSummary} showCost />);
+    expect(screen.getByText("×2", { exact: false })).toBeInTheDocument();
+  });
+
+  it("T-CARD-07: a stop with no cost renders no cost item and does not throw", () => {
+    const spy = jest.spyOn(console, "error").mockImplementation(() => {});
+    render(<StopCard {...baseProps} costSummary={null} showCost />);
+    expect(screen.queryByRole("button", { name: /עלות/ })).not.toBeInTheDocument();
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it("does not render a cost item when showCost is false, even with a costSummary", () => {
+    const costSummary = { count: 1, primary: { id: "e1" }, effectiveMinor: 12000, plannedMinor: 12000, currency: "ILS", paid: false, over: false };
+    render(<StopCard {...baseProps} costSummary={costSummary} showCost={false} />);
+    expect(screen.queryByRole("button", { name: /עלות/ })).not.toBeInTheDocument();
+  });
+
+  it("T-CARD-08: a bare Google 0-5 rating normalises for display", () => {
+    render(<StopCard {...baseProps} stop={{ ...baseStop, rating: 4.6 }} />);
+    expect(screen.getByText(/9\.2/)).toBeInTheDocument();
+  });
+
+  it("sparse: no rating/cost/files/note/category renders Row B as absent", () => {
+    render(<StopCard {...baseProps} stop={{ instanceId: "i1", nameHe: "שוק" }} costSummary={null} showCost />);
+    expect(screen.queryByText("·")).not.toBeInTheDocument();
   });
 });

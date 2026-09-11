@@ -1,7 +1,9 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { Fragment, useEffect, useRef, useState } from "react";
 import Icon from "./Icon";
+import Money from "./Money";
 import { readableInkOn } from "../utils/contrast";
 import mapsUrlFor from "../utils/mapsUrl";
+import { normalizeRating } from "../utils/classify";
 import { LIGHT } from "../utils/theme";
 
 /* Extracted verbatim from EditorView.jsx's renderPlaceRow (through Sprint
@@ -15,13 +17,22 @@ import { LIGHT } from "../utils/theme";
    completion toggle (trip mode, tap with no movement). `≡` and the
    separate completion checkbox are deleted; the badge absorbs both.
 
-   Row B (metadata line), Row C (note preview) and the attachments row are
-   NOT yet redesigned — that's Task B2/B3 — so they keep their pre-B1
-   styling (including the still-present note pencil trigger, which spec
-   §7.1 #2 schedules for deletion once Row C's note-preview lands). */
+   Row B (metadata line — category/rating/cost/files, spec §4.3/§4.5) is
+   redesigned in this task (B2): plain text with `·` separators, no chip
+   fills, omitted entirely when sparse. Row C (note preview) and the
+   attachments row are NOT yet redesigned — that's Task B3 — so they keep
+   their pre-B1 styling (including the still-present note pencil trigger,
+   which spec §7.1 #2 schedules for deletion once Row C's note-preview
+   lands). It still shares Row B's row container so its on-screen position
+   doesn't shift, but its rendering is independent of Row B's own sparse
+   rule — the row container itself now renders whenever EITHER Row B has
+   content OR the note trigger is shown, while Row B's metadata line
+   (the `·`-separated text) is its own inner block that is omitted
+   entirely when sparse, per spec §4.3. */
 export default function StopCard({
   stop: a, idx, pos, lodging = false, tripActive = false, liveOps = false,
   editable = true, dragging = false, P, compact,
+  costSummary = null, showCost = false, onOpenCost, onOpenFiles,
   onNavigate, onToggleComplete, onEditNote, onOpenActions, onMoveForward,
   onOpenAttachment, onDragStart, rowRef,
 }) {
@@ -32,12 +43,79 @@ export default function StopCard({
   const note = a.note || a.comment || a.annotation || a.quote;
   const hotelSpan = a._hotelGroup ? a._hotelSpan : null;
   const CHARCOAL = "#1E1E24";
-  const CORAL = "#FF6B6B";
   const stopName = a.nameHe || a.name;
   const subtitle = lodging ? `מלון${hotelSpan ? ` · ${hotelSpan.total} לילות` : ""}` : (a.category || "");
   const hasNav = a.coordinates && Number.isFinite(a.coordinates.lat) && Number.isFinite(a.coordinates.lng);
-  const rNum = parseFloat(String(a.rating));
-  const highRating = Number.isFinite(rNum) && rNum >= 8.5;
+
+  /* ── Row B — metadata line (spec §4.3/§4.5) ──
+     Plain text, `·` separators, no chip fills. `normalizeRating` (Task
+     A4) makes the three writer scales agree on a single "/10" display
+     string; the emphasis rule (§4.3 "the rating never takes an accent
+     colour") is weight/tone only — CORAL is deleted from this surface
+     entirely (F23), never re-introduced here. */
+  const normRating = normalizeRating(a.rating);
+  const normRatingNum = normRating != null ? parseFloat(normRating) : null;
+  const highRating = Number.isFinite(normRatingNum) && normRatingNum >= 8.5;
+  const fileCount = a.attachments?.length ?? 0;
+  const showCostItem = !!(showCost && costSummary);
+  const costShekels = showCostItem ? Math.round((costSummary.effectiveMinor || 0) / 100) : 0;
+  const costPlannedShekels = showCostItem ? Math.round((costSummary.plannedMinor || 0) / 100) : 0;
+  const costAriaLabel = showCostItem
+    ? (costSummary.over
+      ? `עלות: ${costShekels} שקלים, מעל המתוכנן ${costPlannedShekels}`
+      : `עלות: ${costShekels} שקלים${costSummary.paid ? ", שולם" : ""}`)
+    : undefined;
+
+  const rowBItems = [];
+  if (subtitle) rowBItems.push(<span key="cat">{subtitle}</span>);
+  if (normRating) {
+    rowBItems.push(
+      <span key="rating" style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+        <Icon name="star" size={11} strokeWidth={0} color={highRating ? P.ink2 : P.ink3} style={{ fill: highRating ? P.ink2 : P.ink3 }} />
+        <span style={{ color: highRating ? P.ink2 : P.ink3, fontWeight: highRating ? 700 : 600 }}>{normRating.split("/")[0]}</span>
+        <span style={{ color: P.ink4, fontWeight: 600, fontSize: 11 }}>/10</span>
+      </span>
+    );
+  }
+  if (showCostItem) {
+    rowBItems.push(
+      <button
+        key="cost" type="button"
+        onClick={(e) => { e.stopPropagation(); onOpenCost && onOpenCost(idx); }}
+        aria-label={costAriaLabel}
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 3,
+          background: "none", border: "none", padding: "12px 6px", margin: "-12px -6px",
+          cursor: "pointer", fontFamily: "inherit",
+        }}
+      >
+        {costSummary.paid && <Icon name="check" size={11} strokeWidth={2.4} color={costSummary.over ? P.danger : P.ink2} />}
+        <Money minor={costSummary.effectiveMinor} currency={costSummary.currency} P={P} tone={costSummary.over ? "danger" : "ink2"} style={{ fontWeight: 700 }} />
+        {costSummary.count > 1 && <span style={{ color: P.ink3, fontWeight: 600, fontSize: 11 }}>×{costSummary.count}</span>}
+      </button>
+    );
+  }
+  if (fileCount > 0) {
+    rowBItems.push(
+      <button
+        key="files" type="button"
+        onClick={(e) => { e.stopPropagation(); onOpenFiles && onOpenFiles(idx); }}
+        aria-label={`${fileCount} קבצים מצורפים`}
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 3,
+          background: "none", border: "none", padding: "12px 6px", margin: "-12px -6px",
+          color: P.ink3, cursor: "pointer", fontFamily: "inherit", fontWeight: 600,
+        }}
+      >
+        <Icon name="paperclip" size={12} strokeWidth={2} color={P.ink3} />
+        {fileCount}
+      </button>
+    );
+  }
+  /* Item ⑤ (open hours): never renders — no data source exists yet
+     (spec §9 Q1, owner-confirmed "wait", 2026-09-11). No placeholder
+     dash, no reserved slot. */
+  const hasRowB = rowBItems.length > 0;
 
   /* §4.9 breakpoint — ≤359px drops the ניווט label. `compact` is an
      externally-controlled override (used by tests and by any future
@@ -210,21 +288,36 @@ export default function StopCard({
         )}
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, opacity: done ? 0.55 : 1 }}>
-        <div dir="auto" style={{ flex: 1, minWidth: 0, fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-          {a.rating && <span style={{ color: highRating ? CORAL : P.ink3, fontWeight: highRating ? 800 : 700 }}>★ {a.rating}</span>}
-          {a.rating && subtitle && <span style={{ color: P.ink4, fontWeight: 600 }}> · </span>}
-          {subtitle && <span style={{ color: lodging ? CORAL : P.ink3, fontWeight: lodging ? 800 : 600 }}>{subtitle}</span>}
+      {(hasRowB || (editable && onEditNote)) && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, opacity: done ? 0.55 : 1 }}>
+          {/* Row B — metadata line (spec §4.3): category · rating · cost ·
+              files, plain text with `·` separators, no chip fills. Omitted
+              entirely (this inner block, not the outer row — see file-top
+              comment) when nothing would render, per the sparse rule. */}
+          {hasRowB && (
+            <div dir="auto" style={{
+              display: "flex", flexWrap: "wrap", alignItems: "center",
+              flex: 1, minWidth: 0, gap: 8, rowGap: 4,
+              fontSize: 12.5, fontWeight: 600, color: P.ink3,
+            }}>
+              {rowBItems.map((item, i) => (
+                <Fragment key={item.key}>
+                  {i > 0 && <span aria-hidden="true" style={{ color: P.ink4 }}>·</span>}
+                  {item}
+                </Fragment>
+              ))}
+            </div>
+          )}
+          {editable && onEditNote && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onEditNote(idx); }}
+              title={a.note ? "עריכת הערה" : "הוספת הערה"} aria-label={a.note ? "עריכת הערה" : "הוספת הערה"}
+              style={{ flexShrink: 0, marginInlineStart: "auto", width: 30, height: 30, border: "none", background: a.note ? CHARCOAL : "#F0F0F3", color: a.note ? "#fff" : P.ink2, cursor: "pointer", fontFamily: "inherit", borderRadius: 8, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+              <Icon name="note" size={15} strokeWidth={1.9} color={a.note ? "#fff" : P.ink2} />
+            </button>
+          )}
         </div>
-        {editable && onEditNote && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onEditNote(idx); }}
-            title={a.note ? "עריכת הערה" : "הוספת הערה"} aria-label={a.note ? "עריכת הערה" : "הוספת הערה"}
-            style={{ flexShrink: 0, width: 30, height: 30, border: "none", background: a.note ? CHARCOAL : "#F0F0F3", color: a.note ? "#fff" : P.ink2, cursor: "pointer", fontFamily: "inherit", borderRadius: 8, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-            <Icon name="note" size={15} strokeWidth={1.9} color={a.note ? "#fff" : P.ink2} />
-          </button>
-        )}
-      </div>
+      )}
 
       {tripActive && !done && onMoveForward && (
         <button onClick={(e) => { e.stopPropagation(); onMoveForward(idx); }}
