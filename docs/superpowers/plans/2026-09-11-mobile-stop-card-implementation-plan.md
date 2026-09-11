@@ -972,11 +972,13 @@ Everything visible changes here. One deploy, one on-device QA round (per the pla
 **Files:**
 - Modify: `src/components/StopCard.jsx`
 - Modify: `src/components/StopCard.test.js`
+- Modify: `src/views/EditorView.jsx` (rewire the `<StopCard>` call site's drag prop; delete the now-dead `onHandleDown` function)
 
 **Interfaces:**
-- Consumes: nothing new.
+- Consumes: `DayStopList`'s existing `beginDrag(pos)` function (`EditorView.jsx:590–595`, confirmed present) — a **zero-argument-at-the-engine-level** entry point already used by `SwipeableRow`'s own long-press-then-move handoff (`EditorView.jsx:1063`: `<SwipeableRow onDragStart={() => beginDrag(pos)} ...>`). `beginDrag` sets `dragRef.current.active = true` and `setDragIdx(pos)`; the list container's existing `onPointerMove={onMove} onPointerUp={onUp}` (`EditorView.jsx:1034`) then drives the reorder purely from bubbled pointer events — no pointer capture or event object required at the trigger site. **This is the exact mechanism `StopCard`'s badge must hook into.**
 - Produces: the card container and Row A per spec §4.1–§4.2. The badge becomes the drag handle (planning mode) and the completion toggle (trip mode); `≡` and the separate completion checkbox are deleted (spec §7.1 #1, #3).
-- New prop: `onDragStart={(pos)=>void}` replaces `onHandleDown` — the badge now initiates drag via `pointerDown` + a 6px movement threshold matching `SwipeableRow`'s existing threshold (`EditorView.jsx:405`), not a raw `onPointerDown` handoff. `onToggleComplete` keeps its existing signature.
+- New prop: `onDragStart={()=>void}` (no `pos` argument needed *inside* `StopCard` — the caller closes over `pos`, mirroring the `SwipeableRow` line above exactly) replaces `onHandleDown` on `StopCard`. The badge initiates a drag via `pointerDown` + a 6px movement threshold matching `SwipeableRow`'s existing threshold (`EditorView.jsx:405`), then calls `onDragStart()` — it does **not** call `onHandleDown` or forward the pointer event; the underlying engine (`beginDrag`/`onMove`/`onUp`/`dragRef`) needs neither. `onToggleComplete` keeps its existing signature.
+- **`EditorView.jsx` wiring change required by this task** (not deferred to a later task): at the `<StopCard>` render call site established by Task A7, replace `onHandleDown={onHandleDown}` with `onDragStart={() => beginDrag(pos)}`. Then delete the now-unreachable `onHandleDown` function definition (`EditorView.jsx:587–593` in the pre-B1 file — re-locate by content, `const onHandleDown = (pos) => (e) => {`) since its only call site (the `≡` handle, deleted in this task per spec §7.1 #1) is gone. **Do not modify `beginDrag`, `onMove`, `onUp`, `dragRef`, `setDragIdx`, or the container's `onPointerMove`/`onPointerUp` wiring** — this task changes what *triggers* the existing engine, not the engine itself.
 
 Implement per spec §4.1 (container: `P.panel` bg, `1px solid P.line`, radius 14, padding `10px 12px`, min-height 76px) and §4.2 (Row A: badge 32×32 radius 8, name 16px/700 2-line clamp, `ניווט` button un-filled at `P.surface`/`P.ink2` height 44, `⋯` 44×44 transparent). The badge state table (§4.2, five rows: Default / User colour / Lodging / Done / Not-done) and the gesture-split rule (tap toggles complete in trip mode; press+move≥6px starts drag) are both load-bearing — implement every row, not just the default.
 
@@ -1063,19 +1065,28 @@ Badge becomes a `<button>` with the pointer handlers described above; on `pointe
 
 **§4.9 breakpoint — `ניווט` icon-only at ≤359px.** Implement via a `ResizeObserver`-free CSS approach: give the card's root a `container-type: inline-size` is unavailable in this codebase's target browsers today (no other component uses CSS container queries — check `DESIGN.md` before introducing the first one), so instead read `window.innerWidth <= 359` with the existing `useState`/`resize`-listener pattern already used elsewhere in the editor (grep `window.innerWidth` in `EditorView.jsx`/`EditorBottomBar.jsx` for the established pattern before writing a new one), and pass the result down as a `compact` prop from `EditorView.jsx` to `StopCard`. When `compact`, render the `ניווט` button with no text label, `width: 44` fixed, icon-only — `aria-label`/`title` stay `"ניווט ב-Google Maps"` unchanged. Add one test: `it("renders ניווט icon-only when compact", () => { render(<StopCard {...baseProps} compact />); expect(screen.getByRole("button", { name: "ניווט ב-Google Maps" }).textContent).not.toMatch(/ניווט/); });`
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [ ] **Step 4: Run `StopCard` tests to verify they pass**
 
 Run: `CI=true npx react-scripts test src/components/StopCard.test.js --watchAll=false`
 Expected: PASS
 
-- [ ] **Step 5: Run the full suite + build**
+- [ ] **Step 5: Rewire `EditorView.jsx` to the new drag trigger, delete dead code**
+
+At the `<StopCard>` render call site (established in Task A7, inside `DayStopList`), replace `onHandleDown={onHandleDown}` with `onDragStart={() => beginDrag(pos)}` — same `pos` variable already in scope there. Delete the `onHandleDown` function (search for `const onHandleDown = (pos) => (e) => {`, was `:587–593` pre-extraction) — confirm via search that it has no other call sites before deleting (Task A7's removal of the `≡` handle already eliminated its only usage inside `renderPlaceRow`/`StopCard`).
+
+- [ ] **Step 6: Run the full suite + build**
 
 Run: `npm run critical && CI=true npm test -- --watchAll=false && npm run build`
+Expected: all green. `beginDrag`, `onMove`, `onUp` are unchanged, so any pre-existing drag-related test (if one exists for `DayStopList`) must still pass unmodified — a failure here means Step 5 touched more than the two intended edits.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Manual smoke on desktop dev server**
+
+Run: `npm start`, open a day with 3+ stops, press-and-drag the badge on a card, confirm it reorders exactly as the old `≡` handle did (same visual lift/shadow, same drop behavior). Tap the badge (no movement) in trip mode, confirm it toggles completion and does not start a drag.
+
+- [ ] **Step 8: Commit**
 
 ```bash
-git add src/components/StopCard.jsx src/components/StopCard.test.js
+git add src/components/StopCard.jsx src/components/StopCard.test.js src/views/EditorView.jsx
 git commit -m "feat(stop-card): redesign Row A — badge absorbs drag+completion, slimmer actions
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
