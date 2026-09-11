@@ -51,3 +51,34 @@ describe("TransitConnector — redesign", () => {
     expect(pill.style.border).not.toMatch(/E0533F/); // P.accent — border must not carry it anymore
   });
 });
+
+describe("TransitConnector — fix round 1 (axis line + terminus dot)", () => {
+  it("renders a centred 2px P.line axis line running the full connector height", () => {
+    const { container } = render(<TransitConnector a={a} b={b} units="km" editable P={LIGHT} />);
+    const line = container.querySelector("span[aria-hidden]");
+    expect(line).toBeInTheDocument();
+    expect(line.style.width).toBe("2px");
+    expect(line.style.background).toBe("rgba(20, 20, 20, 0.08)"); // LIGHT.line, jsdom-normalised
+    expect(line.style.position).toBe("absolute");
+  });
+
+  it("read-only connector also renders the axis line", () => {
+    const { container } = render(<TransitConnector a={a} b={b} units="km" editable={false} P={LIGHT} />);
+    const line = container.querySelector("span[aria-hidden]");
+    expect(line).toBeInTheDocument();
+    expect(line.style.width).toBe("2px");
+  });
+
+  it("terminus renders a 4px P.line dot and nothing else (no pill, no button, no menu)", () => {
+    const { container } = render(<TransitConnector terminus P={LIGHT} />);
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    const dot = container.querySelector("span");
+    expect(dot).toBeInTheDocument();
+    expect(dot.style.width).toBe("4px");
+    expect(dot.style.height).toBe("4px");
+    expect(dot.style.borderRadius).toBe("50%");
+    expect(dot.style.background).toBe("rgba(20, 20, 20, 0.08)"); // LIGHT.line, jsdom-normalised
+    expect(dot.style.marginBlockStart).toBe("6px");
+  });
+});

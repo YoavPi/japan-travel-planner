@@ -20,8 +20,20 @@ const RAIL_MENU = [
    meaning "train/public transit") maps to the `train` glyph. */
 const modeIconFor = (mode) => ({ walk: "walk", car: "car", transit: "train", bus: "bus" }[mode] || "train");
 
-export default function TransitConnector({ a, b, override = null, onSetMode, units, editable = true, P }) {
+export default function TransitConnector({ a, b, override = null, onSetMode, units, editable = true, P, terminus = false }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  /* Fix round 1 — spec §4.7 "First / last stop": after the day's LAST card
+     the axis terminates with a quiet 4px dot instead of continuing into
+     another connector pill. No line, no pill, no mode menu — just the full
+     stop. Hooks above must stay unconditional, so this branches after
+     useState, not before it. */
+  if (terminus) {
+    return (
+      <div aria-hidden style={{ display: "flex", justifyContent: "center" }}>
+        <span style={{ width: 4, height: 4, borderRadius: "50%", background: P.line, marginBlockStart: 6 }} />
+      </div>
+    );
+  }
   const seg = computeTransit(a?.coordinates, b?.coordinates, override, units);
   if (!seg) return null;
   const iconColor = seg.overridden ? P.accent : P.ink3;
@@ -43,9 +55,16 @@ export default function TransitConnector({ a, b, override = null, onSetMode, uni
     background: menuOpen ? P.surface2 : P.surface,
     color: P.ink3, fontSize: 11, fontFamily: "inherit",
     transition: "background 0.18s ease",
+    position: "relative", // stacks above the axis line below (see outer div)
   };
   return (
     <div style={{ display: "flex", justifyContent: "center", padding: "2px 0", position: "relative" }}>
+      {/* Fix round 1 — spec §4.7 axis line: 2px P.line, full gap height,
+          centred — the same track pattern as the insert `+`'s line
+          (EditorView.jsx renderInsertBtn, "הוספה כאן"). Out-of-flow +
+          position:relative on the pill/button (above) keeps the pill
+          painted on top so the line reads as continuing through it. */}
+      <span aria-hidden style={{ position: "absolute", insetInlineStart: "50%", top: 0, bottom: 0, width: 2, background: P.line, transform: "translateX(-50%)" }} />
       {editable ? (
         <>
           <button
@@ -57,6 +76,7 @@ export default function TransitConnector({ a, b, override = null, onSetMode, uni
               display: "inline-flex", alignItems: "center", justifyContent: "center",
               border: "none", background: "transparent", cursor: "pointer",
               paddingBlock: 8, fontFamily: "inherit",
+              position: "relative", // stacks above the axis line (DOM order)
             }}
           >
             <span style={pillStyle}>{inner}</span>

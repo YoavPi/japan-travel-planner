@@ -796,7 +796,7 @@ const DayStopList = ({
                 {/* Sprint 30 — implicit inline commute rail to the next
                     scheduled stop. Mode override persists on the ORIGIN
                     stop (`transitMode`); tapping cycles it inline. */}
-                {pos < scheduleRows.length - 1 && (
+                {pos < scheduleRows.length - 1 ? (
                   <TransitConnector
                     a={a}
                     b={scheduleRows[pos + 1].a}
@@ -806,6 +806,11 @@ const DayStopList = ({
                     editable={editable}
                     P={LIGHT}
                   />
+                ) : (
+                  /* Fix round 1 — spec §4.7 "First / last stop": the axis
+                     terminates with a quiet dot after the day's true last
+                     card, once per day, not a connector between stops. */
+                  <TransitConnector terminus P={LIGHT} />
                 )}
               </React.Fragment>
               );
