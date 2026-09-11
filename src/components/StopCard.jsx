@@ -5,6 +5,7 @@ import { readableInkOn } from "../utils/contrast";
 import mapsUrlFor from "../utils/mapsUrl";
 import { normalizeRating } from "../utils/classify";
 import { LIGHT } from "../utils/theme";
+import { formatMoney } from "../utils/budget";
 
 /* Extracted verbatim from EditorView.jsx's renderPlaceRow (through Sprint
    65) as a behaviour-preserving no-op in Task A6, then redesigned per spec
@@ -58,12 +59,10 @@ export default function StopCard({
   const highRating = Number.isFinite(normRatingNum) && normRatingNum >= 8.5;
   const fileCount = a.attachments?.length ?? 0;
   const showCostItem = !!(showCost && costSummary);
-  const costShekels = showCostItem ? Math.round((costSummary.effectiveMinor || 0) / 100) : 0;
-  const costPlannedShekels = showCostItem ? Math.round((costSummary.plannedMinor || 0) / 100) : 0;
   const costAriaLabel = showCostItem
     ? (costSummary.over
-      ? `עלות: ${costShekels} שקלים, מעל המתוכנן ${costPlannedShekels}`
-      : `עלות: ${costShekels} שקלים${costSummary.paid ? ", שולם" : ""}`)
+      ? `עלות: ${formatMoney(costSummary.effectiveMinor, costSummary.currency)}, מעל המתוכנן ${formatMoney(costSummary.plannedMinor, costSummary.currency)}`
+      : `עלות: ${formatMoney(costSummary.effectiveMinor, costSummary.currency)}${costSummary.paid ? ", שולם" : ""}`)
     : undefined;
 
   const rowBItems = [];
@@ -86,7 +85,7 @@ export default function StopCard({
         style={{
           display: "inline-flex", alignItems: "center", gap: 3,
           background: "none", border: "none", padding: "12px 6px", margin: "-12px -6px",
-          cursor: "pointer", fontFamily: "inherit",
+          cursor: "pointer", fontFamily: "inherit", fontSize: 12.5,
         }}
       >
         {costSummary.paid && <Icon name="check" size={11} strokeWidth={2.4} color={costSummary.over ? P.danger : P.ink2} />}
@@ -104,7 +103,7 @@ export default function StopCard({
         style={{
           display: "inline-flex", alignItems: "center", gap: 3,
           background: "none", border: "none", padding: "12px 6px", margin: "-12px -6px",
-          color: P.ink3, cursor: "pointer", fontFamily: "inherit", fontWeight: 600,
+          color: P.ink3, cursor: "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: 12.5,
         }}
       >
         <Icon name="paperclip" size={12} strokeWidth={2} color={P.ink3} />
