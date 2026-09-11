@@ -69,7 +69,7 @@ export default function StopCard({
         {showCompletion && (
           <button onClick={(e) => { e.stopPropagation(); onToggleComplete && onToggleComplete(idx); }}
             title={done ? "בטלו סימון ביקור" : "סמנו כבוצע"} aria-label={done ? "בטלו סימון ביקור" : "סמנו כבוצע"} aria-pressed={done}
-            style={{ flexShrink: 0, width: 26, height: 26, borderRadius: "50%", border: `1.5px solid ${done ? P.success : P.ink4}`, background: done ? P.success : "transparent", color: "#fff", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
+            style={{ flexShrink: 0, width: 26, height: 26, borderRadius: "50%", border: `1.5px solid ${done ? "#1FA67A" : P.ink4}`, background: done ? "#1FA67A" : "transparent", color: "#fff", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
             {done && <Icon name="check" size={15} strokeWidth={2.6} />}
           </button>
         )}
@@ -95,7 +95,7 @@ export default function StopCard({
               <button
                 onClick={(e) => { e.stopPropagation(); onEditNote(idx); }}
                 title={a.note ? "עריכת הערה" : "הוספת הערה"} aria-label={a.note ? "עריכת הערה" : "הוספת הערה"}
-                style={{ width: 30, height: 30, border: "none", background: a.note ? CHARCOAL : P.surface2, color: a.note ? "#fff" : P.ink2, cursor: "pointer", fontFamily: "inherit", borderRadius: 8, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                style={{ width: 30, height: 30, border: "none", background: a.note ? CHARCOAL : "#F0F0F3", color: a.note ? "#fff" : P.ink2, cursor: "pointer", fontFamily: "inherit", borderRadius: 8, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
                 <Icon name="note" size={15} strokeWidth={1.9} color={a.note ? "#fff" : P.ink2} />
               </button>
             )}
@@ -103,7 +103,7 @@ export default function StopCard({
               <button
                 onClick={(e) => { e.stopPropagation(); onOpenActions && onOpenActions(idx); }}
                 title="פעולות" aria-label="פעולות"
-                style={{ width: 30, height: 30, border: "none", background: P.surface2, color: P.ink2, cursor: "pointer", fontFamily: "inherit", borderRadius: 8, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                style={{ width: 30, height: 30, border: "none", background: "#F0F0F3", color: P.ink2, cursor: "pointer", fontFamily: "inherit", borderRadius: 8, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
                 <Icon name="more" size={16} strokeWidth={1.8} />
               </button>
             )}
@@ -121,7 +121,7 @@ export default function StopCard({
 
       {tripActive && !done && onMoveForward && (
         <button onClick={(e) => { e.stopPropagation(); onMoveForward(idx); }}
-          style={{ marginTop: 6, alignSelf: "flex-start", border: `1px solid ${P.line}`, background: P.panel, padding: "4px 10px", borderRadius: 8, cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 700, color: P.ink2, display: "inline-flex", alignItems: "center", gap: 4 }}>
+          style={{ marginTop: 6, alignSelf: "flex-start", border: `1px solid ${P.line}`, background: "#fff", padding: "4px 10px", borderRadius: 8, cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 700, color: P.ink2, display: "inline-flex", alignItems: "center", gap: 4 }}>
           <Icon name="chevronEnd" size={12} strokeWidth={2.2} /> העבר ליום הבא
         </button>
       )}
@@ -134,7 +134,7 @@ export default function StopCard({
             dir="auto" title={editable ? "עריכת ההערה" : undefined}
             style={{
               display: "flex", alignItems: "flex-start", gap: 6,
-              flex: 1, minWidth: 0, boxSizing: "border-box", background: P.surface2, borderRadius: 8,
+              flex: 1, minWidth: 0, boxSizing: "border-box", background: "#F0F0F3", borderRadius: 8,
               padding: "8px 10px", fontSize: 12, fontWeight: 500, color: "#4A4A55",
               lineHeight: 1.45, whiteSpace: "pre-wrap", wordBreak: "break-word", overflowWrap: "anywhere",
               opacity: done ? 0.6 : 1, cursor: editable && onEditNote ? "pointer" : "default",
