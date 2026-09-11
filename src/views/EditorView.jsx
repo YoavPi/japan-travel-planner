@@ -20,7 +20,6 @@ import StopCard from "../components/StopCard";
 import { listFavoriteIds } from "../services/favoritesService";
 import { track } from "../analytics/posthog";
 import { boundsForDestination, autocomplete, getDetails, isPlacesEnabled, nearbySearch } from "../services/googlePlaces";
-import { computeTransit } from "../utils/transit";
 import { LIGHT } from "../utils/theme";
 import { readableInkOn } from "../utils/contrast";
 import { dedupeDayStops, categoryEmoji, classifyLocation, withFreshInstanceId } from "../utils/classify";
@@ -225,101 +224,6 @@ const AddMenu = ({ onAddLocation, onAddTransit, variant = "fab" }) => {
             ))}
           </div>
         </>
-      )}
-    </div>
-  );
-};
-
-/* ── Transit rail (sits ON the connecting axis between two stops) ──
-   Renders the auto-computed mode + minutes + distance for the IMPLICIT
-   inner-city commute between two sequential place stops (Sprint 30).
-
-   Tapping the capsule does NOT open AddTransitSheet or add a row — it
-   pops a compact inline mode menu (🚶 / 🚗 / 🚆 / 🚌). Picking a mode
-   mutates just this segment's override and recomputes the duration /
-   distance metadata; the choice is persisted on the origin stop by the
-   parent (onSetMode). Macro-logistics (flights, long cross-city rail)
-   stay the domain of the explicit "+" transit button. */
-const RAIL_MENU = [
-  { mode: "walk", emoji: "🚶", label: "הליכה" },
-  { mode: "car", emoji: "🚗", label: "רכב / מונית" },
-  { mode: "transit", emoji: "🚆", label: "רכבת" },
-  { mode: "bus", emoji: "🚌", label: "אוטובוס" },
-];
-const TransitRail = ({ a, b, override = null, onSetMode, units, editable = true }) => {
-  const [hover, setHover] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const seg = computeTransit(a?.coordinates, b?.coordinates, override, units);
-  if (!seg) return null;
-  const active = hover && editable && !menuOpen;
-  const inner = (
-    <>
-      <span aria-hidden>{seg.emoji}</span>
-      <b style={{ color: active ? "#fff" : T.ink2, fontWeight: 700 }}>{seg.minutesLabel}</b>
-      <span style={{ color: active ? "rgba(255,255,255,0.7)" : T.ink4 }}>·</span>
-      <span>{seg.he}</span>
-      <span style={{ color: active ? "rgba(255,255,255,0.7)" : T.ink4 }}>·</span>
-      <span>{seg.distLabel}</span>
-      {editable && (
-        <span aria-hidden style={{ display: "inline-flex", marginInlineStart: 2, fontSize: 9, opacity: hover ? 1 : 0.55 }}>▾</span>
-      )}
-    </>
-  );
-  const baseStyle = {
-    display: "inline-flex", alignItems: "center", gap: 6,
-    padding: "4px 10px", borderRadius: 999,
-    border: `1px solid ${active ? T.ink : (override ? T.accent : T.line)}`,
-    background: active ? T.ink : "#fff",
-    color: active ? "#fff" : T.ink3,
-    fontSize: 11, fontFamily: "inherit",
-    transition: "background 0.18s ease, color 0.18s ease, border-color 0.18s ease",
-  };
-  return (
-    <div style={{ display: "flex", justifyContent: "center", padding: "2px 0", position: "relative" }}>
-      {editable ? (
-        <>
-          <button
-            onClick={() => setMenuOpen((v) => !v)}
-            onMouseEnter={() => setHover(true)}
-            onMouseLeave={() => setHover(false)}
-            aria-haspopup="menu" aria-expanded={menuOpen}
-            title="שינוי אופן המעבר"
-            style={{ ...baseStyle, cursor: "pointer" }}
-          >
-            {inner}
-          </button>
-          {menuOpen && (
-            <>
-              {/* tap-catcher to dismiss */}
-              <div onClick={() => setMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 20 }} />
-              <div role="menu" className="tp-pop" dir="rtl" style={{
-                position: "absolute", top: "100%", marginTop: 4, zIndex: 21,
-                display: "flex", gap: 4, padding: 4, background: "#fff",
-                borderRadius: 999, border: `1px solid ${T.line}`,
-                boxShadow: "0 10px 30px rgba(0,0,0,0.16)",
-              }}>
-                {RAIL_MENU.map((m) => {
-                  const on = seg.mode === m.mode;
-                  return (
-                    <button key={m.mode} role="menuitemradio" aria-checked={on}
-                      title={m.label}
-                      onClick={() => { onSetMode && onSetMode(m.mode); setMenuOpen(false); }}
-                      style={{
-                        width: 34, height: 34, borderRadius: "50%", cursor: "pointer",
-                        border: `1px solid ${on ? T.ink : T.line}`, background: on ? T.ink : "#fff",
-                        fontSize: 16, lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center",
-                        fontFamily: "inherit", transition: "background 0.15s, border-color 0.15s",
-                      }}>
-                      <span aria-hidden style={{ filter: on ? "none" : "grayscale(0.15)" }}>{m.emoji}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </>
-          )}
-        </>
-      ) : (
-        <span style={baseStyle}>{inner}</span>
       )}
     </div>
   );
@@ -837,192 +741,6 @@ const DayStopList = ({
           );
   };
 
-  /* ── Place card row (sections a + c renderer) ──
-     `idx` = original index into the day array (drives all callbacks);
-     `pos` = position within the SCHEDULE section (numbering + drag) —
-     null for lodging rows, which render in the locked anchor block. */
-  const renderPlaceRow = (a, idx, pos, lodging = false) => {
-        /* Completion is a Trip-Mode (or live field-ops) concept: only then
-           do we surface the per-stop checkbox + dimmed "visited" styling. */
-        const showCompletion = tripActive || liveOps;
-        const done = showCompletion && !!a.completed;
-        const canNavigate = !!(onNavigate && a.coordinates);
-        const note = a.note || a.comment || a.annotation || a.quote; // personal logbook line
-        const hotelSpan = a._hotelGroup ? a._hotelSpan : null;
-        const dragging = pos != null && dragIdx === pos;
-        /* Sprint 55 — FLAT 3-COLOUR CARD SYSTEM: solid white blocks, a charcoal
-           index badge, and a single coral accent reserved for hotels + high
-           ratings. The pastel `_theme` CARD BACKGROUND stays dropped — the flat
-           white block is deliberate.
-           2026-09-06 — but `_theme` was left with no rendering path at all here,
-           so the colour pickers (this sheet's PASTELS + the long-press THEMES)
-           were write-only: the user picked a colour and nothing ever changed in
-           the day timeline they were looking at. The colour now lands on the
-           INDEX BADGE, matching how the continuous-route list already paints it,
-           without reintroducing pastel card fills. Foreground is derived, never
-           assumed — the two palettes span `#EBCB93` to `#0D0F11` and a
-           hard-coded white was 1.55:1 on the lightest. */
-        const CHARCOAL = "#1E1E24";
-        const CORAL = "#FF6B6B";
-        /* done (dimmed) > user's explicit colour > lodging > default */
-        const badgeBg = done ? T.ink4 : (a._theme || (lodging ? CORAL : CHARCOAL));
-        const badgeFg = readableInkOn(badgeBg);
-        const subtitle = lodging ? `מלון${hotelSpan ? ` · ${hotelSpan.total} לילות` : ""}` : (a.category || "");
-        const hasNav = a.coordinates && Number.isFinite(a.coordinates.lat) && Number.isFinite(a.coordinates.lng);
-        const rNum = parseFloat(String(a.rating));
-        const highRating = Number.isFinite(rNum) && rNum >= 8.5; // /10 scale
-        return (
-          <div
-            ref={(el) => { if (pos != null) rowRefs.current[pos] = el; }}
-            /* Sprint 62 #1/#2 — stable DOM hook so day-select can scroll to the
-               first row and the stop-detail ✕ return stack can scroll back to
-               the exact row the card was opened from. */
-            data-stop-idx={idx}
-            style={{
-              /* Sprint 55 #1 — opaque flat card block: solid fill, uniform 14px
-                 corners, crisp neutral edge, no blur / pastel outlines. */
-              /* Sprint 65 #7 — tighter vertical rhythm (py-3 → py-1.5) so more
-                 stop rows fit on screen without hurting touch targets. */
-              display: "flex", flexDirection: "column", gap: note ? 6 : 0,
-              padding: "7px 12px", marginBottom: 6,
-              userSelect: "none", WebkitUserSelect: "none", msUserSelect: "none", WebkitTouchCallout: "none",
-              background: done ? "#F0F0F3" : "#fff",
-              border: `1px solid ${dragging ? "transparent" : "#ECECEF"}`,
-              borderRadius: 14,
-              boxShadow: dragging ? "0 10px 30px rgba(0,0,0,0.16)" : "none",
-              transform: dragging ? "scale(1.02)" : "scale(1)",
-              zIndex: dragging ? 2 : "auto", position: "relative",
-              transition: dragging ? "none" : "transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease",
-            }}
-          >
-            {/* Sprint 58 #6 — TITLE ROW: badge + full-width title that wraps up
-                to two lines (never truncated to a single clipped line). The
-                interactive buttons live on a dedicated secondary row below. */}
-            <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-              {/* Index badge — charcoal by default, coral for lodging, or the
-                  stop's own `_theme` colour when the user has set one. */}
-              <div aria-hidden style={{
-                flexShrink: 0, width: 28, height: 28, borderRadius: 8, marginTop: 1,
-                background: badgeBg, color: badgeFg,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 13, fontWeight: 800, fontVariantNumeric: "tabular-nums",
-              }}>{lodging ? <Icon name="bed" size={15} strokeWidth={2} color={badgeFg} /> : (pos != null ? pos + 1 : "•")}</div>
-
-              <div
-                onClick={() => canNavigate && onNavigate(a)}
-                title={canNavigate ? "מעבר למיקום על המפה" : undefined}
-                style={{ flex: 1, minWidth: 0, opacity: done ? 0.55 : 1, cursor: canNavigate ? "pointer" : "default" }}
-              >
-                <div dir="auto" style={{
-                  fontSize: 16, fontWeight: 800, color: "#111114", lineHeight: 1.3,
-                  display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
-                  overflow: "hidden", wordBreak: "break-word",
-                  textDecoration: done ? "line-through" : "none", textDecorationColor: done ? T.ink4 : "transparent",
-                }}>{a.nameHe || a.name}</div>
-              </div>
-
-              {/* Completion checkbox — Trip Mode / live ops only (top-right). */}
-              {showCompletion && (
-                <button onClick={(e) => { e.stopPropagation(); onToggleComplete && onToggleComplete(idx); }}
-                  title={done ? "בטלו סימון ביקור" : "סמנו כבוצע"} aria-label={done ? "בטלו סימון ביקור" : "סמנו כבוצע"} aria-pressed={done}
-                  style={{ flexShrink: 0, width: 26, height: 26, borderRadius: "50%", border: `1.5px solid ${done ? "#1FA67A" : T.ink4}`, background: done ? "#1FA67A" : "transparent", color: "#fff", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
-                  {done && <Icon name="check" size={15} strokeWidth={2.6} />}
-                </button>
-              )}
-            </div>
-
-            {/* Sprint 58 #6 — SECONDARY CONTROL ROW: rating/subtitle metadata on
-                the reading edge, with the ניווט + ⋯ + drag controls dropped
-                beneath the title so they never crowd out the location name. */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, opacity: done ? 0.55 : 1 }}>
-              <div dir="auto" style={{ flex: 1, minWidth: 0, fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {a.rating && <span style={{ color: highRating ? CORAL : T.ink3, fontWeight: highRating ? 800 : 700 }}>★ {a.rating}</span>}
-                {a.rating && subtitle && <span style={{ color: T.ink4, fontWeight: 600 }}> · </span>}
-                {subtitle && <span style={{ color: lodging ? CORAL : T.ink3, fontWeight: lodging ? 800 : 600 }}>{subtitle}</span>}
-              </div>
-              {/* Navigation is a VIEW action (opens Google Maps) — available even
-                  in read-only/shared mode; the edit controls below are gated. */}
-              {(editable || hasNav) && (
-                <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 6 }}>
-                  {hasNav && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); const u = mapsUrlFor(a); if (u) window.open(u, "_blank", "noopener,noreferrer"); }}
-                      title="ניווט ב-Google Maps" aria-label="ניווט ב-Google Maps" className="tp-press"
-                      style={{ height: 30, padding: "0 10px", border: "none", background: CHARCOAL, color: "#fff", cursor: "pointer", fontFamily: "inherit", borderRadius: 8, fontSize: 12.5, fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 5 }}>
-                      <Icon name="pin" size={13} strokeWidth={2} color="#fff" />ניווט
-                    </button>
-                  )}
-                  {/* Sprint 62 #3 — direct quick-note trigger: opens the
-                      NoteSheet for THIS stop without the 3-dots detour. */}
-                  {editable && onEditNote && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onEditNote(idx); }}
-                      title={a.note ? "עריכת הערה" : "הוספת הערה"} aria-label={a.note ? "עריכת הערה" : "הוספת הערה"}
-                      style={{ width: 30, height: 30, border: "none", background: a.note ? "#1E1E24" : "#F0F0F3", color: a.note ? "#fff" : T.ink2, cursor: "pointer", fontFamily: "inherit", borderRadius: 8, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-                      <Icon name="note" size={15} strokeWidth={1.9} color={a.note ? "#fff" : T.ink2} />
-                    </button>
-                  )}
-                  {editable && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onOpenActions && onOpenActions(idx); }}
-                      title="פעולות" aria-label="פעולות"
-                      style={{ width: 30, height: 30, border: "none", background: "#F0F0F3", color: T.ink2, cursor: "pointer", fontFamily: "inherit", borderRadius: 8, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-                      <Icon name="more" size={16} strokeWidth={1.8} />
-                    </button>
-                  )}
-                  {editable && pos != null && (
-                    <button
-                      onPointerDown={onHandleDown(pos)}
-                      title="גררו לסידור מחדש"
-                      style={{ width: 24, height: 30, border: "none", background: "transparent", color: T.ink4, cursor: "grab", touchAction: "none", fontSize: 16, fontFamily: "inherit" }}>
-                      ≡
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Trip-Mode "move forward" / rollover quick actions. */}
-            {tripActive && !done && onMoveForward && (
-              <button onClick={(e) => { e.stopPropagation(); onMoveForward(idx); }}
-                style={{ marginTop: 6, alignSelf: "flex-start", border: `1px solid ${T.line}`, background: "#fff", padding: "4px 10px", borderRadius: 8, cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 700, color: T.ink2, display: "inline-flex", alignItems: "center", gap: 4 }}>
-                <Icon name="chevronEnd" size={12} strokeWidth={2.2} /> העבר ליום הבא
-              </button>
-            )}
-
-            {/* Sprint 61 #1 — DIRECTLY-INTERACTIVE NOTE TICKET: the light-gray
-                panel is now a tap target that opens the rapid inline editor.
-                A compact file pill (📎) sits beside it when attachments exist. */}
-            {(note || (a.attachments && a.attachments.length)) && (
-              <div style={{ display: "flex", alignItems: "stretch", gap: 6, width: "100%" }}>
-                <div
-                  role={editable && onEditNote ? "button" : undefined}
-                  onClick={editable && onEditNote ? (e) => { e.stopPropagation(); onEditNote(idx); } : undefined}
-                  dir="auto" title={editable ? "עריכת ההערה" : undefined}
-                  style={{
-                    display: "flex", alignItems: "flex-start", gap: 6,
-                    flex: 1, minWidth: 0, boxSizing: "border-box", background: "#F0F0F3", borderRadius: 8,
-                    padding: "8px 10px", fontSize: 12, fontWeight: 500, color: "#4A4A55",
-                    lineHeight: 1.45, whiteSpace: "pre-wrap", wordBreak: "break-word", overflowWrap: "anywhere",
-                    opacity: done ? 0.6 : 1, cursor: editable && onEditNote ? "pointer" : "default",
-                  }}>
-                  <span style={{ flexShrink: 0, marginTop: 1, color: T.ink3 }}><Icon name="note" size={13} strokeWidth={1.9} /></span>
-                  <span style={{ flex: 1, minWidth: 0 }}>{note || "הוספת הערה…"}</span>
-                </div>
-                {/* Sprint 61 #5 — attachment pills: tap to open the document. */}
-                {a.attachments && a.attachments.map((f, fi) => (
-                  <button key={fi} onClick={(e) => { e.stopPropagation(); onOpenAttachment && onOpenAttachment(f, idx, fi); }}
-                    title={f.name || "מסמך מצורף"} aria-label={f.name || "מסמך מצורף"} className="tp-press"
-                    style={{ flexShrink: 0, alignSelf: "stretch", minWidth: 36, padding: "0 8px", border: "none", background: "#1E1E24", color: "#fff", borderRadius: 8, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4, fontSize: 11, fontWeight: 800 }}>
-                    <span aria-hidden style={{ fontSize: 13 }}>📎</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-  };
-
   /* Sprint 36 #10 — Day 1 flight/transit block, rendered ABOVE the day
      schedule so departures pin to the top of the list. */
   const transitBlock = transitRows.length > 0 ? (
@@ -1047,7 +765,19 @@ const DayStopList = ({
                 cards + centred insert-track lines now carry the vertical path. */}
             {scheduleRows.map(({ a, idx }, pos) => {
               const lodging = isLodgingNode(a);
-              const row = renderPlaceRow(a, idx, pos, lodging);
+              const dragging = pos != null && dragIdx === pos;
+              const row = (
+                <StopCard
+                  stop={a} idx={idx} pos={pos} lodging={lodging}
+                  tripActive={tripActive} liveOps={liveOps} editable={editable}
+                  dragging={dragging} P={LIGHT}
+                  onNavigate={onNavigate} onToggleComplete={onToggleComplete}
+                  onEditNote={onEditNote} onOpenActions={onOpenActions}
+                  onMoveForward={onMoveForward} onOpenAttachment={onOpenAttachment}
+                  onHandleDown={onHandleDown}
+                  rowRef={(el) => { if (pos != null) rowRefs.current[pos] = el; }}
+                />
+              );
               const notes = noteRuns[pos] || [];
               return (
               <React.Fragment key={`${a.place_id || a.id || a.name}-${idx}`}>
@@ -1072,13 +802,14 @@ const DayStopList = ({
                     scheduled stop. Mode override persists on the ORIGIN
                     stop (`transitMode`); tapping cycles it inline. */}
                 {pos < scheduleRows.length - 1 && (
-                  <TransitRail
+                  <TransitConnector
                     a={a}
                     b={scheduleRows[pos + 1].a}
                     override={a.transitMode || null}
                     onSetMode={(mode) => onSetTransitMode && onSetTransitMode(idx, mode)}
                     units={units}
                     editable={editable}
+                    P={LIGHT}
                   />
                 )}
               </React.Fragment>
