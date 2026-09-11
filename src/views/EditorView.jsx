@@ -491,14 +491,6 @@ const DayStopList = ({
     noteRuns.trailing = pend;
   }
 
-  const onHandleDown = (pos) => (e) => {
-    if (!editable) return;
-    e.preventDefault();
-    e.stopPropagation();
-    dragRef.current = { active: true };
-    setDragIdx(pos);
-    try { e.target.setPointerCapture?.(e.pointerId); } catch { /* noop */ }
-  };
   /* Sprint 37 #2 — long-press-then-move entry point (no event needed): the
      SwipeableRow calls this to hand its live pointer stream to the list's
      reorder engine. The container's onPointerMove/onUp take over from here. */
@@ -774,7 +766,7 @@ const DayStopList = ({
                   onNavigate={onNavigate} onToggleComplete={onToggleComplete}
                   onEditNote={onEditNote} onOpenActions={onOpenActions}
                   onMoveForward={onMoveForward} onOpenAttachment={onOpenAttachment}
-                  onHandleDown={onHandleDown}
+                  onDragStart={() => beginDrag(pos)}
                   rowRef={(el) => { if (pos != null) rowRefs.current[pos] = el; }}
                 />
               );

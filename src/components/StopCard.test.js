@@ -10,7 +10,7 @@ const baseStop = {
 const baseProps = {
   stop: baseStop, idx: 0, pos: 0, editable: true, P: LIGHT,
   onNavigate: jest.fn(), onToggleComplete: jest.fn(), onEditNote: jest.fn(),
-  onOpenActions: jest.fn(), onHandleDown: () => () => {},
+  onOpenActions: jest.fn(), onDragStart: () => {},
 };
 
 describe("StopCard — extraction invariants", () => {
@@ -40,16 +40,58 @@ describe("StopCard — extraction invariants", () => {
     expect(onEditNote).toHaveBeenCalledWith(2);
   });
 
-  it("hides ⋯ and drag handle when editable is false, keeps navigation", () => {
-    render(<StopCard {...baseProps} editable={false} />);
-    expect(screen.queryByRole("button", { name: "פעולות" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "ניווט ב-Google Maps" })).toBeInTheDocument();
-  });
-
   it("every interactive child stops propagation so the card body click doesn't also fire", () => {
     const onNavigate = jest.fn();
     render(<StopCard {...baseProps} onNavigate={onNavigate} />);
     fireEvent.click(screen.getByRole("button", { name: "פעולות" }));
     expect(onNavigate).not.toHaveBeenCalled();
+  });
+});
+
+describe("StopCard — Row A redesign", () => {
+  it("T-CARD-01: tapping the badge in trip mode toggles complete", () => {
+    const onToggleComplete = jest.fn();
+    render(<StopCard {...baseProps} tripActive onToggleComplete={onToggleComplete} idx={1} />);
+    fireEvent.pointerDown(screen.getByRole("button", { name: /סמנו כבוצע|בטלו סימון ביקור/ }));
+    fireEvent.pointerUp(screen.getByRole("button", { name: /סמנו כבוצע|בטלו סימון ביקור/ }));
+    expect(onToggleComplete).toHaveBeenCalledWith(1);
+  });
+
+  it("T-CARD-02: tapping the badge in planning mode does nothing and does not navigate", () => {
+    const onNavigate = jest.fn();
+    render(<StopCard {...baseProps} tripActive={false} onNavigate={onNavigate} />);
+    const badge = screen.getByRole("button", { name: /תחנה/ });
+    fireEvent.pointerDown(badge);
+    fireEvent.pointerUp(badge);
+    expect(onNavigate).not.toHaveBeenCalled();
+  });
+
+  it("T-CARD-03 (partial): press-and-move beyond 6px on the badge fires onDragStart", () => {
+    const onDragStart = jest.fn();
+    render(<StopCard {...baseProps} onDragStart={onDragStart} />);
+    const badge = screen.getByRole("button", { name: /תחנה/ });
+    fireEvent.pointerDown(badge, { clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(badge, { clientX: 0, clientY: 10 });
+    expect(onDragStart).toHaveBeenCalled();
+  });
+
+  it("a move under 6px does not start a drag", () => {
+    const onDragStart = jest.fn();
+    render(<StopCard {...baseProps} onDragStart={onDragStart} />);
+    const badge = screen.getByRole("button", { name: /תחנה/ });
+    fireEvent.pointerDown(badge, { clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(badge, { clientX: 0, clientY: 3 });
+    expect(onDragStart).not.toHaveBeenCalled();
+  });
+
+  it("T-CARD-09 (first half): read-only hides drag/actions, keeps ניווט", () => {
+    render(<StopCard {...baseProps} editable={false} />);
+    expect(screen.queryByRole("button", { name: "פעולות" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "ניווט ב-Google Maps" })).toBeInTheDocument();
+  });
+
+  it("renders ניווט icon-only when compact", () => {
+    render(<StopCard {...baseProps} compact />);
+    expect(screen.getByRole("button", { name: "ניווט ב-Google Maps" }).textContent).not.toMatch(/ניווט/);
   });
 });
