@@ -36,8 +36,8 @@ export default function StopCard({
         display: "flex", flexDirection: "column", gap: note ? 6 : 0,
         padding: "7px 12px", marginBottom: 6,
         userSelect: "none", WebkitUserSelect: "none", msUserSelect: "none", WebkitTouchCallout: "none",
-        background: done ? P.surface2 : P.panel,
-        border: `1px solid ${dragging ? "transparent" : P.line}`,
+        background: done ? "#F0F0F3" : P.panel,
+        border: `1px solid ${dragging ? "transparent" : "#ECECEF"}`,
         borderRadius: 14,
         boxShadow: dragging ? "0 10px 30px rgba(0,0,0,0.16)" : "none",
         transform: dragging ? "scale(1.02)" : "scale(1)",
@@ -59,7 +59,7 @@ export default function StopCard({
           style={{ flex: 1, minWidth: 0, opacity: done ? 0.55 : 1, cursor: canNavigate ? "pointer" : "default" }}
         >
           <div dir="auto" style={{
-            fontSize: 16, fontWeight: 800, color: P.ink, lineHeight: 1.3,
+            fontSize: 16, fontWeight: 800, color: "#111114", lineHeight: 1.3,
             display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
             overflow: "hidden", wordBreak: "break-word",
             textDecoration: done ? "line-through" : "none", textDecorationColor: done ? P.ink4 : "transparent",
@@ -135,7 +135,7 @@ export default function StopCard({
             style={{
               display: "flex", alignItems: "flex-start", gap: 6,
               flex: 1, minWidth: 0, boxSizing: "border-box", background: P.surface2, borderRadius: 8,
-              padding: "8px 10px", fontSize: 12, fontWeight: 500, color: P.ink2,
+              padding: "8px 10px", fontSize: 12, fontWeight: 500, color: "#4A4A55",
               lineHeight: 1.45, whiteSpace: "pre-wrap", wordBreak: "break-word", overflowWrap: "anywhere",
               opacity: done ? 0.6 : 1, cursor: editable && onEditNote ? "pointer" : "default",
             }}>
