@@ -150,12 +150,11 @@ export default function StopCard({
     ? (done ? P.success : "transparent")
     : (a._theme || (lodging ? P.accent : P.ink));
   const badgeBorder = showCompletion && !done ? `1.5px solid ${P.ink3}` : "none";
-  const doneFg = readableInkOn(P.success);
   const badgeFg = showCompletion
-    ? (done ? doneFg : P.ink2)
+    ? (done ? "#fff" : P.ink2)
     : readableInkOn(badgeBg);
   const badgeContent = showCompletion
-    ? (done ? <Icon name="check" size={16} strokeWidth={2.6} color={doneFg} /> : (pos != null ? pos + 1 : "•"))
+    ? (done ? <Icon name="check" size={16} strokeWidth={2.6} color="#fff" /> : (pos != null ? pos + 1 : "•"))
     : (lodging ? <Icon name="bed" size={15} strokeWidth={2} color={badgeFg} /> : (pos != null ? pos + 1 : "•"));
 
   const posLabel = pos != null ? pos + 1 : "";
