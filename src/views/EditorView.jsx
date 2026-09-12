@@ -427,11 +427,11 @@ const DayStopList = ({
   flightsFirst = false,
   /* Sprint 11 — live field-ops mode (only when this trip is the
      "active"/live trip). Reveals per-stop check-off. */
-  liveOps = false, onToggleComplete, onMoveForward,
+  liveOps = false, onToggleComplete,
   /* Sprint 21 — Trip-Mode gated affordances. `tripActive` (the green
-     "טיול פעיל" badge state) reveals the per-stop completion checkbox and
-     the explicit "העבר ליום הבא" move button. `onNavigate` makes tapping a
-     card body fly the map to that stop + collapse the sheet.
+     "טיול פעיל" badge state) reveals the per-stop completion checkbox.
+     `onNavigate` makes tapping a card body fly the map to that stop +
+     collapse the sheet.
      Sprint 55 #2 — the pencil (note) and clipboard (copy) affordances were
      migrated OFF the card into the ⋯ actions sheet to declutter the row. */
   tripActive = false, onNavigate,
@@ -774,7 +774,7 @@ const DayStopList = ({
                   dragging={dragging} P={LIGHT}
                   onNavigate={onNavigate} onToggleComplete={onToggleComplete}
                   onEditNote={onEditNote} onOpenActions={onOpenActions}
-                  onMoveForward={onMoveForward} onOpenAttachment={onOpenAttachment}
+                  onOpenAttachment={onOpenAttachment}
                   onDragStart={() => beginDrag(pos)}
                   rowRef={(el) => { if (pos != null) rowRefs.current[pos] = el; }}
                   /* B6 — per-stop cost badge + files affordance. */
@@ -2255,28 +2255,6 @@ const EditorView = () => {
     setActionsIdx(-1);
   }, [activeDay, actionsIdx, commitDays]);
 
-  /* Sprint 20 #5d — inline "move to next day" by explicit stop index.
-     Powers an always-visible +1d quick action on every location card &
-     transit segment (no menu needed). Mirrors moveStopToNextDay but
-     targets the row directly instead of the selected actions index. */
-  const moveStopForward = useCallback((index) => {
-    commitDays((days) => {
-      const sorted = [...days].sort((a, b) => a.day - b.day);
-      const from = sorted.find((d) => d.day === activeDay);
-      if (!from || index < 0 || index >= from.attractions.length) return days;
-      const [moved] = from.attractions.splice(index, 1);
-      if (!moved) return days;
-      let to = sorted.find((d) => d.day > activeDay);
-      if (!to) {
-        const maxDay = sorted.reduce((m, d) => Math.max(m, d.day), 0);
-        to = { day: maxDay + 1, city: from.city, cityHe: from.cityHe, attractions: [] };
-        days.push(to);
-      }
-      to.attractions = dedupeDayStops([moved, ...to.attractions]);
-      return days;
-    });
-  }, [activeDay, commitDays]);
-
   /* Sprint 19.6 — "פצל יום": take the active stop AND every stop after it
      in the day and move the whole tail into the next day (prepended, so
      their relative order is preserved). Creates a next day if needed. */
@@ -3514,7 +3492,6 @@ const EditorView = () => {
                     liveOps={isActiveTrip}
                     tripActive={tripMode}
                     onToggleComplete={toggleComplete}
-                    onMoveForward={moveStopForward}
                     onNavigate={navigateToStop}
                     onEditTransit={(i) => setEditTransitIdx(i)}
                     onSetTransitMode={setTransitMode}
@@ -4457,7 +4434,6 @@ const EditorView = () => {
         </div>
       )}
       <style>{`
-        @keyframes tpSkeleton{0%{background-position:200% 0}100%{background-position:-200% 0}}
         @keyframes tp-pulse{0%{transform:translate(-50%,-50%) scale(0.6);opacity:0.9}70%{transform:translate(-50%,-50%) scale(2.2);opacity:0}100%{opacity:0}}
         /* Sprint 50 #3 — active-mode focus: neon pulsing ring on the live FAB. */
         @keyframes tp-focus-glow{0%,100%{box-shadow:0 6px 20px rgba(0,0,0,0.22),0 0 0 0 rgba(31,166,122,0.55)}50%{box-shadow:0 6px 20px rgba(0,0,0,0.22),0 0 0 9px rgba(31,166,122,0)}}

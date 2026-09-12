@@ -34,7 +34,7 @@ export default function StopCard({
   stop: a, idx, pos, lodging = false, tripActive = false, liveOps = false,
   editable = true, dragging = false, P, compact,
   costSummary = null, showCost = false, onOpenCost, onOpenFiles,
-  onNavigate, onToggleComplete, onEditNote, onOpenActions, onMoveForward,
+  onNavigate, onToggleComplete, onEditNote, onOpenActions,
   onOpenAttachment, onDragStart, rowRef,
 }) {
   const showCompletion = tripActive || liveOps;
@@ -96,7 +96,7 @@ export default function StopCard({
   if (fileCount > 0) {
     /* §4.6 — 1 file opens AttachmentViewer directly (existing
        onOpenAttachment(f, idx, 0) path, zero new plumbing); >1 opens
-       TripFilesSheet via the new onOpenFiles(idx) path (Task B5 wires
+       TripFilesSheet via the new onOpenFiles(idx) path (Task B6 wires
        that to focusStop={{ day, stopIdx: idx }}). */
     const onFilesClick = (e) => {
       e.stopPropagation();
@@ -147,14 +147,15 @@ export default function StopCard({
      Planning mode keeps the original precedence: a user colour (_theme)
      wins over lodging, which wins over the plain position number. */
   const badgeBg = showCompletion
-    ? (done ? "#1FA67A" : "transparent")
+    ? (done ? P.success : "transparent")
     : (a._theme || (lodging ? P.accent : P.ink));
   const badgeBorder = showCompletion && !done ? `1.5px solid ${P.ink3}` : "none";
+  const doneFg = readableInkOn(P.success);
   const badgeFg = showCompletion
-    ? (done ? "#fff" : P.ink2)
+    ? (done ? doneFg : P.ink2)
     : readableInkOn(badgeBg);
   const badgeContent = showCompletion
-    ? (done ? <Icon name="check" size={16} strokeWidth={2.6} color="#fff" /> : (pos != null ? pos + 1 : "•"))
+    ? (done ? <Icon name="check" size={16} strokeWidth={2.6} color={doneFg} /> : (pos != null ? pos + 1 : "•"))
     : (lodging ? <Icon name="bed" size={15} strokeWidth={2} color={badgeFg} /> : (pos != null ? pos + 1 : "•"));
 
   const posLabel = pos != null ? pos + 1 : "";
@@ -346,13 +347,6 @@ export default function StopCard({
             <span className="tp-note-clamp" style={{ fontSize: 12.5, fontWeight: 500, color: P.ink2, lineHeight: 1.45, wordBreak: "break-word", flex: 1, minWidth: 0 }}>{note}</span>
           </div>
         )
-      )}
-
-      {tripActive && !done && onMoveForward && (
-        <button onClick={(e) => { e.stopPropagation(); onMoveForward(idx); }}
-          style={{ marginTop: 6, alignSelf: "flex-start", border: `1px solid ${P.line}`, background: "#fff", padding: "4px 10px", borderRadius: 8, cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 700, color: P.ink2, display: "inline-flex", alignItems: "center", gap: 4 }}>
-          <Icon name="chevronEnd" size={12} strokeWidth={2.2} /> העבר ליום הבא
-        </button>
       )}
 
     </div>
